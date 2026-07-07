@@ -16,7 +16,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
-import * as Print from 'expo-print';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 
 // ===== Polyfill for SharedArrayBuffer =====
@@ -856,48 +855,7 @@ const HomePage = () => {
     } catch (error) {
       showToast('导出失败');
     }
-  };
-
-  // 新增：生成PDF对账单
-  const generatePDF = async () => {
-    try {
-      const html = `
-        <html>
-          <body>
-            <h1>📋 经营对账单</h1>
-            <p>门店：${state.shopInfo.shopName || '未命名'}</p>
-            <p>日期：${moment().format('YYYY-MM-DD HH:mm')}</p>
-            <hr/>
-            <table border="1" cellpadding="5">
-              <tr><th>序号</th><th>订单号</th><th>平台</th><th>金额</th><th>时间</th></tr>
-              ${state.globalOrderRecord.slice(0, 20).map((o, i) => `
-                <tr>
-                  <td>${i+1}</td>
-                  <td>${o.code || 'N/A'}</td>
-                  <td>${o.platform}</td>
-                  <td>¥${o.couponPrice}</td>
-                  <td>${moment(o.time).format('MM-DD HH:mm')}</td>
-                </tr>
-              `).join('')}
-            </table>
-            <p>总计订单：${state.globalOrderRecord.length} 单</p>
-            <p>总营收：¥${state.globalOrderRecord.reduce((s,o)=>s+o.couponPrice,0)}</p>
-          </body>
-        </html>
-      `;
-      const { uri } = await Print.printToFileAsync({ html });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri);
-      } else {
-        showToast('分享功能不可用');
-      }
-    } catch (error) {
-      console.error(error);
-      showToast('生成PDF失败');
-    }
-  };
-
-  const menuList = [
+  };const menuList = [
     { icon: "🎫", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
     { icon: "📦", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
     { icon: "👥", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
@@ -981,15 +939,11 @@ const HomePage = () => {
             bezier
             style={{ marginVertical: 8, borderRadius: 8 }}
           />
-          <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
-            <TouchableOpacity style={styles.exportBtn} onPress={exportData}>
-              <Text style={styles.exportBtnText}>📤 导出CSV</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.exportBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={generatePDF}>
-              <Text style={styles.exportBtnText}>📄 对账单PDF</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+         <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
+  <TouchableOpacity style={styles.exportBtn} onPress={exportData}>
+    <Text style={styles.exportBtnText}>📤 导出CSV</Text>
+  </TouchableOpacity>
+</View>
 
         {latestReport && (
           <View style={styles.dailyReportCard}>
