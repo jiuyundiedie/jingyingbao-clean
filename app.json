@@ -1,4 +1,16 @@
 {
-  "name": "jingyingbao-clean",
-  "slug": "jingyingbao-clean"
+  "expo": {
+    "name": "经营宝",
+    "slug": "jingyingbao",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.xxx.jingyingbao"
+    }
+  }
 }
