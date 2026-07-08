@@ -626,9 +626,21 @@ const LoginScreen = () => {
     const shopInfo = { shopName, phone, industry, staffList: [] };
     dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-    navigation.replace('RootTabs');
+    try {
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+    } catch (e) {
+      console.warn('存储失败', e);
+    }
+    // 延迟跳转，确保状态更新和存储完成
+    setTimeout(() => {
+      try {
+        navigation.replace('RootTabs');
+      } catch (e) {
+        console.error('跳转失败', e);
+        showToast('登录成功但跳转失败，请重启应用');
+      }
+    }, 150);
   };
 
   return (
@@ -923,7 +935,7 @@ const HomePage = () => {
           <Text style={styles.chartTitle}>📈 近7日营收趋势</Text>
           <LineChart
             data={chartData}
-            width={width - 64}
+            width={Math.max(width - 64, 100)}
             height={160}
             chartConfig={{
               backgroundColor: '#ffffff',
