@@ -1212,65 +1212,805 @@ const SwitchAccountScreen = () => {
       </TouchableOpacity>
     </View>
   );
-};// ========== AI 助手页面 ==========
-const MerchantAssistant = () => {
+};// ========== 导航定义 ==========
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// ========== 订单核销页面（含库存联动） ==========
+const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const scrollViewRef = useRef(null);
+  const [orderCode, setOrderCode] = useState('');
+  const [platform, setPlatform] = useState('美团');
+  const [couponPrice, setCouponPrice] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
 
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        { id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。', from: 'ai', time: new Date().toISOString() }
-      ]);
-    }
+    (async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
   }, []);
 
-  const handleMarketing = (type) => {
-    let prompt = '';
-    switch (type) {
-      case '文案':
-        prompt = '请为我生成一条吸引人的营销文案，用于推广我的餐饮店，要求简洁有力，突出特色。';
-        break;
-      case '海报':
-        prompt = '请为我设计一张宣传海报的文字描述，包含主题、色彩建议和主要文案，用于吸引顾客。';
-        break;
-      case '广告语':
-        prompt = '请为我生成一条简短有力的广告语，用于宣传我的店铺，朗朗上口，易于记忆。';
-        break;
-      default:
-        return;
+  const handleVerify = () => {
+    if (!orderCode.trim()) { showToast('请输入核销码'); return; }
+    const price = parseFloat(couponPrice);
+    if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
+    
+    if (selectedGoodsId) {
+      const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+      if (goods) {
+        if (goods.stock < 1) {
+          Alert.alert('库存不足', `${goods.name} 库存不足，当前剩余 ${goods.stock}`);
+          return;
+        }
+        const updatedGoods = state.goodsList.map(g =>
+          g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g
+        );
+        dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+        showToast(`已扣减 ${goods.name} 库存 1 件`);
+      }
     }
-    setInputText(prompt);
+
+    const record = {
+      id: Date.now().toString(),
+      code: orderCode.trim(),
+      platform,
+      couponPrice: price,
+      time: new Date().toISOString(),
+      goodsId: selectedGoodsId,
+      staff: state.user?.name || '未知',
+    };
+    dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
+    
+    if (checkBadReview(orderCode)) {
+      const badReview = {
+        id: Date.now().toString(),
+        content: orderCode,
+        platform,
+        time: moment().format('YYYY-MM-DD HH:mm'),
+        handled: false,
+      };
+      dispatch({ type: 'ADD_BAD_REVIEW', payload: badReview });
+      showToast('⚠️ 检测到疑似差评内容，已记录');
+    } else {
+      showToast(`核销成功！${platform} ¥${price}`);
+    }
+    setOrderCode('');
+    setCouponPrice('');
+    setSelectedGoodsId(null);
   };
 
-  const sendMessage = async () => {
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    setOrderCode(data);
+  };
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner
+          onBarCodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
+          <Text style={styles.cancelText}>取消</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>订单核销</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <ScrollView style={{ padding:16 }}>
+        <View style={styles.cardBox}>
+          <Text style={styles.label}>核销码</Text>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+            <TextInput
+              style={[styles.formInput, { flex:1 }]}
+              placeholder="输入核销码或扫码"
+              value={orderCode}
+              onChangeText={setOrderCode}
+            />
+            <TouchableOpacity style={styles.miniBlueBtn} onPress={() => setScanning(true)}>
+              <Text style={styles.sendTxt}>扫码</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>平台</Text>
+          <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+            {['美团','抖音','大众点评'].map(p => (
+              <TouchableOpacity
+                key={p}
+                style={[styles.tagNormal, platform === p && styles.tagActive]}
+                onPress={() => setPlatform(p)}
+              >
+                <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>金额 (¥)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="0.00"
+            keyboardType="decimal-pad"
+            value={couponPrice}
+            onChangeText={setCouponPrice}
+          />
+
+          <Text style={styles.label}>选择商品（可选，用于库存联动）</Text>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:8 }}>
+            {state.goodsList.map(g => (
+              <TouchableOpacity
+                key={g.id}
+                style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]}
+                onPress={() => setSelectedGoodsId(g.id)}
+              >
+                <Text style={{ color: selectedGoodsId === g.id ? '#fff' : TEXT_MAIN }}>{g.name} ({g.stock})</Text>
+              </TouchableOpacity>
+            ))}
+            {state.goodsList.length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品，请先添加</Text>}
+          </View>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}>
+            <Text style={styles.sendTxt}>确认核销</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cardBox}>
+          <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>今日已核销</Text>
+          {state.globalOrderRecord
+            .filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD'))
+            .map((item, idx) => (
+              <View key={idx} style={styles.listItem}>
+                <Text style={{ fontSize:14, color:TEXT_MAIN }}>{item.platform} - ¥{item.couponPrice}</Text>
+                <Text style={{ fontSize:12, color:TEXT_THIRD }}>{moment(item.time).format('HH:mm')} {item.staff && `核销员: ${item.staff}`}</Text>
+              </View>
+            ))
+          }
+          {state.globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD')).length === 0 && (
+            <Text style={{ color:TEXT_THIRD, textAlign:'center', padding:12 }}>今日暂无核销记录</Text>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ========== 商品管理页面 ==========
+const ProductOverview = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [name, setName] = useState('');
+  const [stock, setStock] = useState('');
+  const [platform, setPlatform] = useState('美团');
+
+  const handleSave = () => {
+    if (!name.trim()) { showToast('请输入商品名称'); return; }
+    const stockNum = parseInt(stock) || 0;
+    if (editingItem) {
+      const updated = state.goodsList.map(item =>
+        item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
+      );
+      dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+      showToast('已更新');
+    } else {
+      const newItem = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        stock: stockNum,
+        platform,
+        createdAt: new Date().toISOString(),
+      };
+      dispatch({ type: 'SET_GOODS_LIST', payload: [...state.goodsList, newItem] });
+      showToast('添加成功');
+    }
+    setModalVisible(false);
+    setName('');
+    setStock('');
+    setEditingItem(null);
+  };
+
+  const handleDelete = (id) => {
+    Alert.alert('确认删除', '确定删除该商品？', [
+      { text: '取消', style: 'cancel' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        const filtered = state.goodsList.filter(item => item.id !== id);
+        dispatch({ type: 'SET_GOODS_LIST', payload: filtered });
+        showToast('已删除');
+      }}
+    ]);
+  };
+
+  const openEdit = (item) => {
+    setEditingItem(item);
+    setName(item.name);
+    setStock(String(item.stock));
+    setPlatform(item.platform || '美团');
+    setModalVisible(true);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>商品总览</Text>
+        <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <FlatList
+        data={state.goodsList}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={[styles.productItem, { borderColor: item.stock < 5 ? DANGER_COLOR : 'transparent', borderWidth: item.stock < 5 ? 2 : 0 }]}>
+            <View>
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.productPlatform}>平台: {item.platform}</Text>
+              <Text style={[styles.productStock, { color: item.stock < 5 ? DANGER_COLOR : TEXT_SECOND }]}>库存: {item.stock} {item.stock < 5 && '⚠️'}</Text>
+            </View>
+            <View style={{ flexDirection:'row', gap:8 }}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
+                <Text style={styles.editBtnText}>编辑</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleDelete(item.id)}>
+                <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>删除</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无商品，点击右上角➕添加</Text>}
+        contentContainerStyle={{ padding:16 }}
+      />
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingItem ? '编辑商品' : '添加商品'}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>商品名称</Text>
+            <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="例如：招牌牛肉面" />
+            <Text style={styles.label}>库存</Text>
+            <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>平台</Text>
+            <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+              {['美团','抖音','大众点评'].map(p => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.tagNormal, platform === p && styles.tagActive]}
+                  onPress={() => setPlatform(p)}
+                >
+                  <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}>
+              <Text style={styles.sendTxt}>{editingItem ? '更新' : '添加'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 员工管理页面（含核销排行榜） ==========
+const StaffManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [staffName, setStaffName] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffRole, setStaffRole] = useState('员工');
+  const [activeTab, setActiveTab] = useState('list');
+
+  const handleAddStaff = () => {
+    if (!staffName.trim() || !staffPhone.trim()) { showToast('请填写完整信息'); return; }
+    const newStaff = {
+      id: Date.now().toString(),
+      name: staffName.trim(),
+      phone: staffPhone.trim(),
+      role: staffRole,
+      joinedAt: new Date().toISOString(),
+      verifyCount: 0,
+    };
+    const updated = [...state.staffMemberList, newStaff];
+    dispatch({ type: 'SET_STAFF_LIST', payload: updated });
+    showToast(`已添加员工 ${newStaff.name}`);
+    setModalVisible(false);
+    setStaffName('');
+    setStaffPhone('');
+  };
+
+  const handleRemoveStaff = (id) => {
+    Alert.alert('确认移除', '确定移除该员工？', [
+      { text: '取消', style: 'cancel' },
+      { text: '移除', style: 'destructive', onPress: () => {
+        const filtered = state.staffMemberList.filter(item => item.id !== id);
+        dispatch({ type: 'SET_STAFF_LIST', payload: filtered });
+        showToast('已移除');
+      }}
+    ]);
+  };
+
+  const staffRank = state.staffMemberList.map(staff => ({
+    ...staff,
+    count: state.globalOrderRecord.filter(o => o.staff === staff.name).length,
+  })).sort((a,b) => b.count - a.count);
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>员工管理</Text>
+        <TouchableOpacity onPress={() => { setStaffName(''); setStaffPhone(''); setStaffRole('员工'); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection:'row', borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+        <TouchableOpacity style={{ flex:1, paddingVertical:12, alignItems:'center', backgroundColor: activeTab === 'list' ? LIGHT_PRIMARY : 'transparent' }} onPress={() => setActiveTab('list')}>
+          <Text style={{ color: activeTab === 'list' ? PRIMARY_COLOR : TEXT_SECOND }}>员工列表</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flex:1, paddingVertical:12, alignItems:'center', backgroundColor: activeTab === 'rank' ? LIGHT_PRIMARY : 'transparent' }} onPress={() => setActiveTab('rank')}>
+          <Text style={{ color: activeTab === 'rank' ? PRIMARY_COLOR : TEXT_SECOND }}>核销排行</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'list' ? (
+        <FlatList
+          data={state.staffMemberList}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.listItem}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                <View>
+                  <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>{item.name}</Text>
+                  <Text style={{ fontSize:14, color:TEXT_SECOND }}>{item.phone} · {item.role}</Text>
+                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>加入: {moment(item.joinedAt).format('YYYY-MM-DD')}</Text>
+                </View>
+                <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleRemoveStaff(item.id)}>
+                  <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>移除</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无员工</Text>}
+          contentContainerStyle={{ padding:16 }}
+        />
+      ) : (
+        <FlatList
+          data={staffRank}
+          keyExtractor={item => item.id}
+          renderItem={({ item, index }) => (
+            <View style={styles.listItem}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>#{index+1} {item.name}</Text>
+                <Text style={{ fontSize:16, color:PRIMARY_COLOR, fontWeight:'700' }}>{item.count} 单</Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无数据</Text>}
+          contentContainerStyle={{ padding:16 }}
+        />
+      )}
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>添加员工</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>姓名</Text>
+            <TextInput style={styles.formInput} value={staffName} onChangeText={setStaffName} placeholder="输入姓名" />
+            <Text style={styles.label}>手机号</Text>
+            <TextInput style={styles.formInput} value={staffPhone} onChangeText={setStaffPhone} keyboardType="phone-pad" placeholder="11位手机号" />
+            <Text style={styles.label}>角色</Text>
+            <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+              {['员工','店长'].map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.tagNormal, staffRole === r && styles.tagActive]}
+                  onPress={() => setStaffRole(r)}
+                >
+                  <Text style={{ color: staffRole === r ? '#fff' : TEXT_MAIN }}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddStaff}>
+              <Text style={styles.sendTxt}>添加</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 出入库管理页面（含扫码/拍照/上架） ==========
+const StockManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [type, setType] = useState('入库');
+  const [productName, setProductName] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [loadingPlatform, setLoadingPlatform] = useState(null);
+
+  const goodsOptions = state.goodsList.map(g => ({ label: g.name, value: g.id }));
+
+  const handleSubmit = () => {
+    if (!selectedGoodsId) { showToast('请选择商品'); return; }
+    const qty = parseInt(quantity);
+    if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
+    const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+
+    let newStock = goods.stock;
+    if (type === '入库') newStock += qty;
+    else {
+      if (goods.stock < qty) { showToast('库存不足'); return; }
+      newStock -= qty;
+    }
+    const updatedGoods = state.goodsList.map(g =>
+      g.id === selectedGoodsId ? { ...g, stock: newStock } : g
+    );
+    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+
+    const record = {
+      id: Date.now().toString(),
+      type,
+      productName: goods.name,
+      quantity: qty,
+      reason: reason.trim() || '无备注',
+      time: new Date().toISOString(),
+      photo: photoUri || null,
+    };
+    dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+    showToast(`${type}成功: ${goods.name} ×${qty}`);
+    setModalVisible(false);
+    setProductName('');
+    setQuantity('');
+    setReason('');
+    setSelectedGoodsId(null);
+    setPhotoUri(null);
+  };
+
+  const handleScan = async () => {
+    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相机权限'); return; }
+    setScanning(true);
+  };
+
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    const matched = state.goodsList.find(g => g.code === data);
+    if (matched) {
+      setSelectedGoodsId(matched.id);
+      showToast(`扫描到商品：${matched.name}`);
+    } else {
+      Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择`, [
+        { text: '确定' }
+      ]);
+    }
+  };
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相册权限'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      const compressed = await compressImage(result.assets[0].uri);
+      setPhotoUri(compressed);
+      showToast('已上传照片');
+    }
+  };
+
+  const handleShelf = async (platform, goodsId) => {
+    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    const goods = state.goodsList.find(g => g.id === goodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+    setLoadingPlatform(platform);
+    try {
+      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，要求包含标题、价格、库存、描述等，并生成一段简短的宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}，平台：${platform}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      Alert.alert(`上架到${platform}`, reply);
+      showToast(`已成功生成${platform}上架内容`);
+    } catch (e) {
+      showToast(`${platform}上架生成失败`);
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  const handleShelfAll = async (goodsId) => {
+    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    const goods = state.goodsList.find(g => g.id === goodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+    setLoadingPlatform('all');
+    try {
+      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
+      Alert.alert('一键上架所有平台', reply);
+      showToast('已生成所有平台上架内容');
+    } catch (e) {
+      showToast('一键上架生成失败');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner
+          onBarCodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
+          <Text style={styles.cancelText}>取消扫描</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>出入库管理</Text>
+        <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flexDirection:'row', flexWrap:'wrap', padding:12, gap:8 }}>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); handleScan(); }}>
+          <Text style={styles.sendTxt}>📷 扫码入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}>
+          <Text style={styles.sendTxt}>📷 扫码出库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); pickPhoto(); }}>
+          <Text style={styles.sendTxt}>📸 拍照入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhoto(); }}>
+          <Text style={styles.sendTxt}>📸 拍照出库</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingHorizontal:12, paddingBottom:8 }}>
+        <Text style={{ fontWeight:'600', marginBottom:6 }}>📤 上架平台</Text>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+          {['美团','抖音','大众点评'].map(p => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
+              onPress={() => handleShelf(p, selectedGoodsId)}
+              disabled={loadingPlatform !== null}
+            >
+              <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
+            onPress={() => handleShelfAll(selectedGoodsId)}
+            disabled={loadingPlatform !== null}
+          >
+            <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
+          </TouchableOpacity>
+        </View>
+        {!selectedGoodsId && <Text style={{ fontSize:12, color:TEXT_THIRD, marginTop:4 }}>⚠️ 请先在下方选择一个商品</Text>}
+      </View>
+
+      <View style={{ padding:16 }}>
+        <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>库存列表</Text>
+        {state.goodsList.map(g => (
+          <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
+            <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
+                <Text style={{ fontSize:16, fontWeight:'500' }}>{g.name}</Text>
+                <Text style={{ fontSize:16, color: g.stock < 5 ? DANGER_COLOR : PRIMARY_COLOR }}>库存: {g.stock}</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
+              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+                <Text style={styles.sendTxt}>入库</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+                <Text style={styles.sendTxt}>出库</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        {state.goodsList.length === 0 && (
+          <Text style={{ color:TEXT_THIRD, textAlign:'center', marginTop:20 }}>暂无商品，请先添加商品</Text>
+        )}
+      </View>
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{type}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>选择商品</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+              {goodsOptions.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]}
+                  onPress={() => setSelectedGoodsId(opt.value)}
+                >
+                  <Text style={{ color: selectedGoodsId === opt.value ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.label}>数量</Text>
+            <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>备注</Text>
+            <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+            {photoUri && (
+              <View style={{ marginVertical:8 }}>
+                <Image source={{ uri: photoUri }} style={{ width:100, height:100, borderRadius:8 }} />
+                <TouchableOpacity onPress={() => setPhotoUri(null)}>
+                  <Text style={{ color:DANGER_COLOR, marginTop:4 }}>移除照片</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}>
+              <Text style={styles.sendTxt}>确认{type}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 内部沟通 - 聊天信息页面 ==========
+const ChatInfoScreen = ({ route, navigation }) => {
+  const { state, dispatch } = useApp();
+  const [isMute, setIsMute] = useState(false);
+  const [isTop, setIsTop] = useState(false);
+  const staffList = state.staffMemberList || [];
+  const currentUser = state.user;
+
+  const handleAction = (action) => {
+    switch (action) {
+      case 'mute':
+        setIsMute(!isMute);
+        showToast(isMute ? '已取消消息免打扰' : '已开启消息免打扰');
+        break;
+      case 'top':
+        setIsTop(!isTop);
+        showToast(isTop ? '已取消置顶' : '已置顶');
+        break;
+      case 'remind':
+        showToast('已设置提醒');
+        break;
+      case 'bg':
+        showToast('聊天背景已更换');
+        break;
+      case 'clear':
+        Alert.alert('清空聊天记录', '确定要清空所有内部聊天记录吗？', [
+          { text: '取消', style: 'cancel' },
+          { text: '清空', style: 'destructive', onPress: () => {
+            dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
+            showToast('聊天记录已清空');
+          }}
+        ]);
+        break;
+      case 'complaint':
+        showToast('投诉已提交，我们会尽快处理');
+        break;
+      default:
+        break;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>聊天信息</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <ScrollView style={{ flex:1, padding:16 }}>
+        <Text style={{ fontSize:16, fontWeight:'600', marginBottom:12 }}>成员 ({staffList.length + 1})</Text>
+        <View style={{ backgroundColor:BG_CARD, borderRadius:12, padding:12, ...SHADOW }}>
+          <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8 }}>
+            <Text style={{ fontSize:16, fontWeight:'500' }}>👤 {currentUser?.name || '老板'} (我)</Text>
+          </View>
+          {staffList.map(staff => (
+            <View key={staff.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:BORDER_COLOR }}>
+              <Text style={{ fontSize:16, color:TEXT_MAIN }}>👤 {staff.name} ({staff.role})</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ marginTop:20, backgroundColor:BG_CARD, borderRadius:12, overflow:'hidden', ...SHADOW }}>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('mute')}>
+            <Text style={styles.chatMenuIcon}>{isMute ? '🔕' : '🔔'}</Text>
+            <Text style={styles.chatMenuText}>{isMute ? '取消消息免打扰' : '消息免打扰'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('top')}>
+            <Text style={styles.chatMenuIcon}>{isTop ? '📌' : '📍'}</Text>
+            <Text style={styles.chatMenuText}>{isTop ? '取消置顶' : '置顶聊天'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('remind')}>
+            <Text style={styles.chatMenuIcon}>⏰</Text>
+            <Text style={styles.chatMenuText}>提醒</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('bg')}>
+            <Text style={styles.chatMenuIcon}>🎨</Text>
+            <Text style={styles.chatMenuText}>设置当前聊天背景</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('clear')}>
+            <Text style={styles.chatMenuIcon}>🗑️</Text>
+            <Text style={styles.chatMenuText}>清空聊天记录</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatMenuItem, { borderBottomWidth:0 }]} onPress={() => handleAction('complaint')}>
+            <Text style={styles.chatMenuIcon}>⚠️</Text>
+            <Text style={styles.chatMenuText}>投诉</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ========== 内部沟通页面 ==========
+const InternalChat = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [inputText, setInputText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
+
+  const groupMessages = state.groupChatMessages || [];
+
+  const sendGroupMessage = () => {
     const text = inputText.trim();
     if (!text) return;
-    const userMsg = { id: Date.now().toString(), text, from: 'user', time: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setLoading(true);
-
-    const prompt = `你是经营宝AI助手，帮助商家解决经营问题，提供营销建议，数据分析，员工管理等。回答要简洁、实用。`;
-    const msgList = messages.filter(m => m.from !== 'system').map(m => ({
-      role: m.from === 'user' ? 'user' : 'assistant',
-      content: m.text,
-    }));
-    msgList.push({ role: 'user', content: text });
-
-    const reply = await fetchZhipuChat(msgList, prompt);
-    const aiMsg = {
-      id: (Date.now() + 1).toString(),
-      text: reply,
-      from: 'ai',
+    const message = {
+      id: Date.now().toString(),
+      text,
+      from: state.user?.name || '员工',
+      fromPhone: state.user?.phone || '',
       time: new Date().toISOString(),
+      type: 'text',
     };
-    setMessages(prev => [...prev, aiMsg]);
-    setLoading(false);
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: message });
+    setInputText('');
+    setShowEmoji(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
@@ -1279,16 +2019,221 @@ const MerchantAssistant = () => {
       <View style={styles.safeTop} />
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>AI助手</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('ImageGen')}>
-          <Text style={{ fontSize: 16, color: PRIMARY_COLOR }}>🖼️ 生成图片</Text>
+        <Text style={styles.pageTitle}>内部沟通</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('ChatInfo')}>
+          <Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-        {['文案', '海报', '广告语'].map(label => (
-          <TouchableOpacity key={label} style={{ marginRight:10, paddingHorizontal:14, paddingVertical:6, backgroundColor:LIGHT_PRIMARY, borderRadius:16 }} onPress={() => handleMarketing(label)}>
-            <Text style={{ color:PRIMARY_COLOR }}>📣 {label}</Text>
+      <View style={{ flex:1, backgroundColor: chatBgColor }}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatScroll}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {groupMessages.length === 0 && (
+            <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无消息，开始内部沟通吧</Text>
+          )}
+          {groupMessages.map(msg => {
+            const isMe = msg.fromPhone === state.user?.phone;
+            return (
+              <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: PRIMARY_COLOR, marginBottom: 2 }}>{msg.from}</Text>
+                <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <View style={[styles.inputBar, { backgroundColor: chatBgColor === '#F2F3F5' ? '#F7F7F7' : chatBgColor }]}>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
+            <Text style={{ fontSize: 24 }}>😊</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={styles.inputBox}
+            placeholder="发送内部消息..."
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <TouchableOpacity style={styles.sendBtn} onPress={sendGroupMessage}>
+            <Text style={styles.sendTxt}>发送</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 56 }} />
+      </View>
+    </View>
+  );
+};
+
+// ========== 顾客客服页面（含顾客画像和标签） ==========
+const CustomerService = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [inputText, setInputText] = useState('');
+  const [currentPlatform, setCurrentPlatform] = useState('美团');
+  const [messages, setMessages] = useState([]);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showQuickReply, setShowQuickReply] = useState(false);
+  const [imageUri, setImageUri] = useState(null);
+  const [aiMode, setAiMode] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [selectedPhone, setSelectedPhone] = useState('');
+  const [tagInput, setTagInput] = useState('');
+
+  const customerList = Object.keys(state.privateChatMessages).map(phone => ({
+    phone,
+    lastMsg: state.privateChatMessages[phone]?.[0]?.text || '',
+  }));
+
+  const currentMessages = messages.filter(m => m.platform === currentPlatform);
+
+  const sendMessage = async (type = 'text', content = null) => {
+    let text = inputText.trim();
+    let image = null;
+    if (type === 'image') {
+      if (!imageUri) return;
+      const compressed = await compressImage(imageUri);
+      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+      image = `data:image/jpeg;base64,${base64}`;
+    } else {
+      if (!text) return;
+    }
+
+    const message = {
+      id: Date.now().toString(),
+      text: type === 'text' ? text : '',
+      image: type === 'image' ? image : null,
+      from: 'staff',
+      platform: currentPlatform,
+      time: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, message]);
+    setInputText('');
+    setImageUri(null);
+    setShowEmoji(false);
+    setShowQuickReply(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+
+    if (aiMode && type === 'text' && text) {
+      try {
+        const reply = await fetchZhipuChat(
+          [{ role: 'user', content: text }],
+          `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
+        );
+        const aiMsg = {
+          id: Date.now().toString(),
+          text: reply,
+          from: 'ai',
+          platform: currentPlatform,
+          time: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+      } catch (e) {
+        console.warn('AI回复失败', e);
+      }
+    }
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相册权限'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendMessage('image');
+    }
+  };
+
+  const quickReplies = ['您好，请问有什么可以帮助您？', '稍等，我帮您查询一下', '感谢您的反馈，我们会尽快处理', '欢迎下次光临！', '请问您需要什么帮助？'];
+
+  const addTag = () => {
+    if (!selectedPhone) { showToast('请先选择顾客'); return; }
+    if (!tagInput.trim()) { showToast('请输入标签'); return; }
+    dispatch({ type: 'SET_CUSTOMER_TAG', payload: { phone: selectedPhone, tag: tagInput.trim() } });
+    setTagInput('');
+    showToast('标签已添加');
+  };
+
+  const getCustomerStats = (phone) => {
+    const orders = state.globalOrderRecord.filter(o => o.phone === phone);
+    const total = orders.reduce((s,o) => s + o.couponPrice, 0);
+    const lastOrder = orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无';
+    return { total, count: orders.length, lastOrder };
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>顾客客服</Text>
+        <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
+          <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
+            {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {customerList.length > 0 && (
+        <View style={{ padding:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {customerList.map(c => (
+              <TouchableOpacity
+                key={c.phone}
+                style={{ paddingHorizontal:12, paddingVertical:6, backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius:16, marginRight:8 }}
+                onPress={() => setSelectedPhone(c.phone)}
+              >
+                <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN }}>{c.phone}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {selectedPhone && (
+            <View style={{ marginTop:6 }}>
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>
+                累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}
+              </Text>
+              <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
+                <TextInput style={[styles.formInput, { flex:1, height:32, fontSize:12 }]} placeholder="添加标签" value={tagInput} onChangeText={setTagInput} />
+                <TouchableOpacity style={[styles.miniBlueBtn, { marginLeft:6 }]} onPress={addTag}>
+                  <Text style={styles.sendTxt}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection:'row', flexWrap:'wrap', marginTop:4 }}>
+                {(state.customerTags[selectedPhone] || []).map((tag, idx) => (
+                  <View key={idx} style={{ backgroundColor:LIGHT_PRIMARY, borderRadius:12, paddingHorizontal:8, paddingVertical:2, marginRight:4, marginBottom:4 }}>
+                    <Text style={{ fontSize:12, color:PRIMARY_COLOR }}>#{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      <View style={{ flexDirection:'row', justifyContent:'space-around', paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+        {['美团','抖音','大众点评'].map(p => (
+          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}>
+            <Text style={{ fontSize:16, fontWeight: currentPlatform === p ? '700' : '400', color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND }}>{p}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -1299,35 +2244,132 @@ const MerchantAssistant = () => {
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        {messages.map(msg => (
-          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
-            <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+        {currentMessages.map(msg => (
+          <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
+            {msg.image ? (
+              <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+            ) : (
+              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+            )}
             <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            {msg.from === 'ai' && <Text style={{ fontSize: 9, color: SUCCESS_COLOR }}>🤖 AI回复</Text>}
           </View>
         ))}
-        {loading && (
-          <View style={[styles.bubbleLeft, { padding: 12 }]}>
-            <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-          </View>
+        {currentMessages.length === 0 && (
+          <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无咨询，开始与顾客对话</Text>
         )}
       </ScrollView>
 
+      {showQuickReply && (
+        <View style={styles.quickReplyContainer}>
+          {quickReplies.map((text, idx) => (
+            <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}>
+              <Text style={styles.quickReplyText}>{text}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {showEmoji && (
+        <View style={styles.emojiRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {EMOJI_LIST.map(emoji => (
+              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <View style={styles.inputBar}>
+        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 24 }}>😊</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>⚡</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={pickImage} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 20 }}>📷</Text>
+        </TouchableOpacity>
         <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
-          placeholder="输入问题..."
+          style={styles.inputBox}
+          placeholder="回复顾客..."
           value={inputText}
           onChangeText={setInputText}
           multiline
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={loading}>
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
           <Text style={styles.sendTxt}>发送</Text>
         </TouchableOpacity>
       </View>
       <View style={{ height: 56 }} />
     </View>
   );
-};// ========== AI 助手页面 ==========
+};
+
+// ========== AI助手 - 图片生成页面 ==========
+const ImageGenScreen = ({ route, navigation }) => {
+  const { state } = useApp();
+  const [prompt, setPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [imageResult, setImageResult] = useState(null);
+  const shopName = state.shopInfo.shopName || '我的店铺';
+  const industry = state.shopInfo.industry || '餐饮类';
+
+  const generateImageHandler = async () => {
+    if (!prompt.trim()) { showToast('请输入描述'); return; }
+    setLoading(true);
+    try {
+      const fullPrompt = `${prompt}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
+      const result = await generateImage(fullPrompt);
+      if (result) {
+        setImageResult(result);
+      } else {
+        showToast('生成失败，请重试');
+      }
+    } catch (e) {
+      showToast('生成失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>生成图片</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <View style={{ padding:16 }}>
+        <Text style={styles.label}>店铺：{shopName} ({industry})</Text>
+        <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:8 }}>输入您想要生成的图片描述（海报、广告、营销活动等）</Text>
+        <TextInput
+          style={[styles.formInput, { height:100, textAlignVertical:'top' }]}
+          placeholder="例如：夏日促销海报，明亮色彩，突出优惠信息"
+          multiline
+          value={prompt}
+          onChangeText={setPrompt}
+        />
+        <TouchableOpacity style={styles.primaryBtn} onPress={generateImageHandler} disabled={loading}>
+          <Text style={styles.sendTxt}>{loading ? '生成中...' : '生成图片'}</Text>
+        </TouchableOpacity>
+        {imageResult && (
+          <View style={{ marginTop:16, alignItems:'center' }}>
+            <Image source={{ uri: imageResult }} style={{ width: width-64, height: width-64, borderRadius:8 }} />
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => setImageResult(null)}>
+              <Text style={styles.sendTxt}>重新生成</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
+// ========== AI 助手页面（主对话） ==========
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1443,3 +2485,1479 @@ const MerchantAssistant = () => {
     </View>
   );
 };
+
+// ========== 底部标签导航 ==========
+function RootTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === 'HomeTab') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'VerifyTab') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
+          else if (route.name === 'StockTab') iconName = focused ? 'cube' : 'cube-outline';
+          else if (route.name === 'CustomerTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          else if (route.name === 'InternalTab') iconName = focused ? 'people' : 'people-outline';
+          else if (route.name === 'AITab') iconName = focused ? 'bulb' : 'bulb-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: PRIMARY_COLOR,
+        tabBarInactiveTintColor: TEXT_THIRD,
+        headerShown: false,
+        tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
+      })}
+    >
+      <Tab.Screen name="HomeTab" component={HomePage} options={{ title: '首页' }} />
+      <Tab.Screen name="VerifyTab" component={VerifyOrder} options={{ title: '核销' }} />
+      <Tab.Screen name="StockTab" component={StockManage} options={{ title: '出入库' }} />
+      <Tab.Screen name="CustomerTab" component={CustomerService} options={{ title: '客服' }} />
+      <Tab.Screen name="InternalTab" component={InternalChat} options={{ title: '内部' }} />
+      <Tab.Screen name="AITab" component={MerchantAssistant} options={{ title: 'AI助手' }} />
+    </Tab.Navigator>
+  );
+}
+
+// ========== 主栈导航 ==========
+function MainStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="RootTabs" component={RootTabs} />
+      <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
+      <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
+      <Stack.Screen name="ProductOverview" component={ProductOverview} />
+      <Stack.Screen name="StaffManage" component={StaffManage} />
+      <Stack.Screen name="ChatInfo" component={ChatInfoScreen} />
+      <Stack.Screen name="ImageGen" component={ImageGenScreen} />
+      <Stack.Screen name="MenuManager" component={MenuManagerScreen} />
+      <Stack.Screen name="CustomerService" component={CustomerService} />
+      <Stack.Screen name="InternalChat" component={InternalChat} />
+      <Stack.Screen name="MerchantAssistant" component={MerchantAssistant} />
+    </Stack.Navigator>
+  );
+}
+
+// ========== App 容器 ==========
+export default function App() {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const userStr = await AsyncStorage.getItem('user');
+        const shopStr = await AsyncStorage.getItem('shopInfo');
+        const appData = await loadAllData();
+        if (userStr && shopStr) {
+          const user = JSON.parse(userStr);
+          const shopInfo = JSON.parse(shopStr);
+          dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+        }
+        if (appData) {
+          dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
+        }
+      } catch (error) {
+        console.warn('初始化加载失败', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      saveAllData(state);
+    }
+  }, [state, loading]);
+
+  if (loading) {
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+      </View>
+    );
+  }
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      <NavigationContainer>
+        <MainStack />
+      </NavigationContainer>
+    </AppContext.Provider>
+  );
+}// ========== 导航定义 ==========
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// ========== 订单核销页面（含库存联动） ==========
+const VerifyOrder = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [orderCode, setOrderCode] = useState('');
+  const [platform, setPlatform] = useState('美团');
+  const [couponPrice, setCouponPrice] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [hasPermission, setHasPermission] = useState(null);
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
+  }, []);
+
+  const handleVerify = () => {
+    if (!orderCode.trim()) { showToast('请输入核销码'); return; }
+    const price = parseFloat(couponPrice);
+    if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
+    
+    if (selectedGoodsId) {
+      const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+      if (goods) {
+        if (goods.stock < 1) {
+          Alert.alert('库存不足', `${goods.name} 库存不足，当前剩余 ${goods.stock}`);
+          return;
+        }
+        const updatedGoods = state.goodsList.map(g =>
+          g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g
+        );
+        dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+        showToast(`已扣减 ${goods.name} 库存 1 件`);
+      }
+    }
+
+    const record = {
+      id: Date.now().toString(),
+      code: orderCode.trim(),
+      platform,
+      couponPrice: price,
+      time: new Date().toISOString(),
+      goodsId: selectedGoodsId,
+      staff: state.user?.name || '未知',
+    };
+    dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
+    
+    if (checkBadReview(orderCode)) {
+      const badReview = {
+        id: Date.now().toString(),
+        content: orderCode,
+        platform,
+        time: moment().format('YYYY-MM-DD HH:mm'),
+        handled: false,
+      };
+      dispatch({ type: 'ADD_BAD_REVIEW', payload: badReview });
+      showToast('⚠️ 检测到疑似差评内容，已记录');
+    } else {
+      showToast(`核销成功！${platform} ¥${price}`);
+    }
+    setOrderCode('');
+    setCouponPrice('');
+    setSelectedGoodsId(null);
+  };
+
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    setOrderCode(data);
+  };
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner
+          onBarCodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
+          <Text style={styles.cancelText}>取消</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>订单核销</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <ScrollView style={{ padding:16 }}>
+        <View style={styles.cardBox}>
+          <Text style={styles.label}>核销码</Text>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+            <TextInput
+              style={[styles.formInput, { flex:1 }]}
+              placeholder="输入核销码或扫码"
+              value={orderCode}
+              onChangeText={setOrderCode}
+            />
+            <TouchableOpacity style={styles.miniBlueBtn} onPress={() => setScanning(true)}>
+              <Text style={styles.sendTxt}>扫码</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>平台</Text>
+          <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+            {['美团','抖音','大众点评'].map(p => (
+              <TouchableOpacity
+                key={p}
+                style={[styles.tagNormal, platform === p && styles.tagActive]}
+                onPress={() => setPlatform(p)}
+              >
+                <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>金额 (¥)</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="0.00"
+            keyboardType="decimal-pad"
+            value={couponPrice}
+            onChangeText={setCouponPrice}
+          />
+
+          <Text style={styles.label}>选择商品（可选，用于库存联动）</Text>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:8 }}>
+            {state.goodsList.map(g => (
+              <TouchableOpacity
+                key={g.id}
+                style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]}
+                onPress={() => setSelectedGoodsId(g.id)}
+              >
+                <Text style={{ color: selectedGoodsId === g.id ? '#fff' : TEXT_MAIN }}>{g.name} ({g.stock})</Text>
+              </TouchableOpacity>
+            ))}
+            {state.goodsList.length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品，请先添加</Text>}
+          </View>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}>
+            <Text style={styles.sendTxt}>确认核销</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cardBox}>
+          <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>今日已核销</Text>
+          {state.globalOrderRecord
+            .filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD'))
+            .map((item, idx) => (
+              <View key={idx} style={styles.listItem}>
+                <Text style={{ fontSize:14, color:TEXT_MAIN }}>{item.platform} - ¥{item.couponPrice}</Text>
+                <Text style={{ fontSize:12, color:TEXT_THIRD }}>{moment(item.time).format('HH:mm')} {item.staff && `核销员: ${item.staff}`}</Text>
+              </View>
+            ))
+          }
+          {state.globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD')).length === 0 && (
+            <Text style={{ color:TEXT_THIRD, textAlign:'center', padding:12 }}>今日暂无核销记录</Text>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ========== 商品管理页面 ==========
+const ProductOverview = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [name, setName] = useState('');
+  const [stock, setStock] = useState('');
+  const [platform, setPlatform] = useState('美团');
+
+  const handleSave = () => {
+    if (!name.trim()) { showToast('请输入商品名称'); return; }
+    const stockNum = parseInt(stock) || 0;
+    if (editingItem) {
+      const updated = state.goodsList.map(item =>
+        item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
+      );
+      dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+      showToast('已更新');
+    } else {
+      const newItem = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        stock: stockNum,
+        platform,
+        createdAt: new Date().toISOString(),
+      };
+      dispatch({ type: 'SET_GOODS_LIST', payload: [...state.goodsList, newItem] });
+      showToast('添加成功');
+    }
+    setModalVisible(false);
+    setName('');
+    setStock('');
+    setEditingItem(null);
+  };
+
+  const handleDelete = (id) => {
+    Alert.alert('确认删除', '确定删除该商品？', [
+      { text: '取消', style: 'cancel' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        const filtered = state.goodsList.filter(item => item.id !== id);
+        dispatch({ type: 'SET_GOODS_LIST', payload: filtered });
+        showToast('已删除');
+      }}
+    ]);
+  };
+
+  const openEdit = (item) => {
+    setEditingItem(item);
+    setName(item.name);
+    setStock(String(item.stock));
+    setPlatform(item.platform || '美团');
+    setModalVisible(true);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>商品总览</Text>
+        <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <FlatList
+        data={state.goodsList}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={[styles.productItem, { borderColor: item.stock < 5 ? DANGER_COLOR : 'transparent', borderWidth: item.stock < 5 ? 2 : 0 }]}>
+            <View>
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.productPlatform}>平台: {item.platform}</Text>
+              <Text style={[styles.productStock, { color: item.stock < 5 ? DANGER_COLOR : TEXT_SECOND }]}>库存: {item.stock} {item.stock < 5 && '⚠️'}</Text>
+            </View>
+            <View style={{ flexDirection:'row', gap:8 }}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
+                <Text style={styles.editBtnText}>编辑</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleDelete(item.id)}>
+                <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>删除</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无商品，点击右上角➕添加</Text>}
+        contentContainerStyle={{ padding:16 }}
+      />
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingItem ? '编辑商品' : '添加商品'}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>商品名称</Text>
+            <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="例如：招牌牛肉面" />
+            <Text style={styles.label}>库存</Text>
+            <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>平台</Text>
+            <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+              {['美团','抖音','大众点评'].map(p => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.tagNormal, platform === p && styles.tagActive]}
+                  onPress={() => setPlatform(p)}
+                >
+                  <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}>
+              <Text style={styles.sendTxt}>{editingItem ? '更新' : '添加'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 员工管理页面（含核销排行榜） ==========
+const StaffManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [staffName, setStaffName] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffRole, setStaffRole] = useState('员工');
+  const [activeTab, setActiveTab] = useState('list');
+
+  const handleAddStaff = () => {
+    if (!staffName.trim() || !staffPhone.trim()) { showToast('请填写完整信息'); return; }
+    const newStaff = {
+      id: Date.now().toString(),
+      name: staffName.trim(),
+      phone: staffPhone.trim(),
+      role: staffRole,
+      joinedAt: new Date().toISOString(),
+      verifyCount: 0,
+    };
+    const updated = [...state.staffMemberList, newStaff];
+    dispatch({ type: 'SET_STAFF_LIST', payload: updated });
+    showToast(`已添加员工 ${newStaff.name}`);
+    setModalVisible(false);
+    setStaffName('');
+    setStaffPhone('');
+  };
+
+  const handleRemoveStaff = (id) => {
+    Alert.alert('确认移除', '确定移除该员工？', [
+      { text: '取消', style: 'cancel' },
+      { text: '移除', style: 'destructive', onPress: () => {
+        const filtered = state.staffMemberList.filter(item => item.id !== id);
+        dispatch({ type: 'SET_STAFF_LIST', payload: filtered });
+        showToast('已移除');
+      }}
+    ]);
+  };
+
+  const staffRank = state.staffMemberList.map(staff => ({
+    ...staff,
+    count: state.globalOrderRecord.filter(o => o.staff === staff.name).length,
+  })).sort((a,b) => b.count - a.count);
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>员工管理</Text>
+        <TouchableOpacity onPress={() => { setStaffName(''); setStaffPhone(''); setStaffRole('员工'); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection:'row', borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+        <TouchableOpacity style={{ flex:1, paddingVertical:12, alignItems:'center', backgroundColor: activeTab === 'list' ? LIGHT_PRIMARY : 'transparent' }} onPress={() => setActiveTab('list')}>
+          <Text style={{ color: activeTab === 'list' ? PRIMARY_COLOR : TEXT_SECOND }}>员工列表</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flex:1, paddingVertical:12, alignItems:'center', backgroundColor: activeTab === 'rank' ? LIGHT_PRIMARY : 'transparent' }} onPress={() => setActiveTab('rank')}>
+          <Text style={{ color: activeTab === 'rank' ? PRIMARY_COLOR : TEXT_SECOND }}>核销排行</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'list' ? (
+        <FlatList
+          data={state.staffMemberList}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.listItem}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                <View>
+                  <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>{item.name}</Text>
+                  <Text style={{ fontSize:14, color:TEXT_SECOND }}>{item.phone} · {item.role}</Text>
+                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>加入: {moment(item.joinedAt).format('YYYY-MM-DD')}</Text>
+                </View>
+                <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleRemoveStaff(item.id)}>
+                  <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>移除</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无员工</Text>}
+          contentContainerStyle={{ padding:16 }}
+        />
+      ) : (
+        <FlatList
+          data={staffRank}
+          keyExtractor={item => item.id}
+          renderItem={({ item, index }) => (
+            <View style={styles.listItem}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>#{index+1} {item.name}</Text>
+                <Text style={{ fontSize:16, color:PRIMARY_COLOR, fontWeight:'700' }}>{item.count} 单</Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无数据</Text>}
+          contentContainerStyle={{ padding:16 }}
+        />
+      )}
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>添加员工</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>姓名</Text>
+            <TextInput style={styles.formInput} value={staffName} onChangeText={setStaffName} placeholder="输入姓名" />
+            <Text style={styles.label}>手机号</Text>
+            <TextInput style={styles.formInput} value={staffPhone} onChangeText={setStaffPhone} keyboardType="phone-pad" placeholder="11位手机号" />
+            <Text style={styles.label}>角色</Text>
+            <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+              {['员工','店长'].map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.tagNormal, staffRole === r && styles.tagActive]}
+                  onPress={() => setStaffRole(r)}
+                >
+                  <Text style={{ color: staffRole === r ? '#fff' : TEXT_MAIN }}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddStaff}>
+              <Text style={styles.sendTxt}>添加</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 出入库管理页面（含扫码/拍照/上架） ==========
+const StockManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [type, setType] = useState('入库');
+  const [productName, setProductName] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [loadingPlatform, setLoadingPlatform] = useState(null);
+
+  const goodsOptions = state.goodsList.map(g => ({ label: g.name, value: g.id }));
+
+  const handleSubmit = () => {
+    if (!selectedGoodsId) { showToast('请选择商品'); return; }
+    const qty = parseInt(quantity);
+    if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
+    const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+
+    let newStock = goods.stock;
+    if (type === '入库') newStock += qty;
+    else {
+      if (goods.stock < qty) { showToast('库存不足'); return; }
+      newStock -= qty;
+    }
+    const updatedGoods = state.goodsList.map(g =>
+      g.id === selectedGoodsId ? { ...g, stock: newStock } : g
+    );
+    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+
+    const record = {
+      id: Date.now().toString(),
+      type,
+      productName: goods.name,
+      quantity: qty,
+      reason: reason.trim() || '无备注',
+      time: new Date().toISOString(),
+      photo: photoUri || null,
+    };
+    dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+    showToast(`${type}成功: ${goods.name} ×${qty}`);
+    setModalVisible(false);
+    setProductName('');
+    setQuantity('');
+    setReason('');
+    setSelectedGoodsId(null);
+    setPhotoUri(null);
+  };
+
+  const handleScan = async () => {
+    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相机权限'); return; }
+    setScanning(true);
+  };
+
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    const matched = state.goodsList.find(g => g.code === data);
+    if (matched) {
+      setSelectedGoodsId(matched.id);
+      showToast(`扫描到商品：${matched.name}`);
+    } else {
+      Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择`, [
+        { text: '确定' }
+      ]);
+    }
+  };
+
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相册权限'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      const compressed = await compressImage(result.assets[0].uri);
+      setPhotoUri(compressed);
+      showToast('已上传照片');
+    }
+  };
+
+  const handleShelf = async (platform, goodsId) => {
+    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    const goods = state.goodsList.find(g => g.id === goodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+    setLoadingPlatform(platform);
+    try {
+      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，要求包含标题、价格、库存、描述等，并生成一段简短的宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}，平台：${platform}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      Alert.alert(`上架到${platform}`, reply);
+      showToast(`已成功生成${platform}上架内容`);
+    } catch (e) {
+      showToast(`${platform}上架生成失败`);
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  const handleShelfAll = async (goodsId) => {
+    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    const goods = state.goodsList.find(g => g.id === goodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+    setLoadingPlatform('all');
+    try {
+      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
+      Alert.alert('一键上架所有平台', reply);
+      showToast('已生成所有平台上架内容');
+    } catch (e) {
+      showToast('一键上架生成失败');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner
+          onBarCodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
+          <Text style={styles.cancelText}>取消扫描</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>出入库管理</Text>
+        <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+          <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flexDirection:'row', flexWrap:'wrap', padding:12, gap:8 }}>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); handleScan(); }}>
+          <Text style={styles.sendTxt}>📷 扫码入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}>
+          <Text style={styles.sendTxt}>📷 扫码出库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); pickPhoto(); }}>
+          <Text style={styles.sendTxt}>📸 拍照入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhoto(); }}>
+          <Text style={styles.sendTxt}>📸 拍照出库</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingHorizontal:12, paddingBottom:8 }}>
+        <Text style={{ fontWeight:'600', marginBottom:6 }}>📤 上架平台</Text>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+          {['美团','抖音','大众点评'].map(p => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
+              onPress={() => handleShelf(p, selectedGoodsId)}
+              disabled={loadingPlatform !== null}
+            >
+              <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
+            onPress={() => handleShelfAll(selectedGoodsId)}
+            disabled={loadingPlatform !== null}
+          >
+            <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
+          </TouchableOpacity>
+        </View>
+        {!selectedGoodsId && <Text style={{ fontSize:12, color:TEXT_THIRD, marginTop:4 }}>⚠️ 请先在下方选择一个商品</Text>}
+      </View>
+
+      <View style={{ padding:16 }}>
+        <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>库存列表</Text>
+        {state.goodsList.map(g => (
+          <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
+            <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
+                <Text style={{ fontSize:16, fontWeight:'500' }}>{g.name}</Text>
+                <Text style={{ fontSize:16, color: g.stock < 5 ? DANGER_COLOR : PRIMARY_COLOR }}>库存: {g.stock}</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
+              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+                <Text style={styles.sendTxt}>入库</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+                <Text style={styles.sendTxt}>出库</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        {state.goodsList.length === 0 && (
+          <Text style={{ color:TEXT_THIRD, textAlign:'center', marginTop:20 }}>暂无商品，请先添加商品</Text>
+        )}
+      </View>
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{type}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>选择商品</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+              {goodsOptions.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]}
+                  onPress={() => setSelectedGoodsId(opt.value)}
+                >
+                  <Text style={{ color: selectedGoodsId === opt.value ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.label}>数量</Text>
+            <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>备注</Text>
+            <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+            {photoUri && (
+              <View style={{ marginVertical:8 }}>
+                <Image source={{ uri: photoUri }} style={{ width:100, height:100, borderRadius:8 }} />
+                <TouchableOpacity onPress={() => setPhotoUri(null)}>
+                  <Text style={{ color:DANGER_COLOR, marginTop:4 }}>移除照片</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}>
+              <Text style={styles.sendTxt}>确认{type}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ========== 内部沟通 - 聊天信息页面 ==========
+const ChatInfoScreen = ({ route, navigation }) => {
+  const { state, dispatch } = useApp();
+  const [isMute, setIsMute] = useState(false);
+  const [isTop, setIsTop] = useState(false);
+  const staffList = state.staffMemberList || [];
+  const currentUser = state.user;
+
+  const handleAction = (action) => {
+    switch (action) {
+      case 'mute':
+        setIsMute(!isMute);
+        showToast(isMute ? '已取消消息免打扰' : '已开启消息免打扰');
+        break;
+      case 'top':
+        setIsTop(!isTop);
+        showToast(isTop ? '已取消置顶' : '已置顶');
+        break;
+      case 'remind':
+        showToast('已设置提醒');
+        break;
+      case 'bg':
+        showToast('聊天背景已更换');
+        break;
+      case 'clear':
+        Alert.alert('清空聊天记录', '确定要清空所有内部聊天记录吗？', [
+          { text: '取消', style: 'cancel' },
+          { text: '清空', style: 'destructive', onPress: () => {
+            dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
+            showToast('聊天记录已清空');
+          }}
+        ]);
+        break;
+      case 'complaint':
+        showToast('投诉已提交，我们会尽快处理');
+        break;
+      default:
+        break;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>聊天信息</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <ScrollView style={{ flex:1, padding:16 }}>
+        <Text style={{ fontSize:16, fontWeight:'600', marginBottom:12 }}>成员 ({staffList.length + 1})</Text>
+        <View style={{ backgroundColor:BG_CARD, borderRadius:12, padding:12, ...SHADOW }}>
+          <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8 }}>
+            <Text style={{ fontSize:16, fontWeight:'500' }}>👤 {currentUser?.name || '老板'} (我)</Text>
+          </View>
+          {staffList.map(staff => (
+            <View key={staff.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:BORDER_COLOR }}>
+              <Text style={{ fontSize:16, color:TEXT_MAIN }}>👤 {staff.name} ({staff.role})</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ marginTop:20, backgroundColor:BG_CARD, borderRadius:12, overflow:'hidden', ...SHADOW }}>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('mute')}>
+            <Text style={styles.chatMenuIcon}>{isMute ? '🔕' : '🔔'}</Text>
+            <Text style={styles.chatMenuText}>{isMute ? '取消消息免打扰' : '消息免打扰'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('top')}>
+            <Text style={styles.chatMenuIcon}>{isTop ? '📌' : '📍'}</Text>
+            <Text style={styles.chatMenuText}>{isTop ? '取消置顶' : '置顶聊天'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('remind')}>
+            <Text style={styles.chatMenuIcon}>⏰</Text>
+            <Text style={styles.chatMenuText}>提醒</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('bg')}>
+            <Text style={styles.chatMenuIcon}>🎨</Text>
+            <Text style={styles.chatMenuText}>设置当前聊天背景</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('clear')}>
+            <Text style={styles.chatMenuIcon}>🗑️</Text>
+            <Text style={styles.chatMenuText}>清空聊天记录</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatMenuItem, { borderBottomWidth:0 }]} onPress={() => handleAction('complaint')}>
+            <Text style={styles.chatMenuIcon}>⚠️</Text>
+            <Text style={styles.chatMenuText}>投诉</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ========== 内部沟通页面 ==========
+const InternalChat = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [inputText, setInputText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
+
+  const groupMessages = state.groupChatMessages || [];
+
+  const sendGroupMessage = () => {
+    const text = inputText.trim();
+    if (!text) return;
+    const message = {
+      id: Date.now().toString(),
+      text,
+      from: state.user?.name || '员工',
+      fromPhone: state.user?.phone || '',
+      time: new Date().toISOString(),
+      type: 'text',
+    };
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: message });
+    setInputText('');
+    setShowEmoji(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>内部沟通</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('ChatInfo')}>
+          <Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flex:1, backgroundColor: chatBgColor }}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatScroll}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {groupMessages.length === 0 && (
+            <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无消息，开始内部沟通吧</Text>
+          )}
+          {groupMessages.map(msg => {
+            const isMe = msg.fromPhone === state.user?.phone;
+            return (
+              <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: PRIMARY_COLOR, marginBottom: 2 }}>{msg.from}</Text>
+                <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <View style={[styles.inputBar, { backgroundColor: chatBgColor === '#F2F3F5' ? '#F7F7F7' : chatBgColor }]}>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
+            <Text style={{ fontSize: 24 }}>😊</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={styles.inputBox}
+            placeholder="发送内部消息..."
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <TouchableOpacity style={styles.sendBtn} onPress={sendGroupMessage}>
+            <Text style={styles.sendTxt}>发送</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 56 }} />
+      </View>
+    </View>
+  );
+};
+
+// ========== 顾客客服页面（含顾客画像和标签） ==========
+const CustomerService = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [inputText, setInputText] = useState('');
+  const [currentPlatform, setCurrentPlatform] = useState('美团');
+  const [messages, setMessages] = useState([]);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showQuickReply, setShowQuickReply] = useState(false);
+  const [imageUri, setImageUri] = useState(null);
+  const [aiMode, setAiMode] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [selectedPhone, setSelectedPhone] = useState('');
+  const [tagInput, setTagInput] = useState('');
+
+  const customerList = Object.keys(state.privateChatMessages).map(phone => ({
+    phone,
+    lastMsg: state.privateChatMessages[phone]?.[0]?.text || '',
+  }));
+
+  const currentMessages = messages.filter(m => m.platform === currentPlatform);
+
+  const sendMessage = async (type = 'text', content = null) => {
+    let text = inputText.trim();
+    let image = null;
+    if (type === 'image') {
+      if (!imageUri) return;
+      const compressed = await compressImage(imageUri);
+      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+      image = `data:image/jpeg;base64,${base64}`;
+    } else {
+      if (!text) return;
+    }
+
+    const message = {
+      id: Date.now().toString(),
+      text: type === 'text' ? text : '',
+      image: type === 'image' ? image : null,
+      from: 'staff',
+      platform: currentPlatform,
+      time: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, message]);
+    setInputText('');
+    setImageUri(null);
+    setShowEmoji(false);
+    setShowQuickReply(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+
+    if (aiMode && type === 'text' && text) {
+      try {
+        const reply = await fetchZhipuChat(
+          [{ role: 'user', content: text }],
+          `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
+        );
+        const aiMsg = {
+          id: Date.now().toString(),
+          text: reply,
+          from: 'ai',
+          platform: currentPlatform,
+          time: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+      } catch (e) {
+        console.warn('AI回复失败', e);
+      }
+    }
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { showToast('需要相册权限'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendMessage('image');
+    }
+  };
+
+  const quickReplies = ['您好，请问有什么可以帮助您？', '稍等，我帮您查询一下', '感谢您的反馈，我们会尽快处理', '欢迎下次光临！', '请问您需要什么帮助？'];
+
+  const addTag = () => {
+    if (!selectedPhone) { showToast('请先选择顾客'); return; }
+    if (!tagInput.trim()) { showToast('请输入标签'); return; }
+    dispatch({ type: 'SET_CUSTOMER_TAG', payload: { phone: selectedPhone, tag: tagInput.trim() } });
+    setTagInput('');
+    showToast('标签已添加');
+  };
+
+  const getCustomerStats = (phone) => {
+    const orders = state.globalOrderRecord.filter(o => o.phone === phone);
+    const total = orders.reduce((s,o) => s + o.couponPrice, 0);
+    const lastOrder = orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无';
+    return { total, count: orders.length, lastOrder };
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>顾客客服</Text>
+        <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
+          <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
+            {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {customerList.length > 0 && (
+        <View style={{ padding:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {customerList.map(c => (
+              <TouchableOpacity
+                key={c.phone}
+                style={{ paddingHorizontal:12, paddingVertical:6, backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius:16, marginRight:8 }}
+                onPress={() => setSelectedPhone(c.phone)}
+              >
+                <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN }}>{c.phone}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {selectedPhone && (
+            <View style={{ marginTop:6 }}>
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>
+                累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}
+              </Text>
+              <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
+                <TextInput style={[styles.formInput, { flex:1, height:32, fontSize:12 }]} placeholder="添加标签" value={tagInput} onChangeText={setTagInput} />
+                <TouchableOpacity style={[styles.miniBlueBtn, { marginLeft:6 }]} onPress={addTag}>
+                  <Text style={styles.sendTxt}>+</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection:'row', flexWrap:'wrap', marginTop:4 }}>
+                {(state.customerTags[selectedPhone] || []).map((tag, idx) => (
+                  <View key={idx} style={{ backgroundColor:LIGHT_PRIMARY, borderRadius:12, paddingHorizontal:8, paddingVertical:2, marginRight:4, marginBottom:4 }}>
+                    <Text style={{ fontSize:12, color:PRIMARY_COLOR }}>#{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      <View style={{ flexDirection:'row', justifyContent:'space-around', paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+        {['美团','抖音','大众点评'].map(p => (
+          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}>
+            <Text style={{ fontSize:16, fontWeight: currentPlatform === p ? '700' : '400', color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND }}>{p}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.chatScroll}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {currentMessages.map(msg => (
+          <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
+            {msg.image ? (
+              <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+            ) : (
+              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+            )}
+            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            {msg.from === 'ai' && <Text style={{ fontSize: 9, color: SUCCESS_COLOR }}>🤖 AI回复</Text>}
+          </View>
+        ))}
+        {currentMessages.length === 0 && (
+          <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无咨询，开始与顾客对话</Text>
+        )}
+      </ScrollView>
+
+      {showQuickReply && (
+        <View style={styles.quickReplyContainer}>
+          {quickReplies.map((text, idx) => (
+            <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}>
+              <Text style={styles.quickReplyText}>{text}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {showEmoji && (
+        <View style={styles.emojiRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {EMOJI_LIST.map(emoji => (
+              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      <View style={styles.inputBar}>
+        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 24 }}>😊</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>⚡</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={pickImage} style={{ paddingHorizontal: 8 }}>
+          <Text style={{ fontSize: 20 }}>📷</Text>
+        </TouchableOpacity>
+        <TextInput
+          style={styles.inputBox}
+          placeholder="回复顾客..."
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+        />
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+          <Text style={styles.sendTxt}>发送</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ height: 56 }} />
+    </View>
+  );
+};
+
+// ========== AI助手 - 图片生成页面 ==========
+const ImageGenScreen = ({ route, navigation }) => {
+  const { state } = useApp();
+  const [prompt, setPrompt] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [imageResult, setImageResult] = useState(null);
+  const shopName = state.shopInfo.shopName || '我的店铺';
+  const industry = state.shopInfo.industry || '餐饮类';
+
+  const generateImageHandler = async () => {
+    if (!prompt.trim()) { showToast('请输入描述'); return; }
+    setLoading(true);
+    try {
+      const fullPrompt = `${prompt}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
+      const result = await generateImage(fullPrompt);
+      if (result) {
+        setImageResult(result);
+      } else {
+        showToast('生成失败，请重试');
+      }
+    } catch (e) {
+      showToast('生成失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>生成图片</Text>
+        <View style={{ width:24 }} />
+      </View>
+      <View style={{ padding:16 }}>
+        <Text style={styles.label}>店铺：{shopName} ({industry})</Text>
+        <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:8 }}>输入您想要生成的图片描述（海报、广告、营销活动等）</Text>
+        <TextInput
+          style={[styles.formInput, { height:100, textAlignVertical:'top' }]}
+          placeholder="例如：夏日促销海报，明亮色彩，突出优惠信息"
+          multiline
+          value={prompt}
+          onChangeText={setPrompt}
+        />
+        <TouchableOpacity style={styles.primaryBtn} onPress={generateImageHandler} disabled={loading}>
+          <Text style={styles.sendTxt}>{loading ? '生成中...' : '生成图片'}</Text>
+        </TouchableOpacity>
+        {imageResult && (
+          <View style={{ marginTop:16, alignItems:'center' }}>
+            <Image source={{ uri: imageResult }} style={{ width: width-64, height: width-64, borderRadius:8 }} />
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => setImageResult(null)}>
+              <Text style={styles.sendTxt}>重新生成</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
+// ========== AI 助手页面（主对话） ==========
+const MerchantAssistant = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        { id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。', from: 'ai', time: new Date().toISOString() }
+      ]);
+    }
+  }, []);
+
+  const handleMarketing = (type) => {
+    let prompt = '';
+    switch (type) {
+      case '文案':
+        prompt = '请为我生成一条吸引人的营销文案，用于推广我的餐饮店，要求简洁有力，突出特色。';
+        break;
+      case '海报':
+        prompt = '请为我设计一张宣传海报的文字描述，包含主题、色彩建议和主要文案，用于吸引顾客。';
+        break;
+      case '广告语':
+        prompt = '请为我生成一条简短有力的广告语，用于宣传我的店铺，朗朗上口，易于记忆。';
+        break;
+      default:
+        return;
+    }
+    setInputText(prompt);
+  };
+
+  const sendMessage = async () => {
+    const text = inputText.trim();
+    if (!text) return;
+    const userMsg = { id: Date.now().toString(), text, from: 'user', time: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setLoading(true);
+
+    const prompt = `你是经营宝AI助手，帮助商家解决经营问题，提供营销建议，数据分析，员工管理等。回答要简洁、实用。`;
+    const msgList = messages.filter(m => m.from !== 'system').map(m => ({
+      role: m.from === 'user' ? 'user' : 'assistant',
+      content: m.text,
+    }));
+    msgList.push({ role: 'user', content: text });
+
+    const reply = await fetchZhipuChat(msgList, prompt);
+    const aiMsg = {
+      id: (Date.now() + 1).toString(),
+      text: reply,
+      from: 'ai',
+      time: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMsg]);
+    setLoading(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>AI助手</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('ImageGen')}>
+          <Text style={{ fontSize: 16, color: PRIMARY_COLOR }}>🖼️ 生成图片</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
+        {['文案', '海报', '广告语'].map(label => (
+          <TouchableOpacity key={label} style={{ marginRight:10, paddingHorizontal:14, paddingVertical:6, backgroundColor:LIGHT_PRIMARY, borderRadius:16 }} onPress={() => handleMarketing(label)}>
+            <Text style={{ color:PRIMARY_COLOR }}>📣 {label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.chatScroll}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map(msg => (
+          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
+            <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+          </View>
+        ))}
+        {loading && (
+          <View style={[styles.bubbleLeft, { padding: 12 }]}>
+            <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+          </View>
+        )}
+      </ScrollView>
+
+      <View style={styles.inputBar}>
+        <TextInput
+          style={[styles.inputBox, { flex: 1 }]}
+          placeholder="输入问题..."
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+        />
+        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={loading}>
+          <Text style={styles.sendTxt}>发送</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ height: 56 }} />
+    </View>
+  );
+};
+
+// ========== 底部标签导航 ==========
+function RootTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === 'HomeTab') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === 'VerifyTab') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
+          else if (route.name === 'StockTab') iconName = focused ? 'cube' : 'cube-outline';
+          else if (route.name === 'CustomerTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          else if (route.name === 'InternalTab') iconName = focused ? 'people' : 'people-outline';
+          else if (route.name === 'AITab') iconName = focused ? 'bulb' : 'bulb-outline';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: PRIMARY_COLOR,
+        tabBarInactiveTintColor: TEXT_THIRD,
+        headerShown: false,
+        tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
+      })}
+    >
+      <Tab.Screen name="HomeTab" component={HomePage} options={{ title: '首页' }} />
+      <Tab.Screen name="VerifyTab" component={VerifyOrder} options={{ title: '核销' }} />
+      <Tab.Screen name="StockTab" component={StockManage} options={{ title: '出入库' }} />
+      <Tab.Screen name="CustomerTab" component={CustomerService} options={{ title: '客服' }} />
+      <Tab.Screen name="InternalTab" component={InternalChat} options={{ title: '内部' }} />
+      <Tab.Screen name="AITab" component={MerchantAssistant} options={{ title: 'AI助手' }} />
+    </Tab.Navigator>
+  );
+}
+
+// ========== 主栈导航 ==========
+function MainStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="RootTabs" component={RootTabs} />
+      <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
+      <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
+      <Stack.Screen name="ProductOverview" component={ProductOverview} />
+      <Stack.Screen name="StaffManage" component={StaffManage} />
+      <Stack.Screen name="ChatInfo" component={ChatInfoScreen} />
+      <Stack.Screen name="ImageGen" component={ImageGenScreen} />
+      <Stack.Screen name="MenuManager" component={MenuManagerScreen} />
+      <Stack.Screen name="CustomerService" component={CustomerService} />
+      <Stack.Screen name="InternalChat" component={InternalChat} />
+      <Stack.Screen name="MerchantAssistant" component={MerchantAssistant} />
+    </Stack.Navigator>
+  );
+}
+
+// ========== App 容器 ==========
+export default function App() {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const userStr = await AsyncStorage.getItem('user');
+        const shopStr = await AsyncStorage.getItem('shopInfo');
+        const appData = await loadAllData();
+        if (userStr && shopStr) {
+          const user = JSON.parse(userStr);
+          const shopInfo = JSON.parse(shopStr);
+          dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+        }
+        if (appData) {
+          dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
+        }
+      } catch (error) {
+        console.warn('初始化加载失败', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      saveAllData(state);
+    }
+  }, [state, loading]);
+
+  if (loading) {
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+      </View>
+    );
+  }
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      <NavigationContainer>
+        <MainStack />
+      </NavigationContainer>
+    </AppContext.Provider>
+  );
+}
