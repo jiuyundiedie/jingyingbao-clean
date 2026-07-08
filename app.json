@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -14,14 +13,6 @@
     },
     "android": {
       "package": "com.xxx.jingyingbao"
-    },
-    "splash": {
-      "backgroundColor": "#ffffff"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "dc956f10-0190-4a1e-964d-a2d24e6a17cc"
-      }
     }
   }
 }
