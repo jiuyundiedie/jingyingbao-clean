@@ -74,7 +74,7 @@ const compressImage = async (uri) => {
   }
 };
 
-const initialState = {
+const defaultState = {
   user: null,
   shopInfo: {
     shopName: '',
@@ -118,6 +118,8 @@ const initialState = {
   customerTags: {},
 };
 
+const initialState = JSON.parse(JSON.stringify(defaultState));
+
 function appReducer(state, action) {
   switch (action.type) {
     case 'LOGIN':
@@ -125,44 +127,46 @@ function appReducer(state, action) {
     case 'LOGOUT':
       return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] } };
     case 'ADD_ORDER_RECORD':
-      return { ...state, globalOrderRecord: [action.payload, ...state.globalOrderRecord] };
+      return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
     case 'ADD_STOCK_RECORD':
-      return { ...state, globalStockRecord: [action.payload, ...state.globalStockRecord] };
+      return { ...state, globalStockRecord: [action.payload, ...(state.globalStockRecord || [])] };
     case 'SET_GOODS_LIST':
-      return { ...state, goodsList: action.payload };
+      return { ...state, goodsList: action.payload || [] };
     case 'SET_STAFF_LIST':
-      return { ...state, staffMemberList: action.payload };
+      return { ...state, staffMemberList: action.payload || [] };
     case 'SET_BAD_REVIEW_COUNT':
       return { ...state, badReviewCount: action.payload };
     case 'ADD_BAD_REVIEW': {
-      const newList = [action.payload, ...state.badReviewList];
-      return { ...state, badReviewList: newList, badReviewCount: state.badReviewCount + 1 };
+      const list = state.badReviewList || [];
+      const newList = [action.payload, ...list];
+      return { ...state, badReviewList: newList, badReviewCount: newList.length };
     }
     case 'MARK_BAD_REVIEW_HANDLED': {
-      const index = state.badReviewList.findIndex(item => item.id === action.payload);
+      const list = state.badReviewList || [];
+      const index = list.findIndex(item => item.id === action.payload);
       if (index === -1) return state;
-      const newList = [...state.badReviewList];
+      const newList = [...list];
       newList[index] = { ...newList[index], handled: true };
       return { ...state, badReviewList: newList };
     }
     case 'ADD_BUSINESS_REPORT':
-      return { ...state, businessHistory: [...state.businessHistory, action.payload] };
+      return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
     case 'SET_COST_CACHE':
-      return { ...state, costCache: action.payload };
+      return { ...state, costCache: action.payload || { purchaseCost: "", fixedCost: "" } };
     case 'SET_PUSH_CONFIG':
-      return { ...state, pushConfig: action.payload };
+      return { ...state, pushConfig: action.payload || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" } };
     case 'SET_SHOP_CONFIG':
-      return { ...state, shopConfig: action.payload };
+      return { ...state, shopConfig: action.payload || { shopName: "我的门店", industry: "餐饮类" } };
     case 'SET_LAST_BUSINESS_INPUT':
-      return { ...state, lastBusinessInput: action.payload };
+      return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
     case 'SET_PUSH_TRIGGER':
       return { ...state, todayPushTrigger: action.payload.today ?? state.todayPushTrigger, weekPushTrigger: action.payload.week ?? state.weekPushTrigger, monthPushTrigger: action.payload.month ?? state.monthPushTrigger };
     case 'RESET_PUSH_TRIGGER':
       return { ...state, todayPushTrigger: action.payload.today ?? false, weekPushTrigger: action.payload.week ?? false, monthPushTrigger: action.payload.month ?? false };
     case 'ADD_GROUP_MESSAGE':
-      return { ...state, groupChatMessages: [...state.groupChatMessages, action.payload] };
+      return { ...state, groupChatMessages: [...(state.groupChatMessages || []), action.payload] };
     case 'SET_GROUP_MESSAGES':
-      return { ...state, groupChatMessages: action.payload };
+      return { ...state, groupChatMessages: action.payload || [] };
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
       const existing = state.privateChatMessages[phone] || [];
@@ -177,9 +181,9 @@ function appReducer(state, action) {
     case 'SET_LATEST_DAILY_REPORT':
       return { ...state, latestDailyReport: action.payload };
     case 'ADD_PREVIOUS_ACCOUNT': {
-      const exists = state.previousAccounts.find(a => a.phone === action.payload.phone);
+      const exists = (state.previousAccounts || []).find(a => a.phone === action.payload.phone);
       if (exists) return state;
-      return { ...state, previousAccounts: [...state.previousAccounts, action.payload] };
+      return { ...state, previousAccounts: [...(state.previousAccounts || []), action.payload] };
     }
     case 'CLEAR_PREVIOUS_ACCOUNTS':
       return { ...state, previousAccounts: [] };
@@ -190,7 +194,39 @@ function appReducer(state, action) {
     case 'SET_PUSH_TOKEN':
       return { ...state, pushToken: action.payload };
     case 'RESTORE_ALL_DATA': {
-      return { ...state, ...action.payload };
+      const restored = action.payload || {};
+      // 确保所有字段都存在
+      const newState = {
+        ...defaultState,
+        ...restored,
+        // 确保数组字段是数组
+        globalOrderRecord: Array.isArray(restored.globalOrderRecord) ? restored.globalOrderRecord : [],
+        globalStockRecord: Array.isArray(restored.globalStockRecord) ? restored.globalStockRecord : [],
+        goodsList: Array.isArray(restored.goodsList) ? restored.goodsList : [],
+        staffMemberList: Array.isArray(restored.staffMemberList) ? restored.staffMemberList : [],
+        badReviewList: Array.isArray(restored.badReviewList) ? restored.badReviewList : [],
+        businessHistory: Array.isArray(restored.businessHistory) ? restored.businessHistory : [],
+        groupChatMessages: Array.isArray(restored.groupChatMessages) ? restored.groupChatMessages : [],
+        previousAccounts: Array.isArray(restored.previousAccounts) ? restored.previousAccounts : [],
+        privateChatMessages: typeof restored.privateChatMessages === 'object' ? restored.privateChatMessages : {},
+        chatSettings: typeof restored.chatSettings === 'object' ? restored.chatSettings : {},
+        customerTags: typeof restored.customerTags === 'object' ? restored.customerTags : {},
+        menuVisibility: { ...defaultState.menuVisibility, ...(restored.menuVisibility || {}) },
+        costCache: typeof restored.costCache === 'object' ? restored.costCache : { purchaseCost: "", fixedCost: "" },
+        pushConfig: typeof restored.pushConfig === 'object' ? restored.pushConfig : { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+        shopConfig: typeof restored.shopConfig === 'object' ? restored.shopConfig : { shopName: "我的门店", industry: "餐饮类" },
+        lastBusinessInput: typeof restored.lastBusinessInput === 'object' ? restored.lastBusinessInput : { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+        latestDailyReport: restored.latestDailyReport || null,
+        pushToken: restored.pushToken || null,
+        user: restored.user || null,
+        shopInfo: typeof restored.shopInfo === 'object' ? restored.shopInfo : { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
+        lastLoginInfo: restored.lastLoginInfo || null,
+        badReviewCount: typeof restored.badReviewCount === 'number' ? restored.badReviewCount : 0,
+        todayPushTrigger: typeof restored.todayPushTrigger === 'boolean' ? restored.todayPushTrigger : false,
+        weekPushTrigger: typeof restored.weekPushTrigger === 'boolean' ? restored.weekPushTrigger : false,
+        monthPushTrigger: typeof restored.monthPushTrigger === 'boolean' ? restored.monthPushTrigger : false,
+      };
+      return newState;
     }
     case 'TOGGLE_MENU_VISIBILITY': {
       const { key, visible } = action.payload;
@@ -286,9 +322,11 @@ async function generateImage(prompt) {
 
 const calcDailyReport = (state) => {
   const todayStr = moment().format("YYYY-MM-DD");
-  const existing = state.businessHistory.find(r => r.date === todayStr);
+  const businessHistory = state.businessHistory || [];
+  const existing = businessHistory.find(r => r.date === todayStr);
   if (existing) return existing;
-  const todayOrders = state.globalOrderRecord.filter(item => moment(item.time).format("YYYY-MM-DD") === todayStr);
+  const globalOrderRecord = state.globalOrderRecord || [];
+  const todayOrders = globalOrderRecord.filter(item => moment(item.time).format("YYYY-MM-DD") === todayStr);
   let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
   todayOrders.forEach(order => {
     switch(order.platform) {
@@ -298,11 +336,13 @@ const calcDailyReport = (state) => {
     }
   });
   const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
-  const purchaseCost = Number(state.costCache.purchaseCost) || 0;
-  const fixedCost = Number(state.costCache.fixedCost) || 0;
-  const tempLoss = Number(state.lastBusinessInput.loss) || 0;
-  const tempOtherCost = Number(state.lastBusinessInput.otherCost) || 0;
-  const subLoss = Number(state.lastBusinessInput.lossOverdue||0) + Number(state.lastBusinessInput.lossOperate||0) + Number(state.lastBusinessInput.lossOther||0);
+  const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+  const purchaseCost = Number(costCache.purchaseCost) || 0;
+  const fixedCost = Number(costCache.fixedCost) || 0;
+  const lastBusinessInput = state.lastBusinessInput || {};
+  const tempLoss = Number(lastBusinessInput.loss) || 0;
+  const tempOtherCost = Number(lastBusinessInput.otherCost) || 0;
+  const subLoss = Number(lastBusinessInput.lossOverdue||0) + Number(lastBusinessInput.lossOperate||0) + Number(lastBusinessInput.lossOther||0);
   const totalLoss = tempLoss + subLoss;
   const totalCost = purchaseCost + fixedCost + tempOtherCost + totalLoss;
   const profit = totalIncome - totalCost;
@@ -310,7 +350,7 @@ const calcDailyReport = (state) => {
   return {
     id: new Date().getTime().toString(),
     date: todayStr,
-    shopName: state.shopConfig.shopName,
+    shopName: (state.shopConfig || {}).shopName || '我的门店',
     income: totalIncome,
     meituanIncome,
     douyinIncome,
@@ -343,7 +383,8 @@ const generateWeekReport = (state) => {
   const today = moment();
   const weekStart = today.clone().startOf("week");
   const weekEnd = today.clone().endOf("week");
-  const weekList = state.businessHistory.filter(item => moment(item.date).isBetween(weekStart, weekEnd, null, "[]"));
+  const businessHistory = state.businessHistory || [];
+  const weekList = businessHistory.filter(item => moment(item.date).isBetween(weekStart, weekEnd, null, "[]"));
   if(weekList.length === 0) return null;
   const totalIncome = weekList.reduce((s,r)=>s+r.income,0);
   const totalProfit = weekList.reduce((s,r)=>s+r.profit,0);
@@ -354,7 +395,8 @@ const generateWeekReport = (state) => {
 const generateMonthReport = (state) => {
   const today = moment();
   const monthStr = today.format("YYYY-MM");
-  const monthList = state.businessHistory.filter(item => item.date.startsWith(monthStr));
+  const businessHistory = state.businessHistory || [];
+  const monthList = businessHistory.filter(item => item.date.startsWith(monthStr));
   if(monthList.length === 0) return null;
   const totalIncome = monthList.reduce((s,r)=>s+r.income,0);
   const totalProfit = monthList.reduce((s,r)=>s+r.profit,0);
@@ -365,21 +407,21 @@ const generateMonthReport = (state) => {
 const saveAllData = async (state) => {
   try {
     const dataToSave = {
-      globalOrderRecord: state.globalOrderRecord,
-      globalStockRecord: state.globalStockRecord,
-      goodsList: state.goodsList,
-      staffMemberList: state.staffMemberList,
-      badReviewList: state.badReviewList,
-      businessHistory: state.businessHistory,
-      groupChatMessages: state.groupChatMessages,
-      privateChatMessages: state.privateChatMessages,
-      latestDailyReport: state.latestDailyReport,
-      costCache: state.costCache,
-      pushConfig: state.pushConfig,
-      shopConfig: state.shopConfig,
-      lastBusinessInput: state.lastBusinessInput,
-      menuVisibility: state.menuVisibility,
-      customerTags: state.customerTags,
+      globalOrderRecord: state.globalOrderRecord || [],
+      globalStockRecord: state.globalStockRecord || [],
+      goodsList: state.goodsList || [],
+      staffMemberList: state.staffMemberList || [],
+      badReviewList: state.badReviewList || [],
+      businessHistory: state.businessHistory || [],
+      groupChatMessages: state.groupChatMessages || [],
+      privateChatMessages: state.privateChatMessages || {},
+      latestDailyReport: state.latestDailyReport || null,
+      costCache: state.costCache || { purchaseCost: "", fixedCost: "" },
+      pushConfig: state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+      shopConfig: state.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
+      lastBusinessInput: state.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+      menuVisibility: state.menuVisibility || {},
+      customerTags: state.customerTags || {},
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -624,15 +666,17 @@ const LoginScreen = () => {
     const industry = detectIndustry(shopName);
     const user = { role, phone, shopName, name: '老板' };
     const shopInfo = { shopName, phone, industry, staffList: [] };
-    dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
     try {
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
     } catch (e) {
-      console.warn('存储失败', e);
+      console.warn('登录存储失败', e);
+      showToast('登录失败，请重试');
+      return;
     }
-    // 延迟跳转，确保状态更新和存储完成
+    // 延迟跳转，确保状态更新
     setTimeout(() => {
       try {
         navigation.replace('RootTabs');
@@ -640,7 +684,7 @@ const LoginScreen = () => {
         console.error('跳转失败', e);
         showToast('登录成功但跳转失败，请重启应用');
       }
-    }, 150);
+    }, 200);
   };
 
   return (
@@ -703,6 +747,7 @@ const PlaceholderPage = ({ title }) => (
 const BadReviewListPage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const badReviewList = state.badReviewList || [];
 
   const handleMarkHandled = (id) => {
     dispatch({ type: 'MARK_BAD_REVIEW_HANDLED', payload: id });
@@ -718,10 +763,10 @@ const BadReviewListPage = () => {
         <View style={{ width:24 }}/>
       </View>
       <ScrollView style={{ padding:16 }}>
-        {state.badReviewList.length === 0 ? (
+        {badReviewList.length === 0 ? (
           <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
         ) : (
-          state.badReviewList.map(item => (
+          badReviewList.map(item => (
             <View key={item.id} style={styles.badReviewItem}>
               <Text style={styles.badReviewContent}>“{item.content}”</Text>
               <Text style={styles.badReviewMeta}>平台：{item.platform} ｜ {item.time}</Text>
@@ -750,14 +795,17 @@ const HomePage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [chartData, setChartData] = useState({ labels: [], datasets: [{ data: [] }] });
 
+  const globalOrderRecord = state.globalOrderRecord || [];
   const todayStr = moment().format('YYYY-MM-DD');
-  const todayOrders = state.globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === todayStr);
+  const todayOrders = globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === todayStr);
   let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
   todayOrders.forEach(order => {
-    switch(order.platform) {
-      case '美团': meituanIncome += order.couponPrice; break;
-      case '抖音': douyinIncome += order.couponPrice; break;
-      case '大众点评': dianpingIncome += order.couponPrice; break;
+    if (order && order.platform) {
+      switch(order.platform) {
+        case '美团': meituanIncome += order.couponPrice || 0; break;
+        case '抖音': douyinIncome += order.couponPrice || 0; break;
+        case '大众点评': dianpingIncome += order.couponPrice || 0; break;
+      }
     }
   });
   const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
@@ -768,12 +816,12 @@ const HomePage = () => {
     for (let i = 6; i >= 0; i--) {
       const date = moment().subtract(i, 'days').format('MM-DD');
       labels.push(date);
-      const dayOrders = state.globalOrderRecord.filter(item => moment(item.time).format('MM-DD') === date);
-      const dayIncome = dayOrders.reduce((sum, o) => sum + o.couponPrice, 0);
+      const dayOrders = globalOrderRecord.filter(item => moment(item.time).format('MM-DD') === date);
+      const dayIncome = dayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
       data.push(dayIncome);
     }
     setChartData({ labels, datasets: [{ data }] });
-  }, [state.globalOrderRecord]);
+  }, [globalOrderRecord]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -849,9 +897,10 @@ const HomePage = () => {
 
   const exportData = async () => {
     try {
+      const businessHistory = state.businessHistory || [];
       const csvContent = 
         "日期,订单数,总营收,净利润,利润率\n" +
-        state.businessHistory.map(r => 
+        businessHistory.map(r => 
           `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`
         ).join('\n');
       const fileUri = FileSystem.documentDirectory + 'business_report.csv';
@@ -877,11 +926,17 @@ const HomePage = () => {
   ];
 
   const handleMenuPress = (item) => {
-    if (item.internal) navigation.navigate(item.screen);
-    else navigation.getParent().navigate(item.tab, { screen: item.screen });
+    try {
+      if (item.internal) navigation.navigate(item.screen);
+      else navigation.getParent().navigate(item.tab, { screen: item.screen });
+    } catch (e) {
+      console.warn('菜单跳转失败', e);
+      showToast('跳转失败');
+    }
   };
 
   const latestReport = state.latestDailyReport;
+  const menuVisibility = state.menuVisibility || {};
 
   return (
     <View style={styles.container}>
@@ -903,7 +958,7 @@ const HomePage = () => {
       >
         <View style={styles.cardBox}>
           <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
-          <Text style={{ color: TEXT_SECOND }}>店铺：{state.shopInfo.shopName || '未设置'}</Text>
+          <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
@@ -920,14 +975,14 @@ const HomePage = () => {
             onPress={() => navigation.navigate('BadReviewList')}
           >
             <Text style={{ fontSize: 13, color: TEXT_SECOND }}>差评预警</Text>
-            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: state.badReviewCount > 0 ? DANGER_COLOR : TEXT_MAIN }}>
-              {state.badReviewCount}
-              {state.badReviewCount > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: (state.badReviewCount || 0) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
+              {state.badReviewCount || 0}
+              {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
             </Text>
           </TouchableOpacity>
           <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
             <Text style={{ fontSize: 13, color: TEXT_SECOND }}>总商品数</Text>
-            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{state.goodsList.length}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
           </View>
         </View>
 
@@ -970,7 +1025,7 @@ const HomePage = () => {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
           <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
-            {menuList.filter(item => state.menuVisibility[item.key] !== false).map((item, idx) => (
+            {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
               <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
                 <Text style={{ fontSize: 28 }}>{item.icon}</Text>
                 <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
@@ -992,6 +1047,7 @@ const HomePage = () => {
 // ========== 菜单管理页面 ==========
 const MenuManagerScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
+  const menuVisibility = state.menuVisibility || {};
   const menuList = [
     { key: 'VerifyOrder', label: '订单核销', icon: '🎫' },
     { key: 'StockManage', label: '出入库', icon: '📦' },
@@ -1003,9 +1059,10 @@ const MenuManagerScreen = ({ navigation }) => {
   ];
 
   const toggleMenu = (key) => {
-    const current = state.menuVisibility[key] !== false;
+    const current = menuVisibility[key] !== false;
     dispatch({ type: 'TOGGLE_MENU_VISIBILITY', payload: { key, visible: !current } });
-    showToast(`${!current ? '显示' : '隐藏'} ${menuList.find(m=>m.key===key).label}`);
+    const label = menuList.find(m=>m.key===key)?.label || '';
+    showToast(`${!current ? '显示' : '隐藏'} ${label}`);
   };
 
   return (
@@ -1020,8 +1077,8 @@ const MenuManagerScreen = ({ navigation }) => {
         {menuList.map(item => (
           <View key={item.key} style={[styles.listItem, { flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}>
             <Text style={{ fontSize:16, fontWeight:'500' }}>{item.icon} {item.label}</Text>
-            <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: state.menuVisibility[item.key] !== false ? SUCCESS_COLOR : '#ccc' }]} onPress={() => toggleMenu(item.key)}>
-              <Text style={styles.sendTxt}>{state.menuVisibility[item.key] !== false ? '显示' : '隐藏'}</Text>
+            <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: menuVisibility[item.key] !== false ? SUCCESS_COLOR : '#ccc' }]} onPress={() => toggleMenu(item.key)}>
+              <Text style={styles.sendTxt}>{menuVisibility[item.key] !== false ? '显示' : '隐藏'}</Text>
             </TouchableOpacity>
           </View>
         ))}
@@ -1035,14 +1092,15 @@ const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const user = state.user;
-  const shopInfo = state.shopInfo;
+  const shopInfo = state.shopInfo || { shopName: '', phone: '', industry: '餐饮类', staffList: [] };
   const isEmployee = user?.role === '员工';
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
-  const [workH, setWorkH] = useState(state.pushConfig.workHour);
-  const [workM, setWorkM] = useState(state.pushConfig.workMinute);
-  const [offH, setOffH] = useState(state.pushConfig.offHour);
-  const [offM, setOffM] = useState(state.pushConfig.offMinute);
+  const pushConfig = state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" };
+  const [workH, setWorkH] = useState(pushConfig.workHour);
+  const [workM, setWorkM] = useState(pushConfig.workMinute);
+  const [offH, setOffH] = useState(pushConfig.offHour);
+  const [offM, setOffM] = useState(pushConfig.offMinute);
 
   const saveShop = () => {
     const industry = detectIndustry(shopName);
@@ -1177,7 +1235,7 @@ const SwitchAccountScreen = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const currentUser = state.user;
-  const previousAccounts = state.previousAccounts;
+  const previousAccounts = state.previousAccounts || [];
 
   const handleSelectAccount = async (account) => {
     const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
@@ -1252,13 +1310,13 @@ const VerifyOrder = () => {
     if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
     
     if (selectedGoodsId) {
-      const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+      const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
       if (goods) {
         if (goods.stock < 1) {
           Alert.alert('库存不足', `${goods.name} 库存不足，当前剩余 ${goods.stock}`);
           return;
         }
-        const updatedGoods = state.goodsList.map(g =>
+        const updatedGoods = (state.goodsList || []).map(g =>
           g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g
         );
         dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
@@ -1361,7 +1419,7 @@ const VerifyOrder = () => {
 
           <Text style={styles.label}>选择商品（可选，用于库存联动）</Text>
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:8 }}>
-            {state.goodsList.map(g => (
+            {(state.goodsList || []).map(g => (
               <TouchableOpacity
                 key={g.id}
                 style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]}
@@ -1370,7 +1428,7 @@ const VerifyOrder = () => {
                 <Text style={{ color: selectedGoodsId === g.id ? '#fff' : TEXT_MAIN }}>{g.name} ({g.stock})</Text>
               </TouchableOpacity>
             ))}
-            {state.goodsList.length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品，请先添加</Text>}
+            {(state.goodsList || []).length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品，请先添加</Text>}
           </View>
 
           <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}>
@@ -1380,7 +1438,7 @@ const VerifyOrder = () => {
 
         <View style={styles.cardBox}>
           <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>今日已核销</Text>
-          {state.globalOrderRecord
+          {(state.globalOrderRecord || [])
             .filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD'))
             .map((item, idx) => (
               <View key={idx} style={styles.listItem}>
@@ -1389,7 +1447,7 @@ const VerifyOrder = () => {
               </View>
             ))
           }
-          {state.globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD')).length === 0 && (
+          {(state.globalOrderRecord || []).filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD')).length === 0 && (
             <Text style={{ color:TEXT_THIRD, textAlign:'center', padding:12 }}>今日暂无核销记录</Text>
           )}
         </View>
@@ -1412,7 +1470,7 @@ const ProductOverview = () => {
     if (!name.trim()) { showToast('请输入商品名称'); return; }
     const stockNum = parseInt(stock) || 0;
     if (editingItem) {
-      const updated = state.goodsList.map(item =>
+      const updated = (state.goodsList || []).map(item =>
         item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
       );
       dispatch({ type: 'SET_GOODS_LIST', payload: updated });
@@ -1425,7 +1483,7 @@ const ProductOverview = () => {
         platform,
         createdAt: new Date().toISOString(),
       };
-      dispatch({ type: 'SET_GOODS_LIST', payload: [...state.goodsList, newItem] });
+      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
       showToast('添加成功');
     }
     setModalVisible(false);
@@ -1438,7 +1496,7 @@ const ProductOverview = () => {
     Alert.alert('确认删除', '确定删除该商品？', [
       { text: '取消', style: 'cancel' },
       { text: '删除', style: 'destructive', onPress: () => {
-        const filtered = state.goodsList.filter(item => item.id !== id);
+        const filtered = (state.goodsList || []).filter(item => item.id !== id);
         dispatch({ type: 'SET_GOODS_LIST', payload: filtered });
         showToast('已删除');
       }}
@@ -1464,7 +1522,7 @@ const ProductOverview = () => {
         </TouchableOpacity>
       </View>
       <FlatList
-        data={state.goodsList}
+        data={state.goodsList || []}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <View style={[styles.productItem, { borderColor: item.stock < 5 ? DANGER_COLOR : 'transparent', borderWidth: item.stock < 5 ? 2 : 0 }]}>
@@ -1540,7 +1598,7 @@ const StaffManage = () => {
       joinedAt: new Date().toISOString(),
       verifyCount: 0,
     };
-    const updated = [...state.staffMemberList, newStaff];
+    const updated = [...(state.staffMemberList || []), newStaff];
     dispatch({ type: 'SET_STAFF_LIST', payload: updated });
     showToast(`已添加员工 ${newStaff.name}`);
     setModalVisible(false);
@@ -1552,16 +1610,16 @@ const StaffManage = () => {
     Alert.alert('确认移除', '确定移除该员工？', [
       { text: '取消', style: 'cancel' },
       { text: '移除', style: 'destructive', onPress: () => {
-        const filtered = state.staffMemberList.filter(item => item.id !== id);
+        const filtered = (state.staffMemberList || []).filter(item => item.id !== id);
         dispatch({ type: 'SET_STAFF_LIST', payload: filtered });
         showToast('已移除');
       }}
     ]);
   };
 
-  const staffRank = state.staffMemberList.map(staff => ({
+  const staffRank = (state.staffMemberList || []).map(staff => ({
     ...staff,
-    count: state.globalOrderRecord.filter(o => o.staff === staff.name).length,
+    count: (state.globalOrderRecord || []).filter(o => o.staff === staff.name).length,
   })).sort((a,b) => b.count - a.count);
 
   return (
@@ -1585,7 +1643,7 @@ const StaffManage = () => {
 
       {activeTab === 'list' ? (
         <FlatList
-          data={state.staffMemberList}
+          data={state.staffMemberList || []}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <View style={styles.listItem}>
@@ -1668,13 +1726,13 @@ const StockManage = () => {
   const [photoUri, setPhotoUri] = useState(null);
   const [loadingPlatform, setLoadingPlatform] = useState(null);
 
-  const goodsOptions = state.goodsList.map(g => ({ label: g.name, value: g.id }));
+  const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
 
   const handleSubmit = () => {
     if (!selectedGoodsId) { showToast('请选择商品'); return; }
     const qty = parseInt(quantity);
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
-    const goods = state.goodsList.find(g => g.id === selectedGoodsId);
+    const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
     if (!goods) { showToast('商品不存在'); return; }
 
     let newStock = goods.stock;
@@ -1683,7 +1741,7 @@ const StockManage = () => {
       if (goods.stock < qty) { showToast('库存不足'); return; }
       newStock -= qty;
     }
-    const updatedGoods = state.goodsList.map(g =>
+    const updatedGoods = (state.goodsList || []).map(g =>
       g.id === selectedGoodsId ? { ...g, stock: newStock } : g
     );
     dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
@@ -1715,7 +1773,7 @@ const StockManage = () => {
 
   const handleBarCodeScanned = ({ data }) => {
     setScanning(false);
-    const matched = state.goodsList.find(g => g.code === data);
+    const matched = (state.goodsList || []).find(g => g.code === data);
     if (matched) {
       setSelectedGoodsId(matched.id);
       showToast(`扫描到商品：${matched.name}`);
@@ -1743,7 +1801,7 @@ const StockManage = () => {
 
   const handleShelf = async (platform, goodsId) => {
     if (!goodsId) { showToast('请先选择一个商品'); return; }
-    const goods = state.goodsList.find(g => g.id === goodsId);
+    const goods = (state.goodsList || []).find(g => g.id === goodsId);
     if (!goods) { showToast('商品不存在'); return; }
     setLoadingPlatform(platform);
     try {
@@ -1760,7 +1818,7 @@ const StockManage = () => {
 
   const handleShelfAll = async (goodsId) => {
     if (!goodsId) { showToast('请先选择一个商品'); return; }
-    const goods = state.goodsList.find(g => g.id === goodsId);
+    const goods = (state.goodsList || []).find(g => g.id === goodsId);
     if (!goods) { showToast('商品不存在'); return; }
     setLoadingPlatform('all');
     try {
@@ -1841,7 +1899,7 @@ const StockManage = () => {
 
       <View style={{ padding:16 }}>
         <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>库存列表</Text>
-        {state.goodsList.map(g => (
+        {(state.goodsList || []).map(g => (
           <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
             <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
               <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
@@ -1859,7 +1917,7 @@ const StockManage = () => {
             </View>
           </View>
         ))}
-        {state.goodsList.length === 0 && (
+        {(state.goodsList || []).length === 0 && (
           <Text style={{ color:TEXT_THIRD, textAlign:'center', marginTop:20 }}>暂无商品，请先添加商品</Text>
         )}
       </View>
@@ -2107,7 +2165,7 @@ const CustomerService = () => {
   const [selectedPhone, setSelectedPhone] = useState('');
   const [tagInput, setTagInput] = useState('');
 
-  const customerList = Object.keys(state.privateChatMessages).map(phone => ({
+  const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({
     phone,
     lastMsg: state.privateChatMessages[phone]?.[0]?.text || '',
   }));
@@ -2187,8 +2245,8 @@ const CustomerService = () => {
   };
 
   const getCustomerStats = (phone) => {
-    const orders = state.globalOrderRecord.filter(o => o.phone === phone);
-    const total = orders.reduce((s,o) => s + o.couponPrice, 0);
+    const orders = (state.globalOrderRecord || []).filter(o => o.phone === phone);
+    const total = orders.reduce((s,o) => s + (o.couponPrice || 0), 0);
     const lastOrder = orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无';
     return { total, count: orders.length, lastOrder };
   };
@@ -2326,8 +2384,8 @@ const ImageGenScreen = ({ route, navigation }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [imageResult, setImageResult] = useState(null);
-  const shopName = state.shopInfo.shopName || '我的店铺';
-  const industry = state.shopInfo.industry || '餐饮类';
+  const shopName = state.shopInfo?.shopName || '我的店铺';
+  const industry = state.shopInfo?.industry || '餐饮类';
 
   const generateImageHandler = async () => {
     if (!prompt.trim()) { showToast('请输入描述'); return; }
