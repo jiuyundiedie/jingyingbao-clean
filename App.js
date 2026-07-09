@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
 import { LineChart, BarChart } from 'react-native-chart-kit';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 
 // ===== Polyfill =====
 if (typeof SharedArrayBuffer === 'undefined') {
@@ -127,7 +127,7 @@ function appReducer(state, action) {
       return { ...state, user: action.payload.user, shopInfo: action.payload.shopInfo, lastLoginInfo: action.payload.user };
     case 'LOGOUT':
       return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] } };
-    case 'UPDATE_SHOP_INFO':
+    case 'UPDATE_SHOP_INFO':   // 新增
       return { ...state, shopInfo: action.payload };
     case 'ADD_ORDER_RECORD':
       return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
@@ -249,7 +249,6 @@ function appReducer(state, action) {
         },
       };
     }
-    // 员工入职申请操作
     case 'ADD_STAFF_APPLICATION': {
       const { staff } = action.payload;
       const existing = state.staffMemberList.find(s => s.phone === staff.phone);
@@ -779,7 +778,8 @@ const LoginScreen = () => {
       </TouchableOpacity>
     </View>
   );
-};// ========== 差评列表页面 ==========
+};
+// ===== 第一段结束 =====// ========== 差评列表 ==========
 const BadReviewListPage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -821,7 +821,7 @@ const BadReviewListPage = () => {
   );
 };
 
-// ========== 菜单管理页面 ==========
+// ========== 菜单管理 ==========
 const MenuManagerScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const menuVisibility = state.menuVisibility || {};
@@ -1066,7 +1066,7 @@ const SwitchAccountScreen = () => {
   );
 };
 
-// ========== 订单核销页面 ==========
+// ========== 订单核销 ==========
 const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1236,7 +1236,7 @@ const VerifyOrder = () => {
   );
 };
 
-// ========== 商品管理页面 ==========
+// ========== 商品管理 ==========
 const ProductOverview = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1358,7 +1358,7 @@ const ProductOverview = () => {
   );
 };
 
-// ========== 员工管理页面（含入职申请管理） ==========
+// ========== 员工管理 ==========
 const StaffManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1530,7 +1530,7 @@ const StaffManage = () => {
   );
 };
 
-// ========== 出入库管理页面 ==========
+// ========== 出入库管理 ==========
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1781,7 +1781,7 @@ const StockManage = () => {
   );
 };
 
-// ========== 内部沟通 - 聊天信息页面 ==========
+// ========== 内部沟通 - 聊天信息 ==========
 const ChatInfoScreen = ({ route, navigation }) => {
   const { state, dispatch } = useApp();
   const [isMute, setIsMute] = useState(false);
@@ -1886,7 +1886,7 @@ const ChatInfoScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== 内部沟通页面 ==========
+// ========== 内部沟通 ==========
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2046,7 +2046,7 @@ const InternalChat = () => {
   );
 };
 
-// ========== 私聊页面 ==========
+// ========== 私聊 ==========
 const PrivateChatScreen = ({ route, navigation }) => {
   const { state, dispatch } = useApp();
   const { phone, name } = route.params || {};
@@ -2206,7 +2206,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== 顾客客服页面 ==========
+// ========== 顾客客服 ==========
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2468,7 +2468,7 @@ const CustomerService = () => {
   );
 };
 
-// ========== AI助手 - 图片生成页面 ==========
+// ========== AI图片生成 ==========
 const ImageGenScreen = ({ route, navigation }) => {
   const { state } = useApp();
   const [prompt, setPrompt] = useState('');
@@ -2529,7 +2529,7 @@ const ImageGenScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== AI 助手页面 ==========
+// ========== AI助手 ==========
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2756,7 +2756,9 @@ const MerchantAssistant = () => {
       <View style={{ height: 56 }} />
     </View>
   );
-};// ========== 首页（包含日报/周报/月报、悬浮AI、员工私聊、顶部适配） ==========
+};
+
+// ========== 首页 ==========
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2765,8 +2767,6 @@ const HomePage = () => {
   const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
-
-  // 日报/周报/月报切换
   const [reportType, setReportType] = useState('daily');
 
   const globalOrderRecord = state.globalOrderRecord || [];
@@ -2831,7 +2831,6 @@ const HomePage = () => {
     return true;
   });
 
-  // 员工私聊列表
   let chatStaffList = [];
   if (isEmployee) {
     const bossPhone = state.shopInfo?.phone || '';
@@ -2917,6 +2916,7 @@ const HomePage = () => {
   };
 
   const reportData = getReportData();
+
   const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
 
   return (
@@ -2945,7 +2945,6 @@ const HomePage = () => {
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
 
-          {/* 核心数据卡片 */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
             <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
               <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日核销订单</Text>
@@ -2975,7 +2974,6 @@ const HomePage = () => {
             )}
           </View>
 
-          {/* 日报/周报/月报卡片（仅商家端） */}
           {!isEmployee && (
             <View style={styles.dailyReportCard}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3043,7 +3041,6 @@ const HomePage = () => {
             </View>
           )}
 
-          {/* 业务功能菜单 */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
               {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
@@ -3055,7 +3052,6 @@ const HomePage = () => {
             </View>
           </ScrollView>
 
-          {/* 员工私聊入口 */}
           {chatStaffList.length > 0 && (
             <View style={{ marginTop: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>
@@ -3071,7 +3067,6 @@ const HomePage = () => {
             </View>
           )}
 
-          {/* 入职申请 */}
           {!isEmployee && pendingStaff.length > 0 && (
             <View style={{ marginTop: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📩 入职申请</Text>
@@ -3093,7 +3088,6 @@ const HomePage = () => {
         </ScrollView>
       </View>
 
-      {/* 悬浮窗AI助手（仅商家端） */}
       {!isEmployee && (
         <TouchableOpacity
           style={{
@@ -3117,8 +3111,7 @@ const HomePage = () => {
     </SafeAreaView>
   );
 };
-
-// ========== 底部标签导航 ==========
+// ===== 第二段结束 =====// ========== 底部标签导航 ==========
 function RootTabs() {
   const { state } = useApp();
   const isEmployee = state.user?.role === '员工';
@@ -3173,7 +3166,7 @@ function MainStack() {
   );
 }
 
-// ========== App 容器 ==========
+// ========== App容器 ==========
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
@@ -3192,6 +3185,7 @@ export default function App() {
         if (appData) {
           dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
         }
+        // 确保当前登录账号被记录到历史
         if (state.user && state.user.phone) {
           const exists = (state.previousAccounts || []).find(a => a.phone === state.user.phone);
           if (!exists) {
@@ -3227,10 +3221,13 @@ export default function App() {
   }
 
   return (
-    <AppContext.Provider value={{ state, dispatch }}>
-      <NavigationContainer>
-        <MainStack />
-      </NavigationContainer>
-    </AppContext.Provider>
+    <SafeAreaProvider>
+      <AppContext.Provider value={{ state, dispatch }}>
+        <NavigationContainer>
+          <MainStack />
+        </NavigationContainer>
+      </AppContext.Provider>
+    </SafeAreaProvider>
   );
 }
+// ===== 第三段结束 =====
