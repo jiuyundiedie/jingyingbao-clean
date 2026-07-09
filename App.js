@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert,
-  BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid, Keyboard,
-  Modal, Image, FlatList, Share, RefreshControl, StatusBar, SafeAreaView
+  BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
+  Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -16,14 +16,12 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
-import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 
-// ===== Polyfill =====
+// ===== 兼容性 =====
 if (typeof SharedArrayBuffer === 'undefined') {
-  global.SharedArrayBuffer = function() {};
+  global.SharedArrayBuffer = function () {};
 }
-// ===== End Polyfill =====
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -58,9 +56,6 @@ const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
-const IMAGE_GEN_API = "https://image-api.my-image-api.workers.dev";
-const IMAGE_GEN_API_KEY = "my_secure_key_123";
-
 const compressImage = async (uri) => {
   try {
     const result = await ImageManipulator.manipulateAsync(
@@ -70,19 +65,13 @@ const compressImage = async (uri) => {
     );
     return result.uri;
   } catch (error) {
-    console.warn('压缩失败', error);
     return uri;
   }
 };
 
 const defaultState = {
   user: null,
-  shopInfo: {
-    shopName: '',
-    phone: '',
-    industry: '餐饮类',
-    staffList: [],
-  },
+  shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
   lastLoginInfo: null,
   previousAccounts: [],
   globalOrderRecord: [],
@@ -95,10 +84,7 @@ const defaultState = {
   costCache: { purchaseCost: "", fixedCost: "" },
   pushConfig: { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
   shopConfig: { shopName: "我的门店", industry: "餐饮类" },
-  lastBusinessInput: {
-    income: "", purchaseCost: "", loss: "", fixedCost: "",
-    otherCost: "", lossOverdue: "", lossOperate: "", lossOther: ""
-  },
+  lastBusinessInput: { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
   todayPushTrigger: false,
   weekPushTrigger: false,
   monthPushTrigger: false,
@@ -123,25 +109,16 @@ const initialState = JSON.parse(JSON.stringify(defaultState));
 
 function appReducer(state, action) {
   switch (action.type) {
-    case 'LOGIN':
-      return { ...state, user: action.payload.user, shopInfo: action.payload.shopInfo, lastLoginInfo: action.payload.user };
-    case 'LOGOUT':
-      return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] } };
-    case 'UPDATE_SHOP_INFO':
-      return { ...state, shopInfo: action.payload };
-    case 'ADD_ORDER_RECORD':
-      return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
-    case 'ADD_STOCK_RECORD':
-      return { ...state, globalStockRecord: [action.payload, ...(state.globalStockRecord || [])] };
-    case 'SET_GOODS_LIST':
-      return { ...state, goodsList: action.payload || [] };
-    case 'SET_STAFF_LIST':
-      return { ...state, staffMemberList: action.payload || [] };
-    case 'SET_BAD_REVIEW_COUNT':
-      return { ...state, badReviewCount: action.payload };
+    case 'LOGIN': return { ...state, user: action.payload.user, shopInfo: action.payload.shopInfo, lastLoginInfo: action.payload.user };
+    case 'LOGOUT': return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] } };
+    case 'UPDATE_SHOP_INFO': return { ...state, shopInfo: action.payload };
+    case 'ADD_ORDER_RECORD': return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
+    case 'ADD_STOCK_RECORD': return { ...state, globalStockRecord: [action.payload, ...(state.globalStockRecord || [])] };
+    case 'SET_GOODS_LIST': return { ...state, goodsList: action.payload || [] };
+    case 'SET_STAFF_LIST': return { ...state, staffMemberList: action.payload || [] };
+    case 'SET_BAD_REVIEW_COUNT': return { ...state, badReviewCount: action.payload };
     case 'ADD_BAD_REVIEW': {
-      const list = state.badReviewList || [];
-      const newList = [action.payload, ...list];
+      const newList = [action.payload, ...(state.badReviewList || [])];
       return { ...state, badReviewList: newList, badReviewCount: newList.length };
     }
     case 'MARK_BAD_REVIEW_HANDLED': {
@@ -152,24 +129,15 @@ function appReducer(state, action) {
       newList[index] = { ...newList[index], handled: true };
       return { ...state, badReviewList: newList };
     }
-    case 'ADD_BUSINESS_REPORT':
-      return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
-    case 'SET_COST_CACHE':
-      return { ...state, costCache: action.payload || { purchaseCost: "", fixedCost: "" } };
-    case 'SET_PUSH_CONFIG':
-      return { ...state, pushConfig: action.payload || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" } };
-    case 'SET_SHOP_CONFIG':
-      return { ...state, shopConfig: action.payload || { shopName: "我的门店", industry: "餐饮类" } };
-    case 'SET_LAST_BUSINESS_INPUT':
-      return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
-    case 'SET_PUSH_TRIGGER':
-      return { ...state, todayPushTrigger: action.payload.today ?? state.todayPushTrigger, weekPushTrigger: action.payload.week ?? state.weekPushTrigger, monthPushTrigger: action.payload.month ?? state.monthPushTrigger };
-    case 'RESET_PUSH_TRIGGER':
-      return { ...state, todayPushTrigger: action.payload.today ?? false, weekPushTrigger: action.payload.week ?? false, monthPushTrigger: action.payload.month ?? false };
-    case 'ADD_GROUP_MESSAGE':
-      return { ...state, groupChatMessages: [...(state.groupChatMessages || []), action.payload] };
-    case 'SET_GROUP_MESSAGES':
-      return { ...state, groupChatMessages: action.payload || [] };
+    case 'ADD_BUSINESS_REPORT': return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
+    case 'SET_COST_CACHE': return { ...state, costCache: action.payload || { purchaseCost: "", fixedCost: "" } };
+    case 'SET_PUSH_CONFIG': return { ...state, pushConfig: action.payload || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" } };
+    case 'SET_SHOP_CONFIG': return { ...state, shopConfig: action.payload || { shopName: "我的门店", industry: "餐饮类" } };
+    case 'SET_LAST_BUSINESS_INPUT': return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
+    case 'SET_PUSH_TRIGGER': return { ...state, todayPushTrigger: action.payload.today ?? state.todayPushTrigger, weekPushTrigger: action.payload.week ?? state.weekPushTrigger, monthPushTrigger: action.payload.month ?? state.monthPushTrigger };
+    case 'RESET_PUSH_TRIGGER': return { ...state, todayPushTrigger: action.payload.today ?? false, weekPushTrigger: action.payload.week ?? false, monthPushTrigger: action.payload.month ?? false };
+    case 'ADD_GROUP_MESSAGE': return { ...state, groupChatMessages: [...(state.groupChatMessages || []), action.payload] };
+    case 'SET_GROUP_MESSAGES': return { ...state, groupChatMessages: action.payload || [] };
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
       const existing = state.privateChatMessages[phone] || [];
@@ -181,97 +149,70 @@ function appReducer(state, action) {
       delete newState.privateChatMessages[phone];
       return newState;
     }
-    case 'SET_LATEST_DAILY_REPORT':
-      return { ...state, latestDailyReport: action.payload };
+    case 'SET_LATEST_DAILY_REPORT': return { ...state, latestDailyReport: action.payload };
     case 'ADD_PREVIOUS_ACCOUNT': {
       const exists = (state.previousAccounts || []).find(a => a.phone === action.payload.phone);
       if (exists) return state;
       return { ...state, previousAccounts: [...(state.previousAccounts || []), action.payload] };
     }
-    case 'CLEAR_PREVIOUS_ACCOUNTS':
-      return { ...state, previousAccounts: [] };
-    case 'SET_CHAT_SETTINGS': {
-      const { key, settings } = action.payload;
-      return { ...state, chatSettings: { ...state.chatSettings, [key]: settings } };
-    }
-    case 'SET_PUSH_TOKEN':
-      return { ...state, pushToken: action.payload };
+    case 'CLEAR_PREVIOUS_ACCOUNTS': return { ...state, previousAccounts: [] };
+    case 'SET_CHAT_SETTINGS': return { ...state, chatSettings: { ...state.chatSettings, [action.payload.key]: action.payload.settings } };
+    case 'SET_PUSH_TOKEN': return { ...state, pushToken: action.payload };
     case 'RESTORE_ALL_DATA': {
-      const restored = action.payload || {};
+      const r = action.payload || {};
       return {
         ...defaultState,
-        ...restored,
-        globalOrderRecord: Array.isArray(restored.globalOrderRecord) ? restored.globalOrderRecord : [],
-        globalStockRecord: Array.isArray(restored.globalStockRecord) ? restored.globalStockRecord : [],
-        goodsList: Array.isArray(restored.goodsList) ? restored.goodsList : [],
-        staffMemberList: Array.isArray(restored.staffMemberList) ? restored.staffMemberList : [],
-        badReviewList: Array.isArray(restored.badReviewList) ? restored.badReviewList : [],
-        businessHistory: Array.isArray(restored.businessHistory) ? restored.businessHistory : [],
-        groupChatMessages: Array.isArray(restored.groupChatMessages) ? restored.groupChatMessages : [],
-        previousAccounts: Array.isArray(restored.previousAccounts) ? restored.previousAccounts : [],
-        privateChatMessages: typeof restored.privateChatMessages === 'object' && restored.privateChatMessages !== null ? restored.privateChatMessages : {},
-        chatSettings: typeof restored.chatSettings === 'object' && restored.chatSettings !== null ? restored.chatSettings : {},
-        customerTags: typeof restored.customerTags === 'object' && restored.customerTags !== null ? restored.customerTags : {},
-        menuVisibility: { ...defaultState.menuVisibility, ...(restored.menuVisibility || {}) },
-        costCache: typeof restored.costCache === 'object' && restored.costCache !== null ? restored.costCache : { purchaseCost: "", fixedCost: "" },
-        pushConfig: typeof restored.pushConfig === 'object' && restored.pushConfig !== null ? restored.pushConfig : { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
-        shopConfig: typeof restored.shopConfig === 'object' && restored.shopConfig !== null ? restored.shopConfig : { shopName: "我的门店", industry: "餐饮类" },
-        lastBusinessInput: typeof restored.lastBusinessInput === 'object' && restored.lastBusinessInput !== null ? restored.lastBusinessInput : { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
-        latestDailyReport: restored.latestDailyReport || null,
-        pushToken: restored.pushToken || null,
-        user: restored.user || null,
-        shopInfo: typeof restored.shopInfo === 'object' && restored.shopInfo !== null ? restored.shopInfo : { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
-        lastLoginInfo: restored.lastLoginInfo || null,
-        badReviewCount: typeof restored.badReviewCount === 'number' ? restored.badReviewCount : 0,
-        todayPushTrigger: typeof restored.todayPushTrigger === 'boolean' ? restored.todayPushTrigger : false,
-        weekPushTrigger: typeof restored.weekPushTrigger === 'boolean' ? restored.weekPushTrigger : false,
-        monthPushTrigger: typeof restored.monthPushTrigger === 'boolean' ? restored.monthPushTrigger : false,
+        ...r,
+        globalOrderRecord: Array.isArray(r.globalOrderRecord) ? r.globalOrderRecord : [],
+        globalStockRecord: Array.isArray(r.globalStockRecord) ? r.globalStockRecord : [],
+        goodsList: Array.isArray(r.goodsList) ? r.goodsList : [],
+        staffMemberList: Array.isArray(r.staffMemberList) ? r.staffMemberList : [],
+        badReviewList: Array.isArray(r.badReviewList) ? r.badReviewList : [],
+        businessHistory: Array.isArray(r.businessHistory) ? r.businessHistory : [],
+        groupChatMessages: Array.isArray(r.groupChatMessages) ? r.groupChatMessages : [],
+        previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
+        privateChatMessages: (r.privateChatMessages && typeof r.privateChatMessages === 'object') ? r.privateChatMessages : {},
+        chatSettings: (r.chatSettings && typeof r.chatSettings === 'object') ? r.chatSettings : {},
+        customerTags: (r.customerTags && typeof r.customerTags === 'object') ? r.customerTags : {},
+        menuVisibility: { ...defaultState.menuVisibility, ...(r.menuVisibility || {}) },
+        costCache: (r.costCache && typeof r.costCache === 'object') ? r.costCache : { purchaseCost: "", fixedCost: "" },
+        pushConfig: (r.pushConfig && typeof r.pushConfig === 'object') ? r.pushConfig : { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+        shopConfig: (r.shopConfig && typeof r.shopConfig === 'object') ? r.shopConfig : { shopName: "我的门店", industry: "餐饮类" },
+        lastBusinessInput: (r.lastBusinessInput && typeof r.lastBusinessInput === 'object') ? r.lastBusinessInput : { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+        latestDailyReport: r.latestDailyReport || null,
+        pushToken: r.pushToken || null,
+        user: r.user || null,
+        shopInfo: (r.shopInfo && typeof r.shopInfo === 'object') ? r.shopInfo : { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
+        lastLoginInfo: r.lastLoginInfo || null,
+        badReviewCount: typeof r.badReviewCount === 'number' ? r.badReviewCount : 0,
+        todayPushTrigger: typeof r.todayPushTrigger === 'boolean' ? r.todayPushTrigger : false,
+        weekPushTrigger: typeof r.weekPushTrigger === 'boolean' ? r.weekPushTrigger : false,
+        monthPushTrigger: typeof r.monthPushTrigger === 'boolean' ? r.monthPushTrigger : false,
       };
     }
     case 'TOGGLE_MENU_VISIBILITY': {
       const { key, visible } = action.payload;
-      return {
-        ...state,
-        menuVisibility: {
-          ...state.menuVisibility,
-          [key]: visible,
-        },
-      };
+      return { ...state, menuVisibility: { ...state.menuVisibility, [key]: visible } };
     }
     case 'SET_CUSTOMER_TAG': {
       const { phone, tag } = action.payload;
       const existing = state.customerTags[phone] || [];
-      return {
-        ...state,
-        customerTags: {
-          ...state.customerTags,
-          [phone]: existing.includes(tag) ? existing : [...existing, tag],
-        },
-      };
+      return { ...state, customerTags: { ...state.customerTags, [phone]: existing.includes(tag) ? existing : [...existing, tag] } };
     }
     case 'ADD_STAFF_APPLICATION': {
       const { staff } = action.payload;
-      const existing = state.staffMemberList.find(s => s.phone === staff.phone);
-      if (existing) return state;
-      return {
-        ...state,
-        staffMemberList: [...state.staffMemberList, { ...staff, status: 'pending' }]
-      };
+      if (state.staffMemberList.find(s => s.phone === staff.phone)) return state;
+      return { ...state, staffMemberList: [...state.staffMemberList, { ...staff, status: 'pending' }] };
     }
     case 'APPROVE_STAFF_APPLICATION': {
       const { phone } = action.payload;
-      const updated = state.staffMemberList.map(s =>
-        s.phone === phone ? { ...s, status: 'approved' } : s
-      );
-      return { ...state, staffMemberList: updated };
+      return { ...state, staffMemberList: state.staffMemberList.map(s => s.phone === phone ? { ...s, status: 'approved' } : s) };
     }
     case 'REJECT_STAFF_APPLICATION': {
       const { phone } = action.payload;
-      const updated = state.staffMemberList.filter(s => s.phone !== phone);
-      return { ...state, staffMemberList: updated };
+      return { ...state, staffMemberList: state.staffMemberList.filter(s => s.phone !== phone) };
     }
-    default:
-      return state;
+    default: return state;
   }
 }
 
@@ -282,9 +223,9 @@ const useApp = () => {
   return ctx;
 };
 
-const showToast = (msg, duration = 'short') => {
+const showToast = (msg) => {
   if (Platform.OS === 'android') {
-    ToastAndroid.show(msg, duration === 'long' ? ToastAndroid.LONG : ToastAndroid.SHORT);
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
   } else {
     Alert.alert('提示', msg);
   }
@@ -319,28 +260,6 @@ async function fetchZhipuChat(msgList, prompt) {
   }
 }
 
-async function generateImage(prompt) {
-  try {
-    const res = await fetch(IMAGE_GEN_API, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${IMAGE_GEN_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, width: 1024, height: 1024, num_steps: 20 })
-    });
-    if (!res.ok) { showToast("生成失败，请重试"); return ""; }
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve("");
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.error("生成图片失败:", err);
-    showToast("生成失败，请检查网络");
-    return "";
-  }
-}
-
 const calcDailyReport = (state) => {
   const todayStr = moment().format("YYYY-MM-DD");
   const businessHistory = state.businessHistory || [];
@@ -351,9 +270,9 @@ const calcDailyReport = (state) => {
   let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
   todayOrders.forEach(order => {
     switch(order.platform) {
-      case "美团": meituanIncome += order.couponPrice; break;
-      case "抖音": douyinIncome += order.couponPrice; break;
-      case "大众点评": dianpingIncome += order.couponPrice; break;
+      case "美团": meituanIncome += order.couponPrice || 0; break;
+      case "抖音": douyinIncome += order.couponPrice || 0; break;
+      case "大众点评": dianpingIncome += order.couponPrice || 0; break;
     }
   });
   const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
@@ -387,19 +306,6 @@ const calcDailyReport = (state) => {
   };
 };
 
-const showDailyPush = (report) => {
-  Alert.alert("📊 今日经营日报", 
-    `门店：${report.shopName}\n订单：${report.totalOrder}单\n总营收：¥${report.income}\n净利润：¥${report.profit}\n利润率：${report.profitRate}%`);
-};
-const showWeekPush = (report) => {
-  Alert.alert("📅 本周周报", 
-    `周期：${report.startDate} ~ ${report.endDate}\n总订单：${report.totalOrder}单\n总营收：¥${report.totalIncome}\n日均：¥${report.avgDailyIncome}`);
-};
-const showMonthPush = (report) => {
-  Alert.alert("📆 月度月报", 
-    `${report.yearMonth}\n有效天数：${report.dayCount}天\n总营收：¥${report.totalIncome}\n总利润：¥${report.totalProfit}`);
-};
-
 const generateWeekReport = (state) => {
   const today = moment();
   const weekStart = today.clone().startOf("week");
@@ -413,6 +319,7 @@ const generateWeekReport = (state) => {
   const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
   return { startDate: weekStart.format("MM-DD"), endDate: weekEnd.format("MM-DD"), totalIncome, totalProfit, totalOrder, avgDailyIncome };
 };
+
 const generateMonthReport = (state) => {
   const today = moment();
   const monthStr = today.format("YYYY-MM");
@@ -454,16 +361,14 @@ const saveAllData = async (state) => {
 const loadAllData = async () => {
   try {
     const data = await AsyncStorage.getItem('appData');
-    if (data) {
-      return JSON.parse(data);
-    }
+    if (data) return JSON.parse(data);
     return null;
   } catch (error) {
-    console.warn('加载数据失败', error);
     return null;
   }
 };
 
+// ================== 样式 ==================
 const styles = StyleSheet.create({
   safeTop: { height: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 32) },
   headerBar: {
@@ -473,31 +378,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     backgroundColor: BG_CARD,
-    borderBottomWidth: 0,
     ...SHADOW,
   },
   pageTitle: { fontSize: 18, fontWeight: '600', color: TEXT_MAIN },
   homeTitle: { fontSize: 20, fontWeight: '700', color: TEXT_MAIN },
   container: { flex: 1, backgroundColor: BG_PAGE },
   chatScroll: { flex: 1, paddingHorizontal: 12 },
-  bubbleLeft: {
-    backgroundColor: BG_CARD,
-    padding: 12,
-    borderRadius: 16,
-    marginVertical: 4,
-    maxWidth: '78%',
-    alignSelf: 'flex-start',
-    ...SHADOW,
-  },
-  bubbleRight: {
-    backgroundColor: LIGHT_PRIMARY,
-    padding: 12,
-    borderRadius: 16,
-    marginVertical: 4,
-    maxWidth: '78%',
-    alignSelf: 'flex-end',
-    ...SHADOW,
-  },
+  bubbleLeft: { backgroundColor: BG_CARD, padding: 12, borderRadius: 16, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-start', ...SHADOW },
+  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 12, borderRadius: 16, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-end', ...SHADOW },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -512,53 +400,18 @@ const styles = StyleSheet.create({
     right: 0,
     ...SHADOW,
   },
-  inputBox: {
-    flex: 1,
-    height: 44,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 0,
-    borderRadius: 22,
-    fontSize: 15,
-    backgroundColor: '#FFFFFF',
-    color: TEXT_MAIN,
-    ...SHADOW,
-  },
+  inputBox: { flex: 1, height: 44, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 0, borderRadius: 22, fontSize: 15, backgroundColor: '#FFFFFF', color: TEXT_MAIN, ...SHADOW },
   sendBtn: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 22, marginLeft: 8 },
   sendTxt: { color: '#fff', fontSize: 14, fontWeight: '500' },
   label: { fontSize: 14, color: TEXT_SECOND, marginTop: 12, marginBottom: 6, fontWeight: '500' },
-  formInput: {
-    height: 44,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 10,
-    backgroundColor: BG_CARD,
-    color: TEXT_MAIN,
-  },
-  primaryBtn: {
-    marginTop: 16,
-    height: 48,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOW,
-  },
+  formInput: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, backgroundColor: BG_CARD, color: TEXT_MAIN },
+  primaryBtn: { marginTop: 16, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
   miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 },
   loginContainer: { flex: 1, backgroundColor: '#F8FAFF', paddingHorizontal: 24, justifyContent: 'center' },
   loginTitle: { fontSize: 28, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
   loginSubtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
   roleSelector: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    marginHorizontal: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    alignItems: 'center',
-  },
+  roleBtn: { flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_COLOR, alignItems: 'center' },
   roleBtnActive: { borderColor: PRIMARY_COLOR, backgroundColor: LIGHT_PRIMARY },
   roleText: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
   loginBtn: { height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 16 },
@@ -567,42 +420,13 @@ const styles = StyleSheet.create({
   codeInput: { flex: 1 },
   getCodeBtn: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, marginLeft: 8 },
   getCodeText: { color: PRIMARY_COLOR, fontSize: 14 },
-  tagNormal: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-  },
-  tagActive: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 20,
-  },
+  tagNormal: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 20, backgroundColor: 'transparent' },
+  tagActive: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: PRIMARY_COLOR, borderRadius: 20 },
   cardBox: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW },
   listItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
-  roleLabel: { fontSize: 11, color: TEXT_THIRD, marginBottom: 2 },
-  iconBtn: { paddingHorizontal: 8, justifyContent: 'center' },
   emojiRow: { height: 44, backgroundColor: BG_CARD, paddingHorizontal: 10, borderTopWidth: 1, borderColor: BORDER_COLOR },
-  quickReplyContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: BG_CARD,
-    borderBottomWidth: 1,
-    borderColor: BORDER_COLOR,
-  },
-  quickReplyBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: LIGHT_PRIMARY,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 6,
-  },
+  quickReplyContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR },
+  quickReplyBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 20, marginRight: 8, marginBottom: 6 },
   quickReplyText: { color: PRIMARY_COLOR, fontSize: 13 },
   scannerContainer: { flex: 1 },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
@@ -614,25 +438,12 @@ const styles = StyleSheet.create({
   productPlatform: { fontSize: 12, color: TEXT_THIRD },
   editBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 },
   editBtnText: { color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' },
-  modalMask: {
-    position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16
-  },
+  modalMask: { position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 20, padding: 24, ...SHADOW },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
   closeTxt: { fontSize: 24, color: TEXT_THIRD },
-  divider: { height: 1, backgroundColor: BORDER_COLOR, marginVertical: 16 },
-  chatMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-  },
+  chatMenuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   chatMenuIcon: { fontSize: 20, width: 30, color: TEXT_MAIN },
   chatMenuText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
   reportCard: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginTop: 16, ...SHADOW },
@@ -643,9 +454,6 @@ const styles = StyleSheet.create({
   settingGroup: { marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW },
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   settingItemLast: { borderBottomWidth: 0 },
-  settingIcon: { fontSize: 20, marginRight: 12, width: 28, textAlign: 'center', color: TEXT_SECOND },
-  timePickerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 8, backgroundColor: BG_CARD, marginTop: 4 },
-  timePickerText: { fontSize: 16, color: TEXT_MAIN },
   switchAccountContainer: { flex: 1, backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingTop: 20 },
   accountItem: { backgroundColor: BG_CARD, padding: 16, borderRadius: 12, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
   accountInfo: { flex: 1 },
@@ -653,8 +461,6 @@ const styles = StyleSheet.create({
   accountDetail: { fontSize: 14, color: TEXT_SECOND, marginTop: 2 },
   registerBtn: { marginTop: 20, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
   registerBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  bossMessageCard: { marginTop: 16, backgroundColor: BG_CARD, padding: 14, borderRadius: 14, ...SHADOW },
-  bossMessageTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
   dailyReportCard: { marginTop: 16, backgroundColor: BG_CARD, padding: 14, borderRadius: 14, ...SHADOW },
   badReviewItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
   badReviewContent: { fontSize: 14, color: TEXT_MAIN },
@@ -663,13 +469,11 @@ const styles = StyleSheet.create({
   badReviewHandledBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: SUCCESS_COLOR, borderRadius: 6, marginLeft: 8 },
   badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
   badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
-  chartContainer: { marginTop: 16, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW },
-  chartTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
   exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start' },
   exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
 });
 
-// ========== 登录页面 ==========
+// ================== 登录页面 ==================
 const LoginScreen = () => {
   const { state, dispatch } = useApp();
   const navigation = useNavigation();
@@ -679,7 +483,6 @@ const LoginScreen = () => {
   const [shopName, setShopName] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-
   const previousAccounts = state.previousAccounts || [];
 
   useEffect(() => {
@@ -710,7 +513,6 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
     } catch (e) {
-      console.warn('登录存储失败', e);
       showToast('登录失败，请重试');
       return;
     }
@@ -731,7 +533,6 @@ const LoginScreen = () => {
     <View style={styles.loginContainer}>
       <Text style={styles.loginTitle}>经营宝</Text>
       <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
-
       <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
         <Text style={{ color: PRIMARY_COLOR, marginBottom: 12 }}>历史账号</Text>
       </TouchableOpacity>
@@ -744,20 +545,14 @@ const LoginScreen = () => {
           ))}
         </View>
       )}
-
       <Text style={styles.label}>选择角色</Text>
       <View style={styles.roleSelector}>
         {['商家','员工'].map(r => (
-          <TouchableOpacity
-            key={r}
-            style={[styles.roleBtn, role === r && styles.roleBtnActive]}
-            onPress={() => setRole(r)}
-          >
+          <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)}>
             <Text style={[styles.roleText, role === r && { color: '#fff' }]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </View>
-
       <Text style={styles.label}>手机号</Text>
       <TextInput style={[styles.formInput, { marginBottom: 12 }]} placeholder="请输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
       <Text style={styles.label}>验证码</Text>
@@ -779,17 +574,16 @@ const LoginScreen = () => {
     </View>
   );
 };
-// ===== 第一段结束 =====// ========== 差评列表 ==========
+
+// ================== 差评列表 ==================
 const BadReviewListPage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
-  const badReviewList = state.badReviewList || [];
-
-  const handleMarkHandled = (id) => {
+  const list = state.badReviewList || [];
+  const handleMark = (id) => {
     dispatch({ type: 'MARK_BAD_REVIEW_HANDLED', payload: id });
     showToast('已标记为已处理');
   };
-
   return (
     <View style={styles.container}>
       <View style={styles.safeTop} />
@@ -799,17 +593,17 @@ const BadReviewListPage = () => {
         <View style={{ width:24 }}/>
       </View>
       <ScrollView style={{ padding:16 }}>
-        {badReviewList.length === 0 ? (
+        {list.length === 0 ? (
           <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
         ) : (
-          badReviewList.map(item => (
+          list.map(item => (
             <View key={item.id} style={styles.badReviewItem}>
               <Text style={styles.badReviewContent}>“{item.content}”</Text>
               <Text style={styles.badReviewMeta}>平台：{item.platform} ｜ {item.time}</Text>
               {item.handled ? (
                 <Text style={styles.badReviewHandled}>✅ 已处理</Text>
               ) : (
-                <TouchableOpacity style={styles.badReviewHandledBtn} onPress={() => handleMarkHandled(item.id)}>
+                <TouchableOpacity style={styles.badReviewHandledBtn} onPress={() => handleMark(item.id)}>
                   <Text style={styles.badReviewHandledBtnText}>标记已处理</Text>
                 </TouchableOpacity>
               )}
@@ -821,7 +615,7 @@ const BadReviewListPage = () => {
   );
 };
 
-// ========== 菜单管理 ==========
+// ================== 菜单管理 ==================
 const MenuManagerScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const menuVisibility = state.menuVisibility || {};
@@ -834,14 +628,11 @@ const MenuManagerScreen = ({ navigation }) => {
     { key: 'MerchantAssistant', label: 'AI助手', icon: '🤖' },
     { key: 'ProductOverview', label: '商品总览', icon: '📊' },
   ];
-
-  const toggleMenu = (key) => {
+  const toggle = (key) => {
     const current = menuVisibility[key] !== false;
     dispatch({ type: 'TOGGLE_MENU_VISIBILITY', payload: { key, visible: !current } });
-    const label = menuList.find(m=>m.key===key)?.label || '';
-    showToast(`${!current ? '显示' : '隐藏'} ${label}`);
+    showToast(`${!current ? '显示' : '隐藏'} ${menuList.find(m=>m.key===key)?.label}`);
   };
-
   return (
     <View style={styles.container}>
       <View style={styles.safeTop} />
@@ -854,7 +645,7 @@ const MenuManagerScreen = ({ navigation }) => {
         {menuList.map(item => (
           <View key={item.key} style={[styles.listItem, { flexDirection:'row', justifyContent:'space-between', alignItems:'center' }]}>
             <Text style={{ fontSize:16, fontWeight:'500' }}>{item.icon} {item.label}</Text>
-            <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: menuVisibility[item.key] !== false ? SUCCESS_COLOR : '#ccc' }]} onPress={() => toggleMenu(item.key)}>
+            <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: menuVisibility[item.key] !== false ? SUCCESS_COLOR : '#ccc' }]} onPress={() => toggle(item.key)}>
               <Text style={styles.sendTxt}>{menuVisibility[item.key] !== false ? '显示' : '隐藏'}</Text>
             </TouchableOpacity>
           </View>
@@ -864,7 +655,7 @@ const MenuManagerScreen = ({ navigation }) => {
   );
 };
 
-// ========== 设置抽屉 ==========
+// ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -880,24 +671,17 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [offM, setOffM] = useState(pushConfig.offMinute);
 
   const saveShop = () => {
-    if (isEmployee) {
-      showToast('员工无权修改门店信息');
-      return;
-    }
+    if (isEmployee) { showToast('员工无权修改'); return; }
     const industry = detectIndustry(shopName);
-    const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
-    dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
+    dispatch({ type: 'UPDATE_SHOP_INFO', payload: { ...shopInfo, shopName, phone, industry } });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
-    showToast(`门店信息已保存，类型识别为：${industry}`);
+    showToast(`门店信息已保存，类型：${industry}`);
   };
-
   const savePush = () => {
     if (isEmployee) return;
-    const config = { workHour: workH, workMinute: workM, offHour: offH, offMinute: offM };
-    dispatch({ type: 'SET_PUSH_CONFIG', payload: config });
+    dispatch({ type: 'SET_PUSH_CONFIG', payload: { workHour: workH, workMinute: workM, offHour: offH, offMinute: offM } });
     showToast("推送时间保存成功");
   };
-
   const handleLogout = async () => {
     await AsyncStorage.removeItem('user');
     await AsyncStorage.removeItem('shopInfo');
@@ -905,7 +689,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     onClose();
     navigation.replace('Login');
   };
-
   const handleSwitchAccount = () => { onClose(); navigation.navigate('SwitchAccount'); };
   const handleMenuManager = () => { onClose(); navigation.navigate('MenuManager'); };
 
@@ -933,7 +716,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           </View>
-
           <View style={styles.settingGroup}>
             <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
               <Ionicons name="call-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
@@ -947,13 +729,11 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           </View>
-
           {!isEmployee && (
             <TouchableOpacity style={[styles.primaryBtn, { marginTop:8, height:40 }]} onPress={saveShop}>
               <Text style={styles.sendTxt}>保存信息</Text>
             </TouchableOpacity>
           )}
-
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <View style={styles.settingItem}>
@@ -981,7 +761,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           )}
-
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <TouchableOpacity style={styles.settingItem} onPress={handleMenuManager}>
@@ -991,7 +770,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               </TouchableOpacity>
             </View>
           )}
-
           <View style={styles.settingGroup}>
             <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
               <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
@@ -1012,14 +790,14 @@ const SettingDrawer = ({ visible, onClose }) => {
   );
 };
 
-// ========== 切换账号 ==========
+// ================== 切换账号页面 ==================
 const SwitchAccountScreen = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const currentUser = state.user;
   const previousAccounts = state.previousAccounts || [];
 
-  const handleSelectAccount = async (account) => {
+  const handleSelect = async (account) => {
     const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
     const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
     dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
@@ -1050,7 +828,7 @@ const SwitchAccountScreen = () => {
         <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 30 }}>暂无历史账号</Text>
       ) : (
         allAccounts.map((acc, idx) => (
-          <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelectAccount(acc)} disabled={acc.isCurrent}>
+          <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelect(acc)} disabled={acc.isCurrent}>
             <View style={styles.accountInfo}>
               <Text style={styles.accountPhone}>{acc.phone}</Text>
               <Text style={styles.accountDetail}>{acc.shopName} · {acc.role}{acc.isCurrent ? ' (当前)' : ''}</Text>
@@ -1065,8 +843,7 @@ const SwitchAccountScreen = () => {
     </View>
   );
 };
-
-// ========== 订单核销 ==========
+// ===== 第一段结束 =====// ================== 订单核销 ==================
 const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1074,56 +851,30 @@ const VerifyOrder = () => {
   const [platform, setPlatform] = useState('美团');
   const [couponPrice, setCouponPrice] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [hasPermission, setHasPermission] = useState(null);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
 
   useEffect(() => {
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
+    BarCodeScanner.requestPermissionsAsync().then(({ status }) => {});
   }, []);
 
   const handleVerify = () => {
     if (!orderCode.trim()) { showToast('请输入核销码'); return; }
     const price = parseFloat(couponPrice);
     if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
-    
     if (selectedGoodsId) {
       const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
+      if (goods && goods.stock < 1) { Alert.alert('库存不足', `${goods.name} 库存不足`); return; }
       if (goods) {
-        if (goods.stock < 1) {
-          Alert.alert('库存不足', `${goods.name} 库存不足，当前剩余 ${goods.stock}`);
-          return;
-        }
-        const updatedGoods = (state.goodsList || []).map(g =>
-          g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g
-        );
-        dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+        const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g);
+        dispatch({ type: 'SET_GOODS_LIST', payload: updated });
         showToast(`已扣减 ${goods.name} 库存 1 件`);
       }
     }
-
-    const record = {
-      id: Date.now().toString(),
-      code: orderCode.trim(),
-      platform,
-      couponPrice: price,
-      time: new Date().toISOString(),
-      goodsId: selectedGoodsId,
-      staff: state.user?.name || '未知',
-    };
+    const record = { id: Date.now().toString(), code: orderCode.trim(), platform, couponPrice: price, time: new Date().toISOString(), goodsId: selectedGoodsId, staff: state.user?.name || '未知' };
     dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
-    
     if (checkBadReview(orderCode)) {
-      const badReview = {
-        id: Date.now().toString(),
-        content: orderCode,
-        platform,
-        time: moment().format('YYYY-MM-DD HH:mm'),
-        handled: false,
-      };
-      dispatch({ type: 'ADD_BAD_REVIEW', payload: badReview });
+      const bad = { id: Date.now().toString(), content: orderCode, platform, time: moment().format('YYYY-MM-DD HH:mm'), handled: false };
+      dispatch({ type: 'ADD_BAD_REVIEW', payload: bad });
       showToast('⚠️ 检测到疑似差评内容，已记录');
     } else {
       showToast(`核销成功！${platform} ¥${price}`);
@@ -1133,21 +884,13 @@ const VerifyOrder = () => {
     setSelectedGoodsId(null);
   };
 
-  const handleBarCodeScanned = ({ data }) => {
-    setScanning(false);
-    setOrderCode(data);
-  };
+  const handleBarCodeScanned = ({ data }) => { setScanning(false); setOrderCode(data); };
 
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <BarCodeScanner
-          onBarCodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
-          <Text style={styles.cancelText}>取消</Text>
-        </TouchableOpacity>
+        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消</Text></TouchableOpacity>
       </View>
     );
   }
@@ -1164,58 +907,30 @@ const VerifyOrder = () => {
         <View style={styles.cardBox}>
           <Text style={styles.label}>核销码</Text>
           <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-            <TextInput
-              style={[styles.formInput, { flex:1 }]}
-              placeholder="输入核销码或扫码"
-              value={orderCode}
-              onChangeText={setOrderCode}
-            />
-            <TouchableOpacity style={styles.miniBlueBtn} onPress={() => setScanning(true)}>
-              <Text style={styles.sendTxt}>扫码</Text>
-            </TouchableOpacity>
+            <TextInput style={[styles.formInput, { flex:1 }]} placeholder="输入核销码或扫码" value={orderCode} onChangeText={setOrderCode} />
+            <TouchableOpacity style={styles.miniBlueBtn} onPress={() => setScanning(true)}><Text style={styles.sendTxt}>扫码</Text></TouchableOpacity>
           </View>
-
           <Text style={styles.label}>平台</Text>
           <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
             {['美团','抖音','大众点评'].map(p => (
-              <TouchableOpacity
-                key={p}
-                style={[styles.tagNormal, platform === p && styles.tagActive]}
-                onPress={() => setPlatform(p)}
-              >
+              <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                 <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
               </TouchableOpacity>
             ))}
           </View>
-
           <Text style={styles.label}>金额 (¥)</Text>
-          <TextInput
-            style={styles.formInput}
-            placeholder="0.00"
-            keyboardType="decimal-pad"
-            value={couponPrice}
-            onChangeText={setCouponPrice}
-          />
-
-          <Text style={styles.label}>选择商品（可选，用于库存联动）</Text>
+          <TextInput style={styles.formInput} placeholder="0.00" keyboardType="decimal-pad" value={couponPrice} onChangeText={setCouponPrice} />
+          <Text style={styles.label}>选择商品（可选）</Text>
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:8 }}>
             {(state.goodsList || []).map(g => (
-              <TouchableOpacity
-                key={g.id}
-                style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]}
-                onPress={() => setSelectedGoodsId(g.id)}
-              >
+              <TouchableOpacity key={g.id} style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]} onPress={() => setSelectedGoodsId(g.id)}>
                 <Text style={{ color: selectedGoodsId === g.id ? '#fff' : TEXT_MAIN }}>{g.name} ({g.stock})</Text>
               </TouchableOpacity>
             ))}
-            {(state.goodsList || []).length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品，请先添加</Text>}
+            {(state.goodsList || []).length === 0 && <Text style={{ color:TEXT_THIRD }}>暂无商品</Text>}
           </View>
-
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}>
-            <Text style={styles.sendTxt}>确认核销</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}><Text style={styles.sendTxt}>确认核销</Text></TouchableOpacity>
         </View>
-
         <View style={styles.cardBox}>
           <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>今日已核销</Text>
           {(state.globalOrderRecord || [])
@@ -1236,7 +951,7 @@ const VerifyOrder = () => {
   );
 };
 
-// ========== 商品管理 ==========
+// ================== 商品管理 ==================
 const ProductOverview = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1250,19 +965,11 @@ const ProductOverview = () => {
     if (!name.trim()) { showToast('请输入商品名称'); return; }
     const stockNum = parseInt(stock) || 0;
     if (editingItem) {
-      const updated = (state.goodsList || []).map(item =>
-        item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
-      );
+      const updated = (state.goodsList || []).map(item => item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item);
       dispatch({ type: 'SET_GOODS_LIST', payload: updated });
       showToast('已更新');
     } else {
-      const newItem = {
-        id: Date.now().toString(),
-        name: name.trim(),
-        stock: stockNum,
-        platform,
-        createdAt: new Date().toISOString(),
-      };
+      const newItem = { id: Date.now().toString(), name: name.trim(), stock: stockNum, platform, createdAt: new Date().toISOString() };
       dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
       showToast('添加成功');
     }
@@ -1276,8 +983,7 @@ const ProductOverview = () => {
     Alert.alert('确认删除', '确定删除该商品？', [
       { text: '取消', style: 'cancel' },
       { text: '删除', style: 'destructive', onPress: () => {
-        const filtered = (state.goodsList || []).filter(item => item.id !== id);
-        dispatch({ type: 'SET_GOODS_LIST', payload: filtered });
+        dispatch({ type: 'SET_GOODS_LIST', payload: (state.goodsList || []).filter(item => item.id !== id) });
         showToast('已删除');
       }}
     ]);
@@ -1312,19 +1018,14 @@ const ProductOverview = () => {
               <Text style={[styles.productStock, { color: item.stock < 5 ? DANGER_COLOR : TEXT_SECOND }]}>库存: {item.stock} {item.stock < 5 && '⚠️'}</Text>
             </View>
             <View style={{ flexDirection:'row', gap:8 }}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
-                <Text style={styles.editBtnText}>编辑</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleDelete(item.id)}>
-                <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>删除</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>编辑</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleDelete(item.id)}><Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>删除</Text></TouchableOpacity>
             </View>
           </View>
         )}
         ListEmptyComponent={<Text style={{ textAlign:'center', marginTop:40, color:TEXT_THIRD }}>暂无商品，点击右上角➕添加</Text>}
         contentContainerStyle={{ padding:16 }}
       />
-
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
           <View style={styles.modalWrap}>
@@ -1339,11 +1040,7 @@ const ProductOverview = () => {
             <Text style={styles.label}>平台</Text>
             <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
               {['美团','抖音','大众点评'].map(p => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.tagNormal, platform === p && styles.tagActive]}
-                  onPress={() => setPlatform(p)}
-                >
+                <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                   <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
                 </TouchableOpacity>
               ))}
@@ -1358,7 +1055,7 @@ const ProductOverview = () => {
   );
 };
 
-// ========== 员工管理 ==========
+// ================== 员工管理 ==================
 const StaffManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1371,17 +1068,11 @@ const StaffManage = () => {
   const approvedStaff = (state.staffMemberList || []).filter(s => s.status === 'approved');
   const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
 
-  const handleAddStaff = () => {
-    showToast('员工入职通过登录申请');
-    setModalVisible(false);
-  };
-
   const handleRemoveStaff = (id) => {
     Alert.alert('确认移除', '确定移除该员工？', [
       { text: '取消', style: 'cancel' },
       { text: '移除', style: 'destructive', onPress: () => {
-        const filtered = (state.staffMemberList || []).filter(item => item.id !== id);
-        dispatch({ type: 'SET_STAFF_LIST', payload: filtered });
+        dispatch({ type: 'SET_STAFF_LIST', payload: (state.staffMemberList || []).filter(item => item.id !== id) });
         showToast('已移除');
       }}
     ]);
@@ -1469,14 +1160,7 @@ const StaffManage = () => {
                 <View style={{ flexDirection:'row', gap:8 }}>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => {
                     dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: item.phone } });
-                    const welcomeMsg = {
-                      id: Date.now().toString(),
-                      text: `🎉 ${item.name} 已入职，欢迎加入！`,
-                      from: '系统',
-                      fromPhone: 'system',
-                      time: new Date().toISOString(),
-                      type: 'text',
-                    };
+                    const welcomeMsg = { id: Date.now().toString(), text: `🎉 ${item.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
                     dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcomeMsg });
                     showToast(`${item.name} 已批准入职`);
                   }}>
@@ -1511,16 +1195,12 @@ const StaffManage = () => {
             <Text style={styles.label}>角色</Text>
             <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
               {['员工','店长'].map(r => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.tagNormal, staffRole === r && styles.tagActive]}
-                  onPress={() => setStaffRole(r)}
-                >
+                <TouchableOpacity key={r} style={[styles.tagNormal, staffRole === r && styles.tagActive]} onPress={() => setStaffRole(r)}>
                   <Text style={{ color: staffRole === r ? '#fff' : TEXT_MAIN }}>{r}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddStaff}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => { showToast('员工入职通过登录申请'); setModalVisible(false); }}>
               <Text style={styles.sendTxt}>添加</Text>
             </TouchableOpacity>
           </View>
@@ -1530,13 +1210,12 @@ const StaffManage = () => {
   );
 };
 
-// ========== 出入库管理 ==========
+// ================== 出入库管理 ==================
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const [modalVisible, setModalVisible] = useState(false);
   const [type, setType] = useState('入库');
-  const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
@@ -1552,31 +1231,18 @@ const StockManage = () => {
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
     const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
     if (!goods) { showToast('商品不存在'); return; }
-
     let newStock = goods.stock;
     if (type === '入库') newStock += qty;
     else {
       if (goods.stock < qty) { showToast('库存不足'); return; }
       newStock -= qty;
     }
-    const updatedGoods = (state.goodsList || []).map(g =>
-      g.id === selectedGoodsId ? { ...g, stock: newStock } : g
-    );
-    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-
-    const record = {
-      id: Date.now().toString(),
-      type,
-      productName: goods.name,
-      quantity: qty,
-      reason: reason.trim() || '无备注',
-      time: new Date().toISOString(),
-      photo: photoUri || null,
-    };
+    const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: newStock } : g);
+    dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+    const record = { id: Date.now().toString(), type, productName: goods.name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUri || null };
     dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
     showToast(`${type}成功: ${goods.name} ×${qty}`);
     setModalVisible(false);
-    setProductName('');
     setQuantity('');
     setReason('');
     setSelectedGoodsId(null);
@@ -1592,24 +1258,14 @@ const StockManage = () => {
   const handleBarCodeScanned = ({ data }) => {
     setScanning(false);
     const matched = (state.goodsList || []).find(g => g.code === data);
-    if (matched) {
-      setSelectedGoodsId(matched.id);
-      showToast(`扫描到商品：${matched.name}`);
-    } else {
-      Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择`, [
-        { text: '确定' }
-      ]);
-    }
+    if (matched) { setSelectedGoodsId(matched.id); showToast(`扫描到商品：${matched.name}`); }
+    else { Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品`); }
   };
 
   const pickPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { showToast('需要相册权限'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 });
     if (!result.canceled) {
       const compressed = await compressImage(result.assets[0].uri);
       setPhotoUri(compressed);
@@ -1618,49 +1274,38 @@ const StockManage = () => {
   };
 
   const handleShelf = async (platform, goodsId) => {
-    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    if (!goodsId) { showToast('请先选择商品'); return; }
     const goods = (state.goodsList || []).find(g => g.id === goodsId);
     if (!goods) { showToast('商品不存在'); return; }
     setLoadingPlatform(platform);
     try {
-      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，要求包含标题、价格、库存、描述等，并生成一段简短的宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}，平台：${platform}。`;
+      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
-    } catch (e) {
-      showToast(`${platform}上架生成失败`);
-    } finally {
-      setLoadingPlatform(null);
-    }
+    } catch (e) { showToast(`${platform}上架生成失败`); }
+    setLoadingPlatform(null);
   };
 
   const handleShelfAll = async (goodsId) => {
-    if (!goodsId) { showToast('请先选择一个商品'); return; }
+    if (!goodsId) { showToast('请先选择商品'); return; }
     const goods = (state.goodsList || []).find(g => g.id === goodsId);
     if (!goods) { showToast('商品不存在'); return; }
     setLoadingPlatform('all');
     try {
-      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。商品信息：名称：${goods.name}，库存：${goods.stock}。`;
+      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
-    } catch (e) {
-      showToast('一键上架生成失败');
-    } finally {
-      setLoadingPlatform(null);
-    }
+    } catch (e) { showToast('一键上架生成失败'); }
+    setLoadingPlatform(null);
   };
 
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <BarCodeScanner
-          onBarCodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
-        />
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}>
-          <Text style={styles.cancelText}>取消扫描</Text>
-        </TouchableOpacity>
+        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
       </View>
     );
   }
@@ -1675,46 +1320,26 @@ const StockManage = () => {
           <Text style={{ fontSize:20, color:PRIMARY_COLOR }}>＋</Text>
         </TouchableOpacity>
       </View>
-
       <View style={{ flexDirection:'row', flexWrap:'wrap', padding:12, gap:8 }}>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); handleScan(); }}>
-          <Text style={styles.sendTxt}>📷 扫码入库</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}>
-          <Text style={styles.sendTxt}>📷 扫码出库</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); pickPhoto(); }}>
-          <Text style={styles.sendTxt}>📸 拍照入库</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhoto(); }}>
-          <Text style={styles.sendTxt}>📸 拍照出库</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>📷 扫码入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>📷 扫码出库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1 }]} onPress={() => { setType('入库'); pickPhoto(); }}><Text style={styles.sendTxt}>📸 拍照入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhoto(); }}><Text style={styles.sendTxt}>📸 拍照出库</Text></TouchableOpacity>
       </View>
-
       <View style={{ paddingHorizontal:12, paddingBottom:8 }}>
         <Text style={{ fontWeight:'600', marginBottom:6 }}>📤 上架平台</Text>
         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
           {['美团','抖音','大众点评'].map(p => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
-              onPress={() => handleShelf(p, selectedGoodsId)}
-              disabled={loadingPlatform !== null}
-            >
+            <TouchableOpacity key={p} style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]} onPress={() => handleShelf(p, selectedGoodsId)} disabled={loadingPlatform !== null}>
               <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity
-            style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
-            onPress={() => handleShelfAll(selectedGoodsId)}
-            disabled={loadingPlatform !== null}
-          >
+          <TouchableOpacity style={[styles.miniBlueBtn, { flex:1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]} onPress={() => handleShelfAll(selectedGoodsId)} disabled={loadingPlatform !== null}>
             <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
           </TouchableOpacity>
         </View>
         {!selectedGoodsId && <Text style={{ fontSize:12, color:TEXT_THIRD, marginTop:4 }}>⚠️ 请先在下方选择一个商品</Text>}
       </View>
-
       <View style={{ padding:16 }}>
         <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>库存列表</Text>
         {(state.goodsList || []).map(g => (
@@ -1726,20 +1351,13 @@ const StockManage = () => {
               </View>
             </TouchableOpacity>
             <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
-              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
-                <Text style={styles.sendTxt}>入库</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
-                <Text style={styles.sendTxt}>出库</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}><Text style={styles.sendTxt}>入库</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}><Text style={styles.sendTxt}>出库</Text></TouchableOpacity>
             </View>
           </View>
         ))}
-        {(state.goodsList || []).length === 0 && (
-          <Text style={{ color:TEXT_THIRD, textAlign:'center', marginTop:20 }}>暂无商品，请先添加商品</Text>
-        )}
+        {(state.goodsList || []).length === 0 && <Text style={{ color:TEXT_THIRD, textAlign:'center', marginTop:20 }}>暂无商品，请先添加商品</Text>}
       </View>
-
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
           <View style={styles.modalWrap}>
@@ -1750,11 +1368,7 @@ const StockManage = () => {
             <Text style={styles.label}>选择商品</Text>
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
               {goodsOptions.map(opt => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]}
-                  onPress={() => setSelectedGoodsId(opt.value)}
-                >
+                <TouchableOpacity key={opt.value} style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]} onPress={() => setSelectedGoodsId(opt.value)}>
                   <Text style={{ color: selectedGoodsId === opt.value ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1766,14 +1380,10 @@ const StockManage = () => {
             {photoUri && (
               <View style={{ marginVertical:8 }}>
                 <Image source={{ uri: photoUri }} style={{ width:100, height:100, borderRadius:8 }} />
-                <TouchableOpacity onPress={() => setPhotoUri(null)}>
-                  <Text style={{ color:DANGER_COLOR, marginTop:4 }}>移除照片</Text>
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setPhotoUri(null)}><Text style={{ color:DANGER_COLOR, marginTop:4 }}>移除照片</Text></TouchableOpacity>
               </View>
             )}
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}>
-              <Text style={styles.sendTxt}>确认{type}</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}><Text style={styles.sendTxt}>确认{type}</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1781,53 +1391,15 @@ const StockManage = () => {
   );
 };
 
-// ========== 内部沟通 - 聊天信息 ==========
-const ChatInfoScreen = ({ route, navigation }) => {
+// ================== 内部沟通 - 聊天信息 ==================
+const ChatInfoScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const [isMute, setIsMute] = useState(false);
   const [isTop, setIsTop] = useState(false);
   const staffList = (state.staffMemberList || []).filter(s => s.status === 'approved');
   const currentUser = state.user;
 
-  const handleAction = (action) => {
-    switch (action) {
-      case 'mute':
-        setIsMute(!isMute);
-        showToast(isMute ? '已取消消息免打扰' : '已开启消息免打扰');
-        break;
-      case 'top':
-        setIsTop(!isTop);
-        showToast(isTop ? '已取消置顶' : '已置顶');
-        break;
-      case 'remind':
-        showToast('已设置提醒');
-        break;
-      case 'bg':
-        showToast('聊天背景已更换');
-        break;
-      case 'clear':
-        Alert.alert('清空聊天记录', '确定要清空所有内部聊天记录吗？', [
-          { text: '取消', style: 'cancel' },
-          { text: '清空', style: 'destructive', onPress: () => {
-            dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
-            showToast('聊天记录已清空');
-          }}
-        ]);
-        break;
-      case 'complaint':
-        showToast('投诉已提交，我们会尽快处理');
-        break;
-      default:
-        break;
-    }
-  };
-
-  const goToPrivateChat = (staff) => {
-    navigation.navigate('PrivateChat', { 
-      phone: staff.phone, 
-      name: staff.name 
-    });
-  };
+  const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
 
   return (
     <View style={styles.container}>
@@ -1844,49 +1416,32 @@ const ChatInfoScreen = ({ route, navigation }) => {
             <Text style={{ fontSize:16, fontWeight:'500' }}>👤 {currentUser?.name || '老板'} (我)</Text>
           </View>
           {staffList.map(staff => (
-            <TouchableOpacity 
-              key={staff.id} 
-              style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth:1, borderBottomColor:BORDER_COLOR }}
-              onPress={() => goToPrivateChat(staff)}
-            >
+            <TouchableOpacity key={staff.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth:1, borderBottomColor:BORDER_COLOR }} onPress={() => goToPrivateChat(staff)}>
               <Text style={{ fontSize:16, color:TEXT_MAIN }}>👤 {staff.name} ({staff.role})</Text>
               <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
           ))}
         </View>
-
         <View style={{ marginTop:20, backgroundColor:BG_CARD, borderRadius:12, overflow:'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('mute')}>
-            <Text style={styles.chatMenuIcon}>{isMute ? '🔕' : '🔔'}</Text>
-            <Text style={styles.chatMenuText}>{isMute ? '取消消息免打扰' : '消息免打扰'}</Text>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => { setIsMute(!isMute); showToast(isMute ? '已取消免打扰' : '已开启免打扰'); }}>
+            <Text style={styles.chatMenuIcon}>{isMute ? '🔕' : '🔔'}</Text><Text style={styles.chatMenuText}>{isMute ? '取消免打扰' : '消息免打扰'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('top')}>
-            <Text style={styles.chatMenuIcon}>{isTop ? '📌' : '📍'}</Text>
-            <Text style={styles.chatMenuText}>{isTop ? '取消置顶' : '置顶聊天'}</Text>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => { setIsTop(!isTop); showToast(isTop ? '已取消置顶' : '已置顶'); }}>
+            <Text style={styles.chatMenuIcon}>{isTop ? '📌' : '📍'}</Text><Text style={styles.chatMenuText}>{isTop ? '取消置顶' : '置顶聊天'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('remind')}>
-            <Text style={styles.chatMenuIcon}>⏰</Text>
-            <Text style={styles.chatMenuText}>提醒</Text>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => showToast('已设置提醒')}><Text style={styles.chatMenuIcon}>⏰</Text><Text style={styles.chatMenuText}>提醒</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => showToast('聊天背景已更换')}><Text style={styles.chatMenuIcon}>🎨</Text><Text style={styles.chatMenuText}>设置背景</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.chatMenuItem} onPress={() => { Alert.alert('清空聊天记录', '确定清空所有内部聊天记录？', [{ text:'取消' }, { text:'清空', style:'destructive', onPress:()=>{ dispatch({type:'SET_GROUP_MESSAGES', payload:[]}); showToast('已清空'); } }]); }}>
+            <Text style={styles.chatMenuIcon}>🗑️</Text><Text style={styles.chatMenuText}>清空记录</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('bg')}>
-            <Text style={styles.chatMenuIcon}>🎨</Text>
-            <Text style={styles.chatMenuText}>设置当前聊天背景</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.chatMenuItem} onPress={() => handleAction('clear')}>
-            <Text style={styles.chatMenuIcon}>🗑️</Text>
-            <Text style={styles.chatMenuText}>清空聊天记录</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatMenuItem, { borderBottomWidth:0 }]} onPress={() => handleAction('complaint')}>
-            <Text style={styles.chatMenuIcon}>⚠️</Text>
-            <Text style={styles.chatMenuText}>投诉</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatMenuItem, { borderBottomWidth:0 }]} onPress={() => showToast('投诉已提交')}><Text style={styles.chatMenuIcon}>⚠️</Text><Text style={styles.chatMenuText}>投诉</Text></TouchableOpacity>
         </View>
       </ScrollView>
     </View>
   );
 };
 
-// ========== 内部沟通 ==========
+// ================== 内部沟通 ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1896,10 +1451,9 @@ const InternalChat = () => {
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
-
   const groupMessages = state.groupChatMessages || [];
 
-  const sendGroupMessage = async (type = 'text', content = null) => {
+  const sendGroupMessage = async (type = 'text') => {
     let text = inputText.trim();
     let image = null;
     if (type === 'image') {
@@ -1907,19 +1461,9 @@ const InternalChat = () => {
       const compressed = await compressImage(imageUri);
       const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
       image = `data:image/jpeg;base64,${base64}`;
-    } else {
-      if (!text) return;
-    }
-    const message = {
-      id: Date.now().toString(),
-      text: type === 'text' ? text : '',
-      image: type === 'image' ? image : null,
-      from: state.user?.name || '员工',
-      fromPhone: state.user?.phone || '',
-      time: new Date().toISOString(),
-      type: 'text',
-    };
-    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: message });
+    } else if (!text) return;
+    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '员工', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: msg });
     setInputText('');
     setImageUri(null);
     setShowEmoji(false);
@@ -1929,30 +1473,20 @@ const InternalChat = () => {
 
   const pickImage = async (source) => {
     setShowMediaOptions(false);
+    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+    let result;
     if (source === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendGroupMessage('image');
-      }
+      result = await ImagePicker.launchCameraAsync(options);
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { showToast('需要相册权限'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendGroupMessage('image');
-      }
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendGroupMessage('image');
     }
   };
 
@@ -1962,91 +1496,53 @@ const InternalChat = () => {
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
         <Text style={styles.pageTitle}>内部沟通</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('ChatInfo')}>
-          <Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('ChatInfo')}><Text style={{ fontSize:20, color:TEXT_MAIN }}>⋯</Text></TouchableOpacity>
       </View>
-
       <View style={{ flex:1, backgroundColor: chatBgColor }}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.chatScroll}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {groupMessages.length === 0 && (
-            <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无消息，开始内部沟通吧</Text>
-          )}
+        <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+          {groupMessages.length === 0 && <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无消息</Text>}
           {groupMessages.map(msg => {
             const isMe = msg.fromPhone === state.user?.phone;
             return (
               <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                {msg.image ? (
-                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-                ) : (
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-                )}
-                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
-                <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.from}</Text>
+                {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
+                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize:10, color:TEXT_THIRD }}>{msg.from}</Text>
               </View>
             );
           })}
         </ScrollView>
-
         {showEmoji && (
           <View style={styles.emojiRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {EMOJI_LIST.map(emoji => (
                 <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                  <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
         )}
-
         {showMediaOptions && (
           <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
-              <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
-              <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
-              <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
-              <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
           </View>
         )}
-
         <View style={[styles.inputBar, { backgroundColor: chatBgColor === '#F2F3F5' ? '#F7F7F7' : chatBgColor }]}>
-          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
-            <Text style={{ fontSize: 24 }}>😊</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
-            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.inputBox}
-            placeholder="发送内部消息..."
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-          />
-          <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
-            <Text style={styles.sendTxt}>发送</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+          <TextInput style={styles.inputBox} placeholder="发送内部消息..." value={inputText} onChangeText={setInputText} multiline />
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
         </View>
-        <View style={{ height: 56 }} />
+        <View style={{ height:56 }} />
       </View>
     </View>
   );
 };
 
-// ========== 私聊 ==========
+// ================== 私聊 ==================
 const PrivateChatScreen = ({ route, navigation }) => {
   const { state, dispatch } = useApp();
   const { phone, name } = route.params || {};
@@ -2055,10 +1551,9 @@ const PrivateChatScreen = ({ route, navigation }) => {
   const scrollViewRef = useRef(null);
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
-
   const messages = state.privateChatMessages[phone] || [];
 
-  const sendMessage = async (type = 'text', content = null) => {
+  const sendMessage = async (type = 'text') => {
     let text = inputText.trim();
     let image = null;
     if (type === 'image') {
@@ -2066,22 +1561,9 @@ const PrivateChatScreen = ({ route, navigation }) => {
       const compressed = await compressImage(imageUri);
       const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
       image = `data:image/jpeg;base64,${base64}`;
-    } else {
-      if (!text) return;
-    }
-    const message = {
-      id: Date.now().toString(),
-      text: type === 'text' ? text : '',
-      image: type === 'image' ? image : null,
-      from: state.user?.name || '我',
-      fromPhone: state.user?.phone || '',
-      time: new Date().toISOString(),
-      type: 'text',
-    };
-    dispatch({
-      type: 'ADD_PRIVATE_MESSAGE',
-      payload: { phone, message }
-    });
+    } else if (!text) return;
+    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '我', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
+    dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
     setInputText('');
     setImageUri(null);
     setShowEmoji(false);
@@ -2091,30 +1573,20 @@ const PrivateChatScreen = ({ route, navigation }) => {
 
   const pickImage = async (source) => {
     setShowMediaOptions(false);
+    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+    let result;
     if (source === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchCameraAsync(options);
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { showToast('需要相册权限'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendMessage('image');
     }
   };
 
@@ -2126,87 +1598,51 @@ const PrivateChatScreen = ({ route, navigation }) => {
         <Text style={styles.pageTitle}>{name || '私聊'}</Text>
         <View style={{ width:24 }} />
       </View>
-
       <View style={{ flex:1, backgroundColor: '#F2F3F5' }}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.chatScroll}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {messages.length === 0 && (
-            <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无私聊消息</Text>
-          )}
+        <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop:12, paddingBottom:80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+          {messages.length === 0 && <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无私聊消息</Text>}
           {messages.map(msg => {
             const isMe = msg.fromPhone === state.user?.phone;
             return (
               <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                {msg.image ? (
-                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-                ) : (
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-                )}
-                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
-                <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.from}</Text>
+                {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
+                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize:10, color:TEXT_THIRD }}>{msg.from}</Text>
               </View>
             );
           })}
         </ScrollView>
-
         {showEmoji && (
           <View style={styles.emojiRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {EMOJI_LIST.map(emoji => (
                 <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                  <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
         )}
-
         {showMediaOptions && (
           <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
-              <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
-              <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
-              <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
-              <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
           </View>
         )}
-
         <View style={styles.inputBar}>
-          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
-            <Text style={{ fontSize: 24 }}>😊</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
-            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.inputBox}
-            placeholder={`发送给 ${name || '对方'}...`}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-          />
-          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-            <Text style={styles.sendTxt}>发送</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+          <TextInput style={styles.inputBox} placeholder={`发送给 ${name || '对方'}...`} value={inputText} onChangeText={setInputText} multiline />
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
         </View>
-        <View style={{ height: 56 }} />
+        <View style={{ height:56 }} />
       </View>
     </View>
   );
 };
 
-// ========== 顾客客服 ==========
+// ================== 顾客客服 ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2221,15 +1657,10 @@ const CustomerService = () => {
   const [selectedPhone, setSelectedPhone] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [showMediaOptions, setShowMediaOptions] = useState(false);
-
-  const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({
-    phone,
-    lastMsg: state.privateChatMessages[phone]?.[0]?.text || '',
-  }));
-
+  const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({ phone, lastMsg: state.privateChatMessages[phone]?.[0]?.text || '' }));
   const currentMessages = messages.filter(m => m.platform === currentPlatform);
 
-  const sendMessage = async (type = 'text', content = null) => {
+  const sendMessage = async (type = 'text') => {
     let text = inputText.trim();
     let image = null;
     if (type === 'image') {
@@ -2237,73 +1668,41 @@ const CustomerService = () => {
       const compressed = await compressImage(imageUri);
       const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
       image = `data:image/jpeg;base64,${base64}`;
-    } else {
-      if (!text) return;
-    }
-
-    const message = {
-      id: Date.now().toString(),
-      text: type === 'text' ? text : '',
-      image: type === 'image' ? image : null,
-      from: 'staff',
-      platform: currentPlatform,
-      time: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, message]);
+    } else if (!text) return;
+    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'staff', platform: currentPlatform, time: new Date().toISOString() };
+    setMessages(prev => [...prev, msg]);
     setInputText('');
     setImageUri(null);
     setShowEmoji(false);
     setShowQuickReply(false);
     setShowMediaOptions(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-
     if (aiMode && type === 'text' && text) {
       try {
-        const reply = await fetchZhipuChat(
-          [{ role: 'user', content: text }],
-          `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
-        );
-        const aiMsg = {
-          id: Date.now().toString(),
-          text: reply,
-          from: 'ai',
-          platform: currentPlatform,
-          time: new Date().toISOString(),
-        };
+        const reply = await fetchZhipuChat([{ role: 'user', content: text }], `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`);
+        const aiMsg = { id: Date.now().toString(), text: reply, from: 'ai', platform: currentPlatform, time: new Date().toISOString() };
         setMessages(prev => [...prev, aiMsg]);
         setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
-      } catch (e) {
-        console.warn('AI回复失败', e);
-      }
+      } catch (e) {}
     }
   };
 
   const pickImage = async (source) => {
     setShowMediaOptions(false);
+    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+    let result;
     if (source === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchCameraAsync(options);
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { showToast('需要相册权限'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendMessage('image');
     }
   };
 
@@ -2320,8 +1719,7 @@ const CustomerService = () => {
   const getCustomerStats = (phone) => {
     const orders = (state.globalOrderRecord || []).filter(o => o.phone === phone);
     const total = orders.reduce((s,o) => s + (o.couponPrice || 0), 0);
-    const lastOrder = orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无';
-    return { total, count: orders.length, lastOrder };
+    return { total, count: orders.length, lastOrder: orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无' };
   };
 
   return (
@@ -2330,36 +1728,23 @@ const CustomerService = () => {
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
         <Text style={styles.pageTitle}>顾客客服</Text>
-        <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
-          <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
-            {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
-          </Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setAiMode(!aiMode)}><Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>{aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}</Text></TouchableOpacity>
       </View>
-
       {customerList.length > 0 && (
         <View style={{ padding:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {customerList.map(c => (
-              <TouchableOpacity
-                key={c.phone}
-                style={{ paddingHorizontal:12, paddingVertical:6, backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius:16, marginRight:8 }}
-                onPress={() => setSelectedPhone(c.phone)}
-              >
+              <TouchableOpacity key={c.phone} style={{ paddingHorizontal:12, paddingVertical:6, backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius:16, marginRight:8 }} onPress={() => setSelectedPhone(c.phone)}>
                 <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN }}>{c.phone}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
           {selectedPhone && (
             <View style={{ marginTop:6 }}>
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>
-                累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}
-              </Text>
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}</Text>
               <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
                 <TextInput style={[styles.formInput, { flex:1, height:32, fontSize:12 }]} placeholder="添加标签" value={tagInput} onChangeText={setTagInput} />
-                <TouchableOpacity style={[styles.miniBlueBtn, { marginLeft:6 }]} onPress={addTag}>
-                  <Text style={styles.sendTxt}>+</Text>
-                </TouchableOpacity>
+                <TouchableOpacity style={[styles.miniBlueBtn, { marginLeft:6 }]} onPress={addTag}><Text style={styles.sendTxt}>+</Text></TouchableOpacity>
               </View>
               <View style={{ flexDirection:'row', flexWrap:'wrap', marginTop:4 }}>
                 {(state.customerTags[selectedPhone] || []).map((tag, idx) => (
@@ -2372,104 +1757,60 @@ const CustomerService = () => {
           )}
         </View>
       )}
-
       <View style={{ flexDirection:'row', justifyContent:'space-around', paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
         {['美团','抖音','大众点评'].map(p => (
-          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}>
-            <Text style={{ fontSize:16, fontWeight: currentPlatform === p ? '700' : '400', color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND }}>{p}</Text>
-          </TouchableOpacity>
+          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}><Text style={{ fontSize:16, fontWeight: currentPlatform === p ? '700' : '400', color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND }}>{p}</Text></TouchableOpacity>
         ))}
       </View>
-
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatScroll}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-      >
+      <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop:12, paddingBottom:80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
         {currentMessages.map(msg => (
           <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
-            {msg.image ? (
-              <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-            ) : (
-              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-            )}
-            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
-            {msg.from === 'ai' && <Text style={{ fontSize: 9, color: SUCCESS_COLOR }}>🤖 AI回复</Text>}
+            {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
+            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            {msg.from === 'ai' && <Text style={{ fontSize:9, color:SUCCESS_COLOR }}>🤖 AI回复</Text>}
           </View>
         ))}
-        {currentMessages.length === 0 && (
-          <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无咨询，开始与顾客对话</Text>
-        )}
+        {currentMessages.length === 0 && <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无咨询</Text>}
       </ScrollView>
-
       {showQuickReply && (
         <View style={styles.quickReplyContainer}>
           {quickReplies.map((text, idx) => (
-            <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}>
-              <Text style={styles.quickReplyText}>{text}</Text>
-            </TouchableOpacity>
+            <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}><Text style={styles.quickReplyText}>{text}</Text></TouchableOpacity>
           ))}
         </View>
       )}
-
       {showEmoji && (
         <View style={styles.emojiRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {EMOJI_LIST.map(emoji => (
               <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
-
       {showMediaOptions && (
         <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
-            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
-            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
-            <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
         </View>
       )}
-
       <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 24 }}>😊</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="flash-outline" size={20} color={PRIMARY_COLOR} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
-        </TouchableOpacity>
-        <TextInput
-          style={styles.inputBox}
-          placeholder="回复顾客..."
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal:8 }}><Ionicons name="flash-outline" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TextInput style={styles.inputBox} placeholder="回复顾客..." value={inputText} onChangeText={setInputText} multiline />
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
       </View>
-      <View style={{ height: 56 }} />
+      <View style={{ height:56 }} />
     </View>
   );
 };
 
-// ========== AI图片生成 ==========
-const ImageGenScreen = ({ route, navigation }) => {
+// ================== AI图片生成 ==================
+const ImageGenScreen = ({ navigation }) => {
   const { state } = useApp();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2482,17 +1823,18 @@ const ImageGenScreen = ({ route, navigation }) => {
     setLoading(true);
     try {
       const fullPrompt = `${prompt}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
-      const result = await generateImage(fullPrompt);
-      if (result) {
-        setImageResult(result);
-      } else {
-        showToast('生成失败，请重试');
-      }
-    } catch (e) {
-      showToast('生成失败');
-    } finally {
-      setLoading(false);
-    }
+      const res = await fetch('https://image-api.my-image-api.workers.dev', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 })
+      });
+      if (!res.ok) { showToast('生成失败'); setLoading(false); return; }
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onloadend = () => { setImageResult(reader.result); setLoading(false); };
+      reader.onerror = () => { showToast('读取失败'); setLoading(false); };
+      reader.readAsDataURL(blob);
+    } catch (e) { showToast('生成失败'); setLoading(false); }
   };
 
   return (
@@ -2505,23 +1847,13 @@ const ImageGenScreen = ({ route, navigation }) => {
       </View>
       <View style={{ padding:16 }}>
         <Text style={styles.label}>店铺：{shopName} ({industry})</Text>
-        <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:8 }}>输入您想要生成的图片描述（海报、广告、营销活动等）</Text>
-        <TextInput
-          style={[styles.formInput, { height:100, textAlignVertical:'top' }]}
-          placeholder="例如：夏日促销海报，明亮色彩，突出优惠信息"
-          multiline
-          value={prompt}
-          onChangeText={setPrompt}
-        />
-        <TouchableOpacity style={styles.primaryBtn} onPress={generateImageHandler} disabled={loading}>
-          <Text style={styles.sendTxt}>{loading ? '生成中...' : '生成图片'}</Text>
-        </TouchableOpacity>
+        <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:8 }}>输入您想要生成的图片描述</Text>
+        <TextInput style={[styles.formInput, { height:100, textAlignVertical:'top' }]} placeholder="例如：夏日促销海报" multiline value={prompt} onChangeText={setPrompt} />
+        <TouchableOpacity style={styles.primaryBtn} onPress={generateImageHandler} disabled={loading}><Text style={styles.sendTxt}>{loading ? '生成中...' : '生成图片'}</Text></TouchableOpacity>
         {imageResult && (
           <View style={{ marginTop:16, alignItems:'center' }}>
             <Image source={{ uri: imageResult }} style={{ width: width-64, height: width-64, borderRadius:8 }} />
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => setImageResult(null)}>
-              <Text style={styles.sendTxt}>重新生成</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => setImageResult(null)}><Text style={styles.sendTxt}>重新生成</Text></TouchableOpacity>
           </View>
         )}
       </View>
@@ -2529,10 +1861,10 @@ const ImageGenScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== AI助手 ==========
+// ================== AI助手 ==================
 const MerchantAssistant = () => {
   const navigation = useNavigation();
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2544,43 +1876,23 @@ const MerchantAssistant = () => {
 
   useEffect(() => {
     if (messages.length === 0) {
-      setMessages([
-        { id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。', from: 'ai', time: new Date().toISOString() }
-      ]);
+      setMessages([{ id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案等。', from: 'ai', time: new Date().toISOString() }]);
     }
   }, []);
 
   const handleMarketing = (type) => {
-    let prompt = '';
-    switch (type) {
-      case '文案':
-        prompt = '请为我生成一条吸引人的营销文案，用于推广我的餐饮店，要求简洁有力，突出特色。';
-        break;
-      case '海报':
-        prompt = '请为我设计一张宣传海报的文字描述，包含主题、色彩建议和主要文案，用于吸引顾客。';
-        break;
-      case '广告语':
-        prompt = '请为我生成一条简短有力的广告语，用于宣传我的店铺，朗朗上口，易于记忆。';
-        break;
-      default:
-        return;
-    }
-    setInputText(prompt);
+    const prompts = { '文案': '请生成一条吸引人的营销文案', '海报': '请设计一张宣传海报的文字描述', '广告语': '请生成一条简短有力的广告语' };
+    setInputText(prompts[type] || '');
   };
 
   const toggleImageGen = () => {
     setShowImageGen(!showImageGen);
-    const hint = {
-      id: Date.now().toString(),
-      text: showImageGen ? '已切换回问答模式，您可以继续提问。' : '🖼️ 图片生成模式已开启，输入您想要的画面描述即可生成图片。',
-      from: 'ai',
-      time: new Date().toISOString(),
-    };
+    const hint = { id: Date.now().toString(), text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启', from: 'ai', time: new Date().toISOString() };
     setMessages(prev => [...prev, hint]);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const sendMessage = async (type = 'text', content = null) => {
+  const sendMessage = async (type = 'text') => {
     let text = inputText.trim();
     let image = null;
     if (type === 'image') {
@@ -2588,43 +1900,19 @@ const MerchantAssistant = () => {
       const compressed = await compressImage(imageUri);
       const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
       image = `data:image/jpeg;base64,${base64}`;
-    } else {
-      if (!text) return;
-    }
-    const userMsg = { 
-      id: Date.now().toString(), 
-      text: type === 'text' ? text : '', 
-      image: type === 'image' ? image : null,
-      from: 'user', 
-      time: new Date().toISOString() 
-    };
+    } else if (!text) return;
+    const userMsg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'user', time: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setImageUri(null);
     setShowMediaOptions(false);
     setShowEmoji(false);
-
-    if (type === 'image') {
-      setLoading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      return;
-    }
-
+    if (type === 'image') { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100); return; }
     setLoading(true);
-    const prompt = `你是经营宝AI助手，帮助商家解决经营问题，提供营销建议，数据分析，员工管理等。回答要简洁、实用。`;
-    const msgList = messages.filter(m => m.from !== 'system').map(m => ({
-      role: m.from === 'user' ? 'user' : 'assistant',
-      content: m.text,
-    }));
+    const msgList = messages.filter(m => m.from !== 'system').map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
     msgList.push({ role: 'user', content: text });
-
-    const reply = await fetchZhipuChat(msgList, prompt);
-    const aiMsg = {
-      id: (Date.now() + 1).toString(),
-      text: reply,
-      from: 'ai',
-      time: new Date().toISOString(),
-    };
+    const reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。');
+    const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
     setMessages(prev => [...prev, aiMsg]);
     setLoading(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -2632,30 +1920,20 @@ const MerchantAssistant = () => {
 
   const pickImage = async (source) => {
     setShowMediaOptions(false);
+    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+    let result;
     if (source === 'camera') {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchCameraAsync(options);
     } else {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { showToast('需要相册权限'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.7,
-      });
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+      await sendMessage('image');
     }
   };
 
@@ -2665,100 +1943,61 @@ const MerchantAssistant = () => {
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
         <Text style={styles.pageTitle}>AI助手</Text>
-        <TouchableOpacity onPress={toggleImageGen}>
-          <Text style={{ fontSize: 16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>
-            {showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}
-          </Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={toggleImageGen}><Text style={{ fontSize:16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>{showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}</Text></TouchableOpacity>
       </View>
-
       <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-        {['文案', '海报', '广告语'].map(label => (
+        {['文案','海报','广告语'].map(label => (
           <TouchableOpacity key={label} style={{ marginRight:10, paddingHorizontal:14, paddingVertical:6, backgroundColor:LIGHT_PRIMARY, borderRadius:16 }} onPress={() => handleMarketing(label)}>
             <Text style={{ color:PRIMARY_COLOR }}>📣 {label}</Text>
           </TouchableOpacity>
         ))}
       </View>
-
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatScroll}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-      >
+      <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop:12, paddingBottom:80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
         {messages.map(msg => (
           <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
             {msg.image ? (
               <>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom:4 }}>{msg.text}</Text>
+                <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:4 }}>{msg.text}</Text>
                 <Image source={{ uri: msg.image }} style={styles.imageMessage} />
               </>
             ) : (
-              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+              <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>
             )}
-            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
           </View>
         ))}
-        {loading && (
-          <View style={[styles.bubbleLeft, { padding: 12 }]}>
-            <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-          </View>
-        )}
+        {loading && <View style={[styles.bubbleLeft, { padding:12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
       </ScrollView>
-
       {showEmoji && (
         <View style={styles.emojiRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {EMOJI_LIST.map(emoji => (
               <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
-
       {showMediaOptions && (
         <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
-            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
-            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
-            <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
         </View>
       )}
-
       <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 24 }}>😊</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
-          placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TextInput style={[styles.inputBox, { flex:1 }]} placeholder={showImageGen ? "输入图片描述..." : "输入问题..."} value={inputText} onChangeText={setInputText} multiline />
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
       </View>
-      <View style={{ height: 56 }} />
+      <View style={{ height:56 }} />
     </View>
   );
 };
 
-// ========== 首页 ==========
+// ================== 首页（完整） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2787,30 +2026,19 @@ const HomePage = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     const report = calcDailyReport(state);
-    if (report) {
-      dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
-    }
+    if (report) dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
     setRefreshing(false);
   }, [state]);
 
   const exportData = async () => {
     try {
       const businessHistory = state.businessHistory || [];
-      const csvContent = 
-        "日期,订单数,总营收,净利润,利润率\n" +
-        businessHistory.map(r => 
-          `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`
-        ).join('\n');
-      const fileUri = FileSystem.documentDirectory + 'business_report.csv';
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
-      } else {
-        showToast('分享功能不可用');
-      }
-    } catch (error) {
-      showToast('导出失败');
-    }
+      const csv = "日期,订单数,总营收,净利润,利润率\n" + businessHistory.map(r => `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`).join('\n');
+      const uri = FileSystem.documentDirectory + 'business_report.csv';
+      await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+      else showToast('分享不可用');
+    } catch (e) { showToast('导出失败'); }
   };
 
   const isEmployee = user?.role === '员工';
@@ -2823,41 +2051,28 @@ const HomePage = () => {
     { icon: "🤖", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
     { icon: "📊", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
   ];
-
   const menuList = allMenuList.filter(item => {
-    if (isEmployee) {
-      return ['VerifyOrder', 'StockManage', 'InternalChat'].includes(item.key);
-    }
+    if (isEmployee) return ['VerifyOrder', 'StockManage', 'InternalChat'].includes(item.key);
     return true;
   });
 
   let chatStaffList = [];
   if (isEmployee) {
     const bossPhone = state.shopInfo?.phone || '';
-    const bossName = '商家';
-    if (bossPhone) {
-      chatStaffList = [{ id: 'boss', name: bossName, phone: bossPhone }];
-    }
+    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
   } else {
-    const approved = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
-    chatStaffList = approved;
+    chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
-
   const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
 
   const handleMenuPress = (item) => {
     try {
       if (item.internal) navigation.navigate(item.screen);
       else navigation.getParent().navigate(item.tab, { screen: item.screen });
-    } catch (e) {
-      console.warn('菜单跳转失败', e);
-      showToast('跳转失败');
-    }
+    } catch (e) { showToast('跳转失败'); }
   };
 
-  const goToPrivateChat = (staff) => {
-    navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
-  };
+  const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
 
   const latestReport = state.latestDailyReport;
   const menuVisibility = state.menuVisibility || {};
@@ -2866,39 +2081,24 @@ const HomePage = () => {
     dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
     const staff = state.staffMemberList.find(s => s.phone === phone);
     if (staff) {
-      const welcomeMsg = {
-        id: Date.now().toString(),
-        text: `🎉 ${staff.name} 已入职，欢迎加入！`,
-        from: '系统',
-        fromPhone: 'system',
-        time: new Date().toISOString(),
-        type: 'text',
-      };
-      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcomeMsg });
+      const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
+      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
       showToast(`${staff.name} 已批准入职`);
     }
   };
-
   const handleReject = (phone) => {
     dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
-    showToast('已拒绝该申请');
+    showToast('已拒绝');
   };
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (navigation.isFocused()) {
-        if (!navigation.canGoBack()) {
-          if (exitTimer) {
-            BackHandler.exitApp();
-            return true;
-          } else {
-            showToast('再按一次退出');
-            const timer = setTimeout(() => setExitTimer(null), 2000);
-            setExitTimer(timer);
-            return true;
-          }
-        }
-        return false;
+      if (navigation.isFocused() && !navigation.canGoBack()) {
+        if (exitTimer) { BackHandler.exitApp(); return true; }
+        showToast('再按一次退出');
+        const timer = setTimeout(() => setExitTimer(null), 2000);
+        setExitTimer(timer);
+        return true;
       }
       return false;
     });
@@ -2906,17 +2106,11 @@ const HomePage = () => {
   }, [navigation, exitTimer]);
 
   const getReportData = () => {
-    if (reportType === 'daily') {
-      return latestReport;
-    } else if (reportType === 'weekly') {
-      return generateWeekReport(state);
-    } else {
-      return generateMonthReport(state);
-    }
+    if (reportType === 'daily') return latestReport;
+    if (reportType === 'weekly') return generateWeekReport(state);
+    return generateMonthReport(state);
   };
-
   const reportData = getReportData();
-
   const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
 
   return (
@@ -2926,49 +2120,36 @@ const HomePage = () => {
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
-          <TouchableOpacity onPress={() => setSettingOpen(true)}>
-            <Ionicons name="settings-outline" size={24} color={TEXT_SECOND} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
-        <ScrollView 
-          style={{ flex: 1, paddingHorizontal: 16 }} 
-          contentContainerStyle={{ paddingBottom: 80 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />
-          }
-        >
+        <ScrollView style={{ flex:1, paddingHorizontal:16 }} contentContainerStyle={{ paddingBottom:80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>
-              👋 欢迎，{user?.name || '商家'}
-            </Text>
-            <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
-            {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
+            <Text style={{ fontSize:18, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>👋 欢迎，{user?.name || '商家'}</Text>
+            <Text style={{ color:TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
+            {isEmployee && <Text style={{ color:TEXT_SECOND, marginTop:4 }}>角色：员工</Text>}
           </View>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
-            <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
-              <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日核销订单</Text>
-              <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{todayOrders.length}</Text>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:12, marginTop:16 }}>
+            <View style={{ width:(width-44)/2, backgroundColor:BG_CARD, padding:16, borderRadius:14, ...SHADOW }}>
+              <Text style={{ fontSize:13, color:TEXT_SECOND }}>今日核销订单</Text>
+              <Text style={{ fontSize:22, fontWeight:'700', marginTop:8, color:TEXT_MAIN }}>{todayOrders.length}</Text>
             </View>
             {!isEmployee && (
               <>
-                <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日总营收</Text>
-                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: PRIMARY_COLOR }}>¥{totalIncome}</Text>
+                <View style={{ width:(width-44)/2, backgroundColor:BG_CARD, padding:16, borderRadius:14, ...SHADOW }}>
+                  <Text style={{ fontSize:13, color:TEXT_SECOND }}>今日总营收</Text>
+                  <Text style={{ fontSize:22, fontWeight:'700', marginTop:8, color:PRIMARY_COLOR }}>¥{totalIncome}</Text>
                 </View>
-                <TouchableOpacity 
-                  style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}
-                  onPress={() => navigation.navigate('BadReviewList')}
-                >
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>差评预警</Text>
-                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: (state.badReviewCount || 0) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
+                <TouchableOpacity style={{ width:(width-44)/2, backgroundColor:BG_CARD, padding:16, borderRadius:14, ...SHADOW }} onPress={() => navigation.navigate('BadReviewList')}>
+                  <Text style={{ fontSize:13, color:TEXT_SECOND }}>差评预警</Text>
+                  <Text style={{ fontSize:22, fontWeight:'700', marginTop:8, color:(state.badReviewCount||0)>0 ? DANGER_COLOR : TEXT_MAIN }}>
                     {state.badReviewCount || 0}
-                    {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
+                    {(state.badReviewCount||0)>0 && <Text style={{ fontSize:14, color:PRIMARY_COLOR, marginLeft:8 }}>点击查看 →</Text>}
                   </Text>
                 </TouchableOpacity>
-                <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>总商品数</Text>
-                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
+                <View style={{ width:(width-44)/2, backgroundColor:BG_CARD, padding:16, borderRadius:14, ...SHADOW }}>
+                  <Text style={{ fontSize:13, color:TEXT_SECOND }}>总商品数</Text>
+                  <Text style={{ fontSize:22, fontWeight:'700', marginTop:8, color:TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
                 </View>
               </>
             )}
@@ -2976,25 +2157,14 @@ const HomePage = () => {
 
           {!isEmployee && (
             <View style={styles.dailyReportCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                 <Text style={styles.reportTitle}>📊 经营报告</Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={{ flexDirection:'row', gap:6 }}>
                   {['daily','weekly','monthly'].map(type => {
                     const label = type === 'daily' ? '日报' : type === 'weekly' ? '周报' : '月报';
                     return (
-                      <TouchableOpacity
-                        key={type}
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 4,
-                          borderRadius: 16,
-                          backgroundColor: reportType === type ? PRIMARY_COLOR : LIGHT_PRIMARY,
-                        }}
-                        onPress={() => setReportType(type)}
-                      >
-                        <Text style={{ color: reportType === type ? '#fff' : TEXT_MAIN, fontSize: 12 }}>
-                          {label}
-                        </Text>
+                      <TouchableOpacity key={type} style={{ paddingHorizontal:12, paddingVertical:4, borderRadius:16, backgroundColor: reportType===type ? PRIMARY_COLOR : LIGHT_PRIMARY }} onPress={() => setReportType(type)}>
+                        <Text style={{ color: reportType===type ? '#fff' : TEXT_MAIN, fontSize:12 }}>{label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -3031,55 +2201,47 @@ const HomePage = () => {
                   )}
                 </>
               ) : (
-                <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 8 }}>
-                  {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据，请先生成日报'}
+                <Text style={{ color:TEXT_THIRD, fontSize:14, textAlign:'center', paddingVertical:8 }}>
+                  {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据'}
                 </Text>
               )}
-              <TouchableOpacity style={styles.exportBtn} onPress={exportData}>
-                <Text style={styles.exportBtnText}>📤 导出CSV</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.exportBtn} onPress={exportData}><Text style={styles.exportBtnText}>📤 导出CSV</Text></TouchableOpacity>
             </View>
           )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
-            <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:16 }}>
+            <View style={{ flexDirection:'row', gap:12, paddingRight:16 }}>
               {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
-                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-                  <Text style={{ fontSize: 28 }}>{item.icon}</Text>
-                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
+                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width:110, backgroundColor:BG_CARD, paddingVertical:16, borderRadius:12, alignItems:'center', ...SHADOW }}>
+                  <Text style={{ fontSize:28 }}>{item.icon}</Text>
+                  <Text style={{ fontSize:13, marginTop:6, color:TEXT_MAIN }}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
 
           {chatStaffList.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>
-                {isEmployee ? '联系商家' : '员工私聊'}
-              </Text>
+            <View style={{ marginTop:16 }}>
+              <Text style={{ fontSize:16, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
               {chatStaffList.map(staff => (
-                <TouchableOpacity key={staff.id} style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => goToPrivateChat(staff)}>
-                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>👤 {staff.name}</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginLeft: 8 }}>({staff.phone})</Text>
-                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
+                <TouchableOpacity key={staff.id} style={[styles.listItem, { flexDirection:'row', alignItems:'center' }]} onPress={() => goToPrivateChat(staff)}>
+                  <Text style={{ fontSize:16, color:TEXT_MAIN }}>👤 {staff.name}</Text>
+                  <Text style={{ fontSize:14, color:TEXT_SECOND, marginLeft:8 }}>({staff.phone})</Text>
+                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft:'auto' }} />
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
           {!isEmployee && pendingStaff.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📩 入职申请</Text>
+            <View style={{ marginTop:16 }}>
+              <Text style={{ fontSize:16, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>📩 入职申请</Text>
               {pendingStaff.map(staff => (
-                <View key={staff.id} style={[styles.listItem]}>
-                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name} ({staff.phone})</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => handleApprove(staff.phone)}>
-                      <Text style={styles.sendTxt}>同意</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleReject(staff.phone)}>
-                      <Text style={styles.sendTxt}>拒绝</Text>
-                    </TouchableOpacity>
+                <View key={staff.id} style={styles.listItem}>
+                  <Text style={{ fontSize:16, color:TEXT_MAIN }}>{staff.name} ({staff.phone})</Text>
+                  <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
+                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:SUCCESS_COLOR }]} onPress={() => handleApprove(staff.phone)}><Text style={styles.sendTxt}>同意</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleReject(staff.phone)}><Text style={styles.sendTxt}>拒绝</Text></TouchableOpacity>
                   </View>
                 </View>
               ))}
@@ -3089,33 +2251,17 @@ const HomePage = () => {
       </View>
 
       {!isEmployee && (
-        <TouchableOpacity
-          style={{
-            position: 'absolute',
-            bottom: 80,
-            right: 20,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: PRIMARY_COLOR,
-            justifyContent: 'center',
-            alignItems: 'center',
-            ...SHADOW,
-            zIndex: 999,
-          }}
-          onPress={() => navigation.navigate('MerchantAssistant')}
-        >
+        <TouchableOpacity style={{ position:'absolute', bottom:80, right:20, width:56, height:56, borderRadius:28, backgroundColor:PRIMARY_COLOR, justifyContent:'center', alignItems:'center', ...SHADOW, zIndex:999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
           <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
         </TouchableOpacity>
       )}
     </SafeAreaView>
   );
 };
-// ===== 第二段结束 =====// ========== 底部标签导航 ==========
+// ===== 第二段结束 =====// ================== 底部标签导航 ==================
 function RootTabs() {
   const { state } = useApp();
   const isEmployee = state.user?.role === '员工';
-  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -3145,7 +2291,8 @@ function RootTabs() {
   );
 }
 
-// ========== 主栈导航 ==========
+// ================== 主栈导航 ==================
+const Stack = createNativeStackNavigator();
 function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -3166,7 +2313,7 @@ function MainStack() {
   );
 }
 
-// ========== App容器（修复启动自动登录和历史账号保存） ==========
+// ================== App 容器 ==================
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
@@ -3174,13 +2321,12 @@ export default function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. 先恢复所有数据（含历史账号、订单等）
+        // 1. 恢复全部数据（含历史账号）
         const appData = await loadAllData();
         if (appData) {
           dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
         }
-
-        // 2. 再单独读取登录凭证，覆盖 user 和 shopInfo，确保自动登录
+        // 2. 覆盖登录状态（实现自动登录）
         const userStr = await AsyncStorage.getItem('user');
         const shopStr = await AsyncStorage.getItem('shopInfo');
         if (userStr && shopStr) {
@@ -3197,7 +2343,6 @@ export default function App() {
     loadData();
   }, []);
 
-  // 每次 state 变化时保存数据（含 previousAccounts）
   useEffect(() => {
     if (!loading) {
       saveAllData(state);
