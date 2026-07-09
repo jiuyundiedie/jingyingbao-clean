@@ -48,9 +48,9 @@ const EMOJI_LIST = ['😀','😃','😄','😁','😆','🥲','😊','😇','�
 const SHADOW = {
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.06,
+  shadowOpacity: 0.08,
   shadowRadius: 8,
-  elevation: 3,
+  elevation: 4,
 };
 
 const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
@@ -477,14 +477,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderColor: BORDER_COLOR,
     backgroundColor: '#F7F7F7',
     position: 'absolute',
     bottom: 0,
     left: 0,
-    right: 0
+    right: 0,
+    ...SHADOW,
   },
   inputBox: {
     flex: 1,
@@ -520,7 +521,7 @@ const styles = StyleSheet.create({
     ...SHADOW,
   },
   miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 },
-  loginContainer: { flex: 1, backgroundColor: BG_PAGE, paddingHorizontal: 24, justifyContent: 'center' },
+  loginContainer: { flex: 1, backgroundColor: '#F8FAFF', paddingHorizontal: 24, justifyContent: 'center' },
   loginTitle: { fontSize: 28, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
   loginSubtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
   roleSelector: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
@@ -781,25 +782,181 @@ const BadReviewListPage = () => {
   );
 };
 
-// ========== 首页（极简安全版本，无第三方组件） ==========
+// ========== 首页（功能完整，无图表） ==========
 const HomePage = () => {
-  const { state } = useApp();
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
   const user = state.user;
+  const [settingOpen, setSettingOpen] = useState(false);
+  const [exitTimer, setExitTimer] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const globalOrderRecord = state.globalOrderRecord || [];
+  const todayStr = moment().format('YYYY-MM-DD');
+  const todayOrders = globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === todayStr);
+  let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+  todayOrders.forEach(order => {
+    if (order && order.platform) {
+      switch(order.platform) {
+        case '美团': meituanIncome += order.couponPrice || 0; break;
+        case '抖音': douyinIncome += order.couponPrice || 0; break;
+        case '大众点评': dianpingIncome += order.couponPrice || 0; break;
+      }
+    }
+  });
+  const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const report = calcDailyReport(state);
+    if (report) {
+      dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
+    }
+    setRefreshing(false);
+  }, [state]);
+
+  const exportData = async () => {
+    try {
+      const businessHistory = state.businessHistory || [];
+      const csvContent = 
+        "日期,订单数,总营收,净利润,利润率\n" +
+        businessHistory.map(r => 
+          `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`
+        ).join('\n');
+      const fileUri = FileSystem.documentDirectory + 'business_report.csv';
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+      } else {
+        showToast('分享功能不可用');
+      }
+    } catch (error) {
+      showToast('导出失败');
+    }
+  };
+
+  const menuList = [
+    { icon: "🎫", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
+    { icon: "📦", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
+    { icon: "👥", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
+    { icon: "💬", label: "顾客客服", key: 'CustomerService', tab: 'CustomerTab', screen: 'CustomerService' },
+    { icon: "🤝", label: "内部沟通", key: 'InternalChat', tab: 'InternalTab', screen: 'InternalChat' },
+    { icon: "🤖", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
+    { icon: "📊", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
+  ];
+
+  const handleMenuPress = (item) => {
+    try {
+      if (item.internal) navigation.navigate(item.screen);
+      else navigation.getParent().navigate(item.tab, { screen: item.screen });
+    } catch (e) {
+      console.warn('菜单跳转失败', e);
+      showToast('跳转失败');
+    }
+  };
+
+  const latestReport = state.latestDailyReport;
+  const menuVisibility = state.menuVisibility || {};
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (navigation.isFocused()) {
+        if (!navigation.canGoBack()) {
+          if (exitTimer) {
+            BackHandler.exitApp();
+            return true;
+          } else {
+            showToast('再按一次退出');
+            const timer = setTimeout(() => setExitTimer(null), 2000);
+            setExitTimer(timer);
+            return true;
+          }
+        }
+        return false;
+      }
+      return false;
+    });
+    return () => backHandler.remove();
+  }, [navigation, exitTimer]);
 
   return (
     <View style={styles.container}>
+      <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
       <View style={styles.safeTop} />
       <View style={styles.headerBar}>
         <View style={{ width: 40 }} />
         <Text style={styles.homeTitle}>经营宝</Text>
-        <TouchableOpacity onPress={() => {}}>
-          <Text style={{ fontSize: 24, color: TEXT_SECOND }}>⚙</Text>
+        <TouchableOpacity onPress={() => setSettingOpen(true)}>
+          <Ionicons name="settings-outline" size={24} color={TEXT_SECOND} />
         </TouchableOpacity>
       </View>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 20, color: TEXT_MAIN }}>👋 欢迎，{user?.name || '商家'}</Text>
-        <Text style={{ fontSize: 16, color: TEXT_SECOND, marginTop: 8 }}>登录成功！</Text>
-        <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 4 }}>首页功能正在恢复中...</Text>
+      <ScrollView 
+        style={{ flex: 1, paddingHorizontal: 16 }} 
+        contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />
+        }
+      >
+        <View style={styles.cardBox}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
+          <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
+          <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日核销订单</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{todayOrders.length}</Text>
+          </View>
+          <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日总营收</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: PRIMARY_COLOR }}>¥{totalIncome}</Text>
+          </View>
+          <TouchableOpacity 
+            style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}
+            onPress={() => navigation.navigate('BadReviewList')}
+          >
+            <Text style={{ fontSize: 13, color: TEXT_SECOND }}>差评预警</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: (state.badReviewCount || 0) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
+              {state.badReviewCount || 0}
+              {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
+            </Text>
+          </TouchableOpacity>
+          <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND }}>总商品数</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
+          </View>
+        </View>
+
+        {latestReport && (
+          <View style={styles.dailyReportCard}>
+            <Text style={styles.reportTitle}>📊 最新经营日报</Text>
+            <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{latestReport.date}</Text></View>
+            <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{latestReport.totalOrder}单</Text></View>
+            <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{latestReport.income}</Text></View>
+            <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{latestReport.profit}</Text></View>
+            <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{latestReport.profitRate}%</Text></View>
+            <TouchableOpacity style={styles.exportBtn} onPress={exportData}>
+              <Text style={styles.exportBtnText}>📤 导出CSV</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
+            {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
+              <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
+                <Text style={{ fontSize: 28 }}>{item.icon}</Text>
+                <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </ScrollView>
+
+      <View style={{ position: 'absolute', right: 20, bottom: 80, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }}>
+        <TouchableOpacity onPress={() => navigation.getParent().navigate('AITab', { screen: 'MerchantAssistant' })}>
+          <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -901,7 +1058,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         <View style={{ padding: 16 }}>
           <View style={styles.settingGroup}>
             <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Text style={styles.settingIcon}>🏪</Text>
+              <Ionicons name="storefront-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
               <View style={{ flex:1 }}>
                 <Text style={styles.label}>门店名称</Text>
                 {isEmployee ? (
@@ -915,7 +1072,7 @@ const SettingDrawer = ({ visible, onClose }) => {
 
           <View style={styles.settingGroup}>
             <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Text style={styles.settingIcon}>📞</Text>
+              <Ionicons name="call-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
               <View style={{ flex:1 }}>
                 <Text style={styles.label}>绑定手机号</Text>
                 {isEmployee ? (
@@ -936,7 +1093,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <View style={styles.settingItem}>
-                <Text style={styles.settingIcon}>⏰</Text>
+                <Ionicons name="time-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
                 <View style={{ flex:1 }}>
                   <Text style={styles.label}>每周早间周报推送</Text>
                   <View style={{ flexDirection:'row', gap:10 }}>
@@ -946,7 +1103,7 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </View>
               </View>
               <View style={[styles.settingItem, styles.settingItemLast]}>
-                <Text style={styles.settingIcon}>🌙</Text>
+                <Ionicons name="moon-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
                 <View style={{ flex:1 }}>
                   <Text style={styles.label}>每日下班/月末推送</Text>
                   <View style={{ flexDirection:'row', gap:10 }}>
@@ -964,7 +1121,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <TouchableOpacity style={styles.settingItem} onPress={handleMenuManager}>
-                <Text style={styles.settingIcon}>📋</Text>
+                <Ionicons name="menu-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
                 <Text style={{ color:TEXT_MAIN }}>菜单管理</Text>
                 <Text style={{ marginLeft:'auto', color:TEXT_THIRD }}>自定义首页功能</Text>
               </TouchableOpacity>
@@ -973,15 +1130,15 @@ const SettingDrawer = ({ visible, onClose }) => {
 
           <View style={styles.settingGroup}>
             <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
-              <Text style={styles.settingIcon}>👤</Text>
+              <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
               <Text style={{ color:TEXT_MAIN }}>切换账号</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.settingItem} onPress={() => showToast('缓存已清除')}>
-              <Text style={styles.settingIcon}>🗑️</Text>
+              <Ionicons name="trash-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
               <Text style={{ color:TEXT_MAIN }}>清除缓存</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
-              <Text style={styles.settingIcon}>🚪</Text>
+              <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color:DANGER_COLOR }}>退出登录</Text>
             </TouchableOpacity>
           </View>
@@ -1724,7 +1881,7 @@ const StockManage = () => {
   );
 };
 
-// ========== 内部沟通 - 聊天信息页面 ==========
+// ========== 内部沟通 - 聊天信息页面（成员列表可点击进入私聊） ==========
 const ChatInfoScreen = ({ route, navigation }) => {
   const { state, dispatch } = useApp();
   const [isMute, setIsMute] = useState(false);
@@ -1765,6 +1922,14 @@ const ChatInfoScreen = ({ route, navigation }) => {
     }
   };
 
+  // 跳转到私聊界面
+  const goToPrivateChat = (staff) => {
+    navigation.navigate('PrivateChat', { 
+      phone: staff.phone, 
+      name: staff.name 
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.safeTop} />
@@ -1776,13 +1941,18 @@ const ChatInfoScreen = ({ route, navigation }) => {
       <ScrollView style={{ flex:1, padding:16 }}>
         <Text style={{ fontSize:16, fontWeight:'600', marginBottom:12 }}>成员 ({staffList.length + 1})</Text>
         <View style={{ backgroundColor:BG_CARD, borderRadius:12, padding:12, ...SHADOW }}>
-          <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8 }}>
+          <View style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth:1, borderBottomColor:BORDER_COLOR }}>
             <Text style={{ fontSize:16, fontWeight:'500' }}>👤 {currentUser?.name || '老板'} (我)</Text>
           </View>
           {staffList.map(staff => (
-            <View key={staff.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderTopWidth:1, borderTopColor:BORDER_COLOR }}>
+            <TouchableOpacity 
+              key={staff.id} 
+              style={{ flexDirection:'row', alignItems:'center', paddingVertical:8, borderBottomWidth:1, borderBottomColor:BORDER_COLOR }}
+              onPress={() => goToPrivateChat(staff)}
+            >
               <Text style={{ fontSize:16, color:TEXT_MAIN }}>👤 {staff.name} ({staff.role})</Text>
-            </View>
+              <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -1817,7 +1987,7 @@ const ChatInfoScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== 内部沟通页面 ==========
+// ========== 内部沟通页面（含加号菜单、相册功能） ==========
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1825,15 +1995,26 @@ const InternalChat = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const scrollViewRef = useRef(null);
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
+  const [imageUri, setImageUri] = useState(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
 
   const groupMessages = state.groupChatMessages || [];
 
-  const sendGroupMessage = () => {
-    const text = inputText.trim();
-    if (!text) return;
+  const sendGroupMessage = async (type = 'text', content = null) => {
+    let text = inputText.trim();
+    let image = null;
+    if (type === 'image') {
+      if (!imageUri) return;
+      const compressed = await compressImage(imageUri);
+      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+      image = `data:image/jpeg;base64,${base64}`;
+    } else {
+      if (!text) return;
+    }
     const message = {
       id: Date.now().toString(),
-      text,
+      text: type === 'text' ? text : '',
+      image: type === 'image' ? image : null,
       from: state.user?.name || '员工',
       fromPhone: state.user?.phone || '',
       time: new Date().toISOString(),
@@ -1841,8 +2022,40 @@ const InternalChat = () => {
     };
     dispatch({ type: 'ADD_GROUP_MESSAGE', payload: message });
     setInputText('');
+    setImageUri(null);
     setShowEmoji(false);
+    setShowMediaOptions(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  // 打开相机或相册
+  const pickImage = async (source) => {
+    setShowMediaOptions(false);
+    if (source === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendGroupMessage('image');
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendGroupMessage('image');
+      }
+    }
   };
 
   return (
@@ -1870,9 +2083,13 @@ const InternalChat = () => {
             const isMe = msg.fromPhone === state.user?.phone;
             return (
               <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: PRIMARY_COLOR, marginBottom: 2 }}>{msg.from}</Text>
-                <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                {msg.image ? (
+                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                ) : (
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                )}
                 <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.from}</Text>
               </View>
             );
           })}
@@ -1890,9 +2107,29 @@ const InternalChat = () => {
           </View>
         )}
 
+        {showMediaOptions && (
+          <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
+              <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
+              <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
+              <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+              <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={[styles.inputBar, { backgroundColor: chatBgColor === '#F2F3F5' ? '#F7F7F7' : chatBgColor }]}>
           <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
             <Text style={{ fontSize: 24 }}>😊</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
+            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
           </TouchableOpacity>
           <TextInput
             style={styles.inputBox}
@@ -1901,7 +2138,7 @@ const InternalChat = () => {
             onChangeText={setInputText}
             multiline
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={sendGroupMessage}>
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
             <Text style={styles.sendTxt}>发送</Text>
           </TouchableOpacity>
         </View>
@@ -1911,7 +2148,167 @@ const InternalChat = () => {
   );
 };
 
-// ========== 顾客客服页面（含顾客画像和标签） ==========
+// ========== 私聊页面 ==========
+const PrivateChatScreen = ({ route, navigation }) => {
+  const { state, dispatch } = useApp();
+  const { phone, name } = route.params || {};
+  const [inputText, setInputText] = useState('');
+  const [showEmoji, setShowEmoji] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [imageUri, setImageUri] = useState(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+
+  const messages = state.privateChatMessages[phone] || [];
+
+  const sendMessage = async (type = 'text', content = null) => {
+    let text = inputText.trim();
+    let image = null;
+    if (type === 'image') {
+      if (!imageUri) return;
+      const compressed = await compressImage(imageUri);
+      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+      image = `data:image/jpeg;base64,${base64}`;
+    } else {
+      if (!text) return;
+    }
+    const message = {
+      id: Date.now().toString(),
+      text: type === 'text' ? text : '',
+      image: type === 'image' ? image : null,
+      from: state.user?.name || '我',
+      fromPhone: state.user?.phone || '',
+      time: new Date().toISOString(),
+      type: 'text',
+    };
+    dispatch({
+      type: 'ADD_PRIVATE_MESSAGE',
+      payload: { phone, message }
+    });
+    setInputText('');
+    setImageUri(null);
+    setShowEmoji(false);
+    setShowMediaOptions(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  const pickImage = async (source) => {
+    setShowMediaOptions(false);
+    if (source === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>{name || '私聊'}</Text>
+        <View style={{ width:24 }} />
+      </View>
+
+      <View style={{ flex:1, backgroundColor: '#F2F3F5' }}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatScroll}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.length === 0 && (
+            <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无私聊消息</Text>
+          )}
+          {messages.map(msg => {
+            const isMe = msg.fromPhone === state.user?.phone;
+            return (
+              <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                {msg.image ? (
+                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                ) : (
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                )}
+                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.from}</Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {showMediaOptions && (
+          <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
+              <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
+              <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
+              <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+              <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.inputBar}>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
+            <Text style={{ fontSize: 24 }}>😊</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
+            <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.inputBox}
+            placeholder={`发送给 ${name || '对方'}...`}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+            <Text style={styles.sendTxt}>发送</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 56 }} />
+      </View>
+    </View>
+  );
+};
+
+// ========== 顾客客服页面（含加号菜单、相册） ==========
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1925,6 +2322,7 @@ const CustomerService = () => {
   const scrollViewRef = useRef(null);
   const [selectedPhone, setSelectedPhone] = useState('');
   const [tagInput, setTagInput] = useState('');
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
 
   const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({
     phone,
@@ -1958,6 +2356,7 @@ const CustomerService = () => {
     setImageUri(null);
     setShowEmoji(false);
     setShowQuickReply(false);
+    setShowMediaOptions(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
     if (aiMode && type === 'text' && text) {
@@ -1981,17 +2380,32 @@ const CustomerService = () => {
     }
   };
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { showToast('需要相册权限'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      await sendMessage('image');
+  const pickImage = async (source) => {
+    setShowMediaOptions(false);
+    if (source === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
     }
   };
 
@@ -2113,15 +2527,32 @@ const CustomerService = () => {
         </View>
       )}
 
+      {showMediaOptions && (
+        <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}>
+            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}>
+            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}>
+            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+            <Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
           <Text style={{ fontSize: 24 }}>😊</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>⚡</Text>
+          <Ionicons name="flash-outline" size={20} color={PRIMARY_COLOR} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={pickImage} style={{ paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 20 }}>📷</Text>
+        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
+          <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>
         <TextInput
           style={styles.inputBox}
@@ -2200,7 +2631,7 @@ const ImageGenScreen = ({ route, navigation }) => {
   );
 };
 
-// ========== AI 助手页面（主对话） ==========
+// ========== AI 助手页面（主对话）含加号菜单、相册 ==========
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2208,6 +2639,9 @@ const MerchantAssistant = () => {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollViewRef = useRef(null);
+  const [imageUri, setImageUri] = useState(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -2235,14 +2669,37 @@ const MerchantAssistant = () => {
     setInputText(prompt);
   };
 
-  const sendMessage = async () => {
-    const text = inputText.trim();
-    if (!text) return;
-    const userMsg = { id: Date.now().toString(), text, from: 'user', time: new Date().toISOString() };
+  const sendMessage = async (type = 'text', content = null) => {
+    let text = inputText.trim();
+    let image = null;
+    if (type === 'image') {
+      if (!imageUri) return;
+      const compressed = await compressImage(imageUri);
+      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+      image = `data:image/jpeg;base64,${base64}`;
+    } else {
+      if (!text) return;
+    }
+    const userMsg = { 
+      id: Date.now().toString(), 
+      text: type === 'text' ? text : '', 
+      image: type === 'image' ? image : null,
+      from: 'user', 
+      time: new Date().toISOString() 
+    };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
-    setLoading(true);
+    setImageUri(null);
+    setShowMediaOptions(false);
+    setShowEmoji(false);
 
+    if (type === 'image') {
+      setLoading(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      return;
+    }
+
+    setLoading(true);
     const prompt = `你是经营宝AI助手，帮助商家解决经营问题，提供营销建议，数据分析，员工管理等。回答要简洁、实用。`;
     const msgList = messages.filter(m => m.from !== 'system').map(m => ({
       role: m.from === 'user' ? 'user' : 'assistant',
@@ -2262,159 +2719,38 @@ const MerchantAssistant = () => {
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
+  const pickImage = async (source) => {
+    setShowMediaOptions(false);
+    if (source === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.safeTop} />
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>AI助手</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('ImageGen')}>
-          <Text style={{ fontSize: 16, color: PRIMARY_COLOR }}>🖼️ 生成图片</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-        {['文案', '海报', '广告语'].map(label => (
-          <TouchableOpacity key={label} style={{ marginRight:10, paddingHorizontal:14, paddingVertical:6, backgroundColor:LIGHT_PRIMARY, borderRadius:16 }} onPress={() => handleMarketing(label)}>
-            <Text style={{ color:PRIMARY_COLOR }}>📣 {label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatScroll}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-      >
-        {messages.map(msg => (
-          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
-            <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{moment(msg.time).format('HH:mm')}</Text>
-          </View>
-        ))}
-        {loading && (
-          <View style={[styles.bubbleLeft, { padding: 12 }]}>
-            <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-          </View>
-        )}
-      </ScrollView>
-
-      <View style={styles.inputBar}>
-        <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
-          placeholder="输入问题..."
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage} disabled={loading}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={{ height: 56 }} />
-    </View>
-  );
-};
-
-// ========== 底部标签导航 ==========
-function RootTabs() {
-  return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === 'HomeTab') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'VerifyTab') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
-          else if (route.name === 'StockTab') iconName = focused ? 'cube' : 'cube-outline';
-          else if (route.name === 'CustomerTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-          else if (route.name === 'InternalTab') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AITab') iconName = focused ? 'bulb' : 'bulb-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: PRIMARY_COLOR,
-        tabBarInactiveTintColor: TEXT_THIRD,
-        headerShown: false,
-        tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
-      })}
-    >
-      <Tab.Screen name="HomeTab" component={HomePage} options={{ title: '首页' }} />
-      <Tab.Screen name="VerifyTab" component={VerifyOrder} options={{ title: '核销' }} />
-      <Tab.Screen name="StockTab" component={StockManage} options={{ title: '出入库' }} />
-      <Tab.Screen name="CustomerTab" component={CustomerService} options={{ title: '客服' }} />
-      <Tab.Screen name="InternalTab" component={InternalChat} options={{ title: '内部' }} />
-      <Tab.Screen name="AITab" component={MerchantAssistant} options={{ title: 'AI助手' }} />
-    </Tab.Navigator>
-  );
-}
-
-// ========== 主栈导航 ==========
-function MainStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="RootTabs" component={RootTabs} />
-      <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
-      <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
-      <Stack.Screen name="ProductOverview" component={ProductOverview} />
-      <Stack.Screen name="StaffManage" component={StaffManage} />
-      <Stack.Screen name="ChatInfo" component={ChatInfoScreen} />
-      <Stack.Screen name="ImageGen" component={ImageGenScreen} />
-      <Stack.Screen name="MenuManager" component={MenuManagerScreen} />
-      <Stack.Screen name="CustomerService" component={CustomerService} />
-      <Stack.Screen name="InternalChat" component={InternalChat} />
-      <Stack.Screen name="MerchantAssistant" component={MerchantAssistant} />
-    </Stack.Navigator>
-  );
-}
-
-// ========== App 容器 ==========
-export default function App() {
-  const [state, dispatch] = useReducer(appReducer, initialState);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const userStr = await AsyncStorage.getItem('user');
-        const shopStr = await AsyncStorage.getItem('shopInfo');
-        const appData = await loadAllData();
-        if (userStr && shopStr) {
-          const user = JSON.parse(userStr);
-          const shopInfo = JSON.parse(shopStr);
-          dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-        }
-        if (appData) {
-          dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
-        }
-      } catch (error) {
-        console.warn('初始化加载失败', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      saveAllData(state);
-    }
-  }, [state, loading]);
-
-  if (loading) {
-    return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-      </View>
-    );
-  }
-
-  return (
-    <AppContext.Provider value={{ state, dispatch }}>
-      <NavigationContainer>
-        <MainStack />
-      </NavigationContainer>
-    </AppContext.Provider>
-  );
-}
+        <Text style={styles.page
