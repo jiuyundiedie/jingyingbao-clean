@@ -13,6 +13,11 @@
     },
     "android": {
       "package": "com.xxx.jingyingbao"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dc956f10-0190-4a1e-964d-a2d24e6a17cc"
+      }
     }
   }
 }

@@ -135,7 +135,7 @@ function appReducer(state, action) {
     case 'SET_STAFF_LIST':
       return { ...state, staffMemberList: action.payload || [] };
     case 'SET_BAD_REVIEW_COUNT':
-      return { ...state, badReviewCount: action.payload || 0 };
+      return { ...state, badReviewCount: action.payload };
     case 'ADD_BAD_REVIEW': {
       const list = state.badReviewList || [];
       const newList = [action.payload, ...list];
@@ -195,8 +195,7 @@ function appReducer(state, action) {
       return { ...state, pushToken: action.payload };
     case 'RESTORE_ALL_DATA': {
       const restored = action.payload || {};
-      // 安全合并所有字段，确保所有字段存在
-      const newState = {
+      return {
         ...defaultState,
         ...restored,
         globalOrderRecord: Array.isArray(restored.globalOrderRecord) ? restored.globalOrderRecord : [],
@@ -225,7 +224,6 @@ function appReducer(state, action) {
         weekPushTrigger: typeof restored.weekPushTrigger === 'boolean' ? restored.weekPushTrigger : false,
         monthPushTrigger: typeof restored.monthPushTrigger === 'boolean' ? restored.monthPushTrigger : false,
       };
-      return newState;
     }
     case 'TOGGLE_MENU_VISIBILITY': {
       const { key, visible } = action.payload;
@@ -328,12 +326,10 @@ const calcDailyReport = (state) => {
   const todayOrders = globalOrderRecord.filter(item => moment(item.time).format("YYYY-MM-DD") === todayStr);
   let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
   todayOrders.forEach(order => {
-    if (order && order.platform) {
-      switch(order.platform) {
-        case "美团": meituanIncome += order.couponPrice || 0; break;
-        case "抖音": douyinIncome += order.couponPrice || 0; break;
-        case "大众点评": dianpingIncome += order.couponPrice || 0; break;
-      }
+    switch(order.platform) {
+      case "美团": meituanIncome += order.couponPrice; break;
+      case "抖音": douyinIncome += order.couponPrice; break;
+      case "大众点评": dianpingIncome += order.couponPrice; break;
     }
   });
   const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
