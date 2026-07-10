@@ -485,11 +485,15 @@ const LoginScreen = () => {
   const previousAccounts = state.previousAccounts || [];
 
   useEffect(() => {
-    if (state.user) navigation.replace('RootTabs');
+    if (state.user) {
+      console.log('已有用户，自动跳转首页');
+      navigation.replace('RootTabs');
+    }
   }, [state.user]);
 
   const handleLogin = async () => {
     try {
+      console.log('登录处理开始');
       if (phone.length !== 11) { showToast('请输入11位手机号'); return; }
       if (code !== '123456') { showToast('验证码错误'); return; }
       if (role === '员工') {
@@ -511,6 +515,7 @@ const LoginScreen = () => {
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      console.log('即将跳转首页');
       navigation.replace('RootTabs');
     } catch (error) {
       console.error('登录失败:', error);
@@ -2105,6 +2110,16 @@ const HomePage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const [reportType, setReportType] = useState('daily');
+
+  // 如果没有用户，返回空，防止崩溃
+  if (!user) {
+    console.warn('HomePage 渲染时 user 为空，可能登录状态丢失');
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+        <Text>请重新登录</Text>
+      </View>
+    );
+  }
 
   const globalOrderRecord = state.globalOrderRecord || [];
   const todayStr = moment().format('YYYY-MM-DD');
