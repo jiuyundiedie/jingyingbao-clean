@@ -18,7 +18,6 @@ import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
 import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 
-// ===== 兼容性 =====
 if (typeof SharedArrayBuffer === 'undefined') {
   global.SharedArrayBuffer = function () {};
 }
@@ -490,43 +489,58 @@ const LoginScreen = () => {
   }, [state.user]);
 
   const handleLogin = async () => {
-    if (phone.length !== 11) { showToast('请输入11位手机号'); return; }
-    if (code !== '123456') { showToast('验证码错误'); return; }
-    if (role === '员工') {
-      if (!employeeName.trim()) { showToast('请输入员工姓名'); return; }
-      if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
-    } else {
-      if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
-    }
-    const industry = detectIndustry(shopName);
-    const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
-    const shopInfo = { shopName, phone, industry, staffList: [] };
-    if (role === '员工') {
-      const staff = { id: Date.now().toString(), name: employeeName.trim(), phone, role: '员工', status: 'pending', joinedAt: new Date().toISOString() };
-      dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { staff } });
-      showToast('入职申请已发送，等待商家审批');
-    }
-    dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
-    dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
     try {
+      // 输入校验
+      if (phone.length !== 11) { showToast('请输入11位手机号'); return; }
+      if (code !== '123456') { showToast('验证码错误'); return; }
+      if (role === '员工') {
+        if (!employeeName.trim()) { showToast('请输入员工姓名'); return; }
+        if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
+      } else {
+        if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
+      }
+
+      const industry = detectIndustry(shopName);
+      const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
+      const shopInfo = { shopName, phone, industry, staffList: [] };
+
+      // 如果是员工，发送入职申请
+      if (role === '员工') {
+        const staff = { id: Date.now().toString(), name: employeeName.trim(), phone, role: '员工', status: 'pending', joinedAt: new Date().toISOString() };
+        dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { staff } });
+        showToast('入职申请已发送，等待商家审批');
+      }
+
+      // 更新状态
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
+      dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
+
+      // 保存登录凭证
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-    } catch (e) {
+
+      // 跳转到首页
+      navigation.replace('RootTabs');
+    } catch (error) {
+      console.error('登录失败:', error);
       showToast('登录失败，请重试');
-      return;
     }
-    navigation.replace('RootTabs');
   };
 
   const handleHistorySelect = async (account) => {
-    const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-    const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
-    dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-    navigation.replace('RootTabs');
+    try {
+      const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      navigation.replace('RootTabs');
+    } catch (error) {
+      console.error('切换历史账号失败:', error);
+      showToast('切换失败，请重试');
+    }
   };
 
   return (
@@ -683,11 +697,15 @@ const SettingDrawer = ({ visible, onClose }) => {
     showToast("推送时间保存成功");
   };
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('shopInfo');
-    dispatch({ type: 'LOGOUT' });
-    onClose();
-    navigation.replace('Login');
+    try {
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('shopInfo');
+      dispatch({ type: 'LOGOUT' });
+      onClose();
+      navigation.replace('Login');
+    } catch (error) {
+      showToast('退出失败');
+    }
   };
   const handleSwitchAccount = () => { onClose(); navigation.navigate('SwitchAccount'); };
   const handleMenuManager = () => { onClose(); navigation.navigate('MenuManager'); };
@@ -798,21 +816,29 @@ const SwitchAccountScreen = () => {
   const previousAccounts = state.previousAccounts || [];
 
   const handleSelect = async (account) => {
-    const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-    const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
-    dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-    navigation.replace('RootTabs');
+    try {
+      const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      navigation.replace('RootTabs');
+    } catch (error) {
+      showToast('切换失败');
+    }
   };
 
   const handleRegister = async () => {
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('shopInfo');
-    dispatch({ type: 'LOGOUT' });
-    dispatch({ type: 'CLEAR_PREVIOUS_ACCOUNTS' });
-    navigation.replace('Login');
+    try {
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('shopInfo');
+      dispatch({ type: 'LOGOUT' });
+      dispatch({ type: 'CLEAR_PREVIOUS_ACCOUNTS' });
+      navigation.replace('Login');
+    } catch (error) {
+      showToast('操作失败');
+    }
   };
 
   const allAccounts = [];
@@ -858,30 +884,34 @@ const VerifyOrder = () => {
   }, []);
 
   const handleVerify = () => {
-    if (!orderCode.trim()) { showToast('请输入核销码'); return; }
-    const price = parseFloat(couponPrice);
-    if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
-    if (selectedGoodsId) {
-      const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
-      if (goods && goods.stock < 1) { Alert.alert('库存不足', `${goods.name} 库存不足`); return; }
-      if (goods) {
-        const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g);
-        dispatch({ type: 'SET_GOODS_LIST', payload: updated });
-        showToast(`已扣减 ${goods.name} 库存 1 件`);
+    try {
+      if (!orderCode.trim()) { showToast('请输入核销码'); return; }
+      const price = parseFloat(couponPrice);
+      if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
+      if (selectedGoodsId) {
+        const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
+        if (goods && goods.stock < 1) { Alert.alert('库存不足', `${goods.name} 库存不足`); return; }
+        if (goods) {
+          const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g);
+          dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+          showToast(`已扣减 ${goods.name} 库存 1 件`);
+        }
       }
+      const record = { id: Date.now().toString(), code: orderCode.trim(), platform, couponPrice: price, time: new Date().toISOString(), goodsId: selectedGoodsId, staff: state.user?.name || '未知' };
+      dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
+      if (checkBadReview(orderCode)) {
+        const bad = { id: Date.now().toString(), content: orderCode, platform, time: moment().format('YYYY-MM-DD HH:mm'), handled: false };
+        dispatch({ type: 'ADD_BAD_REVIEW', payload: bad });
+        showToast('⚠️ 检测到疑似差评内容，已记录');
+      } else {
+        showToast(`核销成功！${platform} ¥${price}`);
+      }
+      setOrderCode('');
+      setCouponPrice('');
+      setSelectedGoodsId(null);
+    } catch (error) {
+      showToast('核销失败');
     }
-    const record = { id: Date.now().toString(), code: orderCode.trim(), platform, couponPrice: price, time: new Date().toISOString(), goodsId: selectedGoodsId, staff: state.user?.name || '未知' };
-    dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
-    if (checkBadReview(orderCode)) {
-      const bad = { id: Date.now().toString(), content: orderCode, platform, time: moment().format('YYYY-MM-DD HH:mm'), handled: false };
-      dispatch({ type: 'ADD_BAD_REVIEW', payload: bad });
-      showToast('⚠️ 检测到疑似差评内容，已记录');
-    } else {
-      showToast(`核销成功！${platform} ¥${price}`);
-    }
-    setOrderCode('');
-    setCouponPrice('');
-    setSelectedGoodsId(null);
   };
 
   const handleBarCodeScanned = ({ data }) => { setScanning(false); setOrderCode(data); };
@@ -962,29 +992,37 @@ const ProductOverview = () => {
   const [platform, setPlatform] = useState('美团');
 
   const handleSave = () => {
-    if (!name.trim()) { showToast('请输入商品名称'); return; }
-    const stockNum = parseInt(stock) || 0;
-    if (editingItem) {
-      const updated = (state.goodsList || []).map(item => item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item);
-      dispatch({ type: 'SET_GOODS_LIST', payload: updated });
-      showToast('已更新');
-    } else {
-      const newItem = { id: Date.now().toString(), name: name.trim(), stock: stockNum, platform, createdAt: new Date().toISOString() };
-      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
-      showToast('添加成功');
+    try {
+      if (!name.trim()) { showToast('请输入商品名称'); return; }
+      const stockNum = parseInt(stock) || 0;
+      if (editingItem) {
+        const updated = (state.goodsList || []).map(item => item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item);
+        dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+        showToast('已更新');
+      } else {
+        const newItem = { id: Date.now().toString(), name: name.trim(), stock: stockNum, platform, createdAt: new Date().toISOString() };
+        dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
+        showToast('添加成功');
+      }
+      setModalVisible(false);
+      setName('');
+      setStock('');
+      setEditingItem(null);
+    } catch (error) {
+      showToast('操作失败');
     }
-    setModalVisible(false);
-    setName('');
-    setStock('');
-    setEditingItem(null);
   };
 
   const handleDelete = (id) => {
     Alert.alert('确认删除', '确定删除该商品？', [
       { text: '取消', style: 'cancel' },
       { text: '删除', style: 'destructive', onPress: () => {
-        dispatch({ type: 'SET_GOODS_LIST', payload: (state.goodsList || []).filter(item => item.id !== id) });
-        showToast('已删除');
+        try {
+          dispatch({ type: 'SET_GOODS_LIST', payload: (state.goodsList || []).filter(item => item.id !== id) });
+          showToast('已删除');
+        } catch (error) {
+          showToast('删除失败');
+        }
       }}
     ]);
   };
@@ -1072,8 +1110,12 @@ const StaffManage = () => {
     Alert.alert('确认移除', '确定移除该员工？', [
       { text: '取消', style: 'cancel' },
       { text: '移除', style: 'destructive', onPress: () => {
-        dispatch({ type: 'SET_STAFF_LIST', payload: (state.staffMemberList || []).filter(item => item.id !== id) });
-        showToast('已移除');
+        try {
+          dispatch({ type: 'SET_STAFF_LIST', payload: (state.staffMemberList || []).filter(item => item.id !== id) });
+          showToast('已移除');
+        } catch (error) {
+          showToast('移除失败');
+        }
       }}
     ]);
   };
@@ -1159,16 +1201,24 @@ const StaffManage = () => {
                 </View>
                 <View style={{ flexDirection:'row', gap:8 }}>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => {
-                    dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: item.phone } });
-                    const welcomeMsg = { id: Date.now().toString(), text: `🎉 ${item.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
-                    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcomeMsg });
-                    showToast(`${item.name} 已批准入职`);
+                    try {
+                      dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: item.phone } });
+                      const welcomeMsg = { id: Date.now().toString(), text: `🎉 ${item.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
+                      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcomeMsg });
+                      showToast(`${item.name} 已批准入职`);
+                    } catch (error) {
+                      showToast('操作失败');
+                    }
                   }}>
                     <Text style={styles.sendTxt}>同意</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => {
-                    dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone: item.phone } });
-                    showToast('已拒绝');
+                    try {
+                      dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone: item.phone } });
+                      showToast('已拒绝');
+                    } catch (error) {
+                      showToast('操作失败');
+                    }
                   }}>
                     <Text style={styles.sendTxt}>拒绝</Text>
                   </TouchableOpacity>
@@ -1226,27 +1276,31 @@ const StockManage = () => {
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
 
   const handleSubmit = () => {
-    if (!selectedGoodsId) { showToast('请选择商品'); return; }
-    const qty = parseInt(quantity);
-    if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
-    const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
-    if (!goods) { showToast('商品不存在'); return; }
-    let newStock = goods.stock;
-    if (type === '入库') newStock += qty;
-    else {
-      if (goods.stock < qty) { showToast('库存不足'); return; }
-      newStock -= qty;
+    try {
+      if (!selectedGoodsId) { showToast('请选择商品'); return; }
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      let newStock = goods.stock;
+      if (type === '入库') newStock += qty;
+      else {
+        if (goods.stock < qty) { showToast('库存不足'); return; }
+        newStock -= qty;
+      }
+      const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: newStock } : g);
+      dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+      const record = { id: Date.now().toString(), type, productName: goods.name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUri || null };
+      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+      showToast(`${type}成功: ${goods.name} ×${qty}`);
+      setModalVisible(false);
+      setQuantity('');
+      setReason('');
+      setSelectedGoodsId(null);
+      setPhotoUri(null);
+    } catch (error) {
+      showToast('操作失败');
     }
-    const updated = (state.goodsList || []).map(g => g.id === selectedGoodsId ? { ...g, stock: newStock } : g);
-    dispatch({ type: 'SET_GOODS_LIST', payload: updated });
-    const record = { id: Date.now().toString(), type, productName: goods.name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUri || null };
-    dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-    showToast(`${type}成功: ${goods.name} ×${qty}`);
-    setModalVisible(false);
-    setQuantity('');
-    setReason('');
-    setSelectedGoodsId(null);
-    setPhotoUri(null);
   };
 
   const handleScan = async () => {
@@ -1263,42 +1317,52 @@ const StockManage = () => {
   };
 
   const pickPhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { showToast('需要相册权限'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 });
-    if (!result.canceled) {
-      const compressed = await compressImage(result.assets[0].uri);
-      setPhotoUri(compressed);
-      showToast('已上传照片');
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 });
+      if (!result.canceled) {
+        const compressed = await compressImage(result.assets[0].uri);
+        setPhotoUri(compressed);
+        showToast('已上传照片');
+      }
+    } catch (error) {
+      showToast('选择照片失败');
     }
   };
 
   const handleShelf = async (platform, goodsId) => {
-    if (!goodsId) { showToast('请先选择商品'); return; }
-    const goods = (state.goodsList || []).find(g => g.id === goodsId);
-    if (!goods) { showToast('商品不存在'); return; }
-    setLoadingPlatform(platform);
     try {
+      if (!goodsId) { showToast('请先选择商品'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === goodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      setLoadingPlatform(platform);
       const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
-    } catch (e) { showToast(`${platform}上架生成失败`); }
-    setLoadingPlatform(null);
+    } catch (error) {
+      showToast(`${platform}上架生成失败`);
+    } finally {
+      setLoadingPlatform(null);
+    }
   };
 
   const handleShelfAll = async (goodsId) => {
-    if (!goodsId) { showToast('请先选择商品'); return; }
-    const goods = (state.goodsList || []).find(g => g.id === goodsId);
-    if (!goods) { showToast('商品不存在'); return; }
-    setLoadingPlatform('all');
     try {
+      if (!goodsId) { showToast('请先选择商品'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === goodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      setLoadingPlatform('all');
       const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
-    } catch (e) { showToast('一键上架生成失败'); }
-    setLoadingPlatform(null);
+    } catch (error) {
+      showToast('一键上架生成失败');
+    } finally {
+      setLoadingPlatform(null);
+    }
   };
 
   if (scanning) {
@@ -1454,39 +1518,47 @@ const InternalChat = () => {
   const groupMessages = state.groupChatMessages || [];
 
   const sendGroupMessage = async (type = 'text') => {
-    let text = inputText.trim();
-    let image = null;
-    if (type === 'image') {
-      if (!imageUri) return;
-      const compressed = await compressImage(imageUri);
-      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-      image = `data:image/jpeg;base64,${base64}`;
-    } else if (!text) return;
-    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '员工', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
-    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: msg });
-    setInputText('');
-    setImageUri(null);
-    setShowEmoji(false);
-    setShowMediaOptions(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    try {
+      let text = inputText.trim();
+      let image = null;
+      if (type === 'image') {
+        if (!imageUri) return;
+        const compressed = await compressImage(imageUri);
+        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+        image = `data:image/jpeg;base64,${base64}`;
+      } else if (!text) return;
+      const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '员工', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
+      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: msg });
+      setInputText('');
+      setImageUri(null);
+      setShowEmoji(false);
+      setShowMediaOptions(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      showToast('发送失败');
+    }
   };
 
   const pickImage = async (source) => {
-    setShowMediaOptions(false);
-    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-    let result;
-    if (source === 'camera') {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相机权限'); return; }
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相册权限'); return; }
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      await sendGroupMessage('image');
+    try {
+      setShowMediaOptions(false);
+      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendGroupMessage('image');
+      }
+    } catch (error) {
+      showToast('选择图片失败');
     }
   };
 
@@ -1554,39 +1626,47 @@ const PrivateChatScreen = ({ route, navigation }) => {
   const messages = state.privateChatMessages[phone] || [];
 
   const sendMessage = async (type = 'text') => {
-    let text = inputText.trim();
-    let image = null;
-    if (type === 'image') {
-      if (!imageUri) return;
-      const compressed = await compressImage(imageUri);
-      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-      image = `data:image/jpeg;base64,${base64}`;
-    } else if (!text) return;
-    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '我', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
-    dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
-    setInputText('');
-    setImageUri(null);
-    setShowEmoji(false);
-    setShowMediaOptions(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    try {
+      let text = inputText.trim();
+      let image = null;
+      if (type === 'image') {
+        if (!imageUri) return;
+        const compressed = await compressImage(imageUri);
+        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+        image = `data:image/jpeg;base64,${base64}`;
+      } else if (!text) return;
+      const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: state.user?.name || '我', fromPhone: state.user?.phone || '', time: new Date().toISOString(), type: 'text' };
+      dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+      setInputText('');
+      setImageUri(null);
+      setShowEmoji(false);
+      setShowMediaOptions(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      showToast('发送失败');
+    }
   };
 
   const pickImage = async (source) => {
-    setShowMediaOptions(false);
-    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-    let result;
-    if (source === 'camera') {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相机权限'); return; }
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相册权限'); return; }
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      await sendMessage('image');
+    try {
+      setShowMediaOptions(false);
+      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } catch (error) {
+      showToast('选择图片失败');
     }
   };
 
@@ -1661,59 +1741,71 @@ const CustomerService = () => {
   const currentMessages = messages.filter(m => m.platform === currentPlatform);
 
   const sendMessage = async (type = 'text') => {
-    let text = inputText.trim();
-    let image = null;
-    if (type === 'image') {
-      if (!imageUri) return;
-      const compressed = await compressImage(imageUri);
-      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-      image = `data:image/jpeg;base64,${base64}`;
-    } else if (!text) return;
-    const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'staff', platform: currentPlatform, time: new Date().toISOString() };
-    setMessages(prev => [...prev, msg]);
-    setInputText('');
-    setImageUri(null);
-    setShowEmoji(false);
-    setShowQuickReply(false);
-    setShowMediaOptions(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    if (aiMode && type === 'text' && text) {
-      try {
-        const reply = await fetchZhipuChat([{ role: 'user', content: text }], `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`);
-        const aiMsg = { id: Date.now().toString(), text: reply, from: 'ai', platform: currentPlatform, time: new Date().toISOString() };
-        setMessages(prev => [...prev, aiMsg]);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
-      } catch (e) {}
+    try {
+      let text = inputText.trim();
+      let image = null;
+      if (type === 'image') {
+        if (!imageUri) return;
+        const compressed = await compressImage(imageUri);
+        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+        image = `data:image/jpeg;base64,${base64}`;
+      } else if (!text) return;
+      const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'staff', platform: currentPlatform, time: new Date().toISOString() };
+      setMessages(prev => [...prev, msg]);
+      setInputText('');
+      setImageUri(null);
+      setShowEmoji(false);
+      setShowQuickReply(false);
+      setShowMediaOptions(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      if (aiMode && type === 'text' && text) {
+        try {
+          const reply = await fetchZhipuChat([{ role: 'user', content: text }], `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`);
+          const aiMsg = { id: Date.now().toString(), text: reply, from: 'ai', platform: currentPlatform, time: new Date().toISOString() };
+          setMessages(prev => [...prev, aiMsg]);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+        } catch (e) {}
+      }
+    } catch (error) {
+      showToast('发送失败');
     }
   };
 
   const pickImage = async (source) => {
-    setShowMediaOptions(false);
-    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-    let result;
-    if (source === 'camera') {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相机权限'); return; }
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相册权限'); return; }
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      await sendMessage('image');
+    try {
+      setShowMediaOptions(false);
+      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } catch (error) {
+      showToast('选择图片失败');
     }
   };
 
   const quickReplies = ['您好，请问有什么可以帮助您？', '稍等，我帮您查询一下', '感谢您的反馈，我们会尽快处理', '欢迎下次光临！', '请问您需要什么帮助？'];
 
   const addTag = () => {
-    if (!selectedPhone) { showToast('请先选择顾客'); return; }
-    if (!tagInput.trim()) { showToast('请输入标签'); return; }
-    dispatch({ type: 'SET_CUSTOMER_TAG', payload: { phone: selectedPhone, tag: tagInput.trim() } });
-    setTagInput('');
-    showToast('标签已添加');
+    try {
+      if (!selectedPhone) { showToast('请先选择顾客'); return; }
+      if (!tagInput.trim()) { showToast('请输入标签'); return; }
+      dispatch({ type: 'SET_CUSTOMER_TAG', payload: { phone: selectedPhone, tag: tagInput.trim() } });
+      setTagInput('');
+      showToast('标签已添加');
+    } catch (error) {
+      showToast('添加标签失败');
+    }
   };
 
   const getCustomerStats = (phone) => {
@@ -1819,9 +1911,9 @@ const ImageGenScreen = ({ navigation }) => {
   const industry = state.shopInfo?.industry || '餐饮类';
 
   const generateImageHandler = async () => {
-    if (!prompt.trim()) { showToast('请输入描述'); return; }
-    setLoading(true);
     try {
+      if (!prompt.trim()) { showToast('请输入描述'); return; }
+      setLoading(true);
       const fullPrompt = `${prompt}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
       const res = await fetch('https://image-api.my-image-api.workers.dev', {
         method: 'POST',
@@ -1834,7 +1926,10 @@ const ImageGenScreen = ({ navigation }) => {
       reader.onloadend = () => { setImageResult(reader.result); setLoading(false); };
       reader.onerror = () => { showToast('读取失败'); setLoading(false); };
       reader.readAsDataURL(blob);
-    } catch (e) { showToast('生成失败'); setLoading(false); }
+    } catch (error) {
+      showToast('生成失败');
+      setLoading(false);
+    }
   };
 
   return (
@@ -1893,47 +1988,56 @@ const MerchantAssistant = () => {
   };
 
   const sendMessage = async (type = 'text') => {
-    let text = inputText.trim();
-    let image = null;
-    if (type === 'image') {
-      if (!imageUri) return;
-      const compressed = await compressImage(imageUri);
-      const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-      image = `data:image/jpeg;base64,${base64}`;
-    } else if (!text) return;
-    const userMsg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'user', time: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
-    setImageUri(null);
-    setShowMediaOptions(false);
-    setShowEmoji(false);
-    if (type === 'image') { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100); return; }
-    setLoading(true);
-    const msgList = messages.filter(m => m.from !== 'system').map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
-    msgList.push({ role: 'user', content: text });
-    const reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。');
-    const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
-    setMessages(prev => [...prev, aiMsg]);
-    setLoading(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    try {
+      let text = inputText.trim();
+      let image = null;
+      if (type === 'image') {
+        if (!imageUri) return;
+        const compressed = await compressImage(imageUri);
+        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+        image = `data:image/jpeg;base64,${base64}`;
+      } else if (!text) return;
+      const userMsg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'user', time: new Date().toISOString() };
+      setMessages(prev => [...prev, userMsg]);
+      setInputText('');
+      setImageUri(null);
+      setShowMediaOptions(false);
+      setShowEmoji(false);
+      if (type === 'image') { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100); return; }
+      setLoading(true);
+      const msgList = messages.filter(m => m.from !== 'system').map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
+      msgList.push({ role: 'user', content: text });
+      const reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。');
+      const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
+      setMessages(prev => [...prev, aiMsg]);
+      setLoading(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      showToast('发送失败');
+      setLoading(false);
+    }
   };
 
   const pickImage = async (source) => {
-    setShowMediaOptions(false);
-    const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-    let result;
-    if (source === 'camera') {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相机权限'); return; }
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相册权限'); return; }
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-      await sendMessage('image');
+    try {
+      setShowMediaOptions(false);
+      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } catch (error) {
+      showToast('选择图片失败');
     }
   };
 
@@ -1997,7 +2101,7 @@ const MerchantAssistant = () => {
   );
 };
 
-// ================== 首页（完整） ==================
+// ================== 首页 ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2025,8 +2129,10 @@ const HomePage = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    const report = calcDailyReport(state);
-    if (report) dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
+    try {
+      const report = calcDailyReport(state);
+      if (report) dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
+    } catch (error) {}
     setRefreshing(false);
   }, [state]);
 
@@ -2078,17 +2184,25 @@ const HomePage = () => {
   const menuVisibility = state.menuVisibility || {};
 
   const handleApprove = (phone) => {
-    dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
-    const staff = state.staffMemberList.find(s => s.phone === phone);
-    if (staff) {
-      const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
-      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
-      showToast(`${staff.name} 已批准入职`);
+    try {
+      dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
+      const staff = state.staffMemberList.find(s => s.phone === phone);
+      if (staff) {
+        const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
+        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
+        showToast(`${staff.name} 已批准入职`);
+      }
+    } catch (error) {
+      showToast('操作失败');
     }
   };
   const handleReject = (phone) => {
-    dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
-    showToast('已拒绝');
+    try {
+      dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
+      showToast('已拒绝');
+    } catch (error) {
+      showToast('操作失败');
+    }
   };
 
   useEffect(() => {
