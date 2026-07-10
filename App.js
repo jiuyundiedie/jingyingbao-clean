@@ -540,7 +540,32 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.loginContainer}>
-      <Text style={styles.loginTitle}>经营宝</Text>
+      <TouchableOpacity
+        activeOpacity={1}
+        onLongPress={async () => {
+          try {
+            const errorData = await AsyncStorage.getItem('lastError');
+            if (errorData) {
+              const error = JSON.parse(errorData);
+              Alert.alert(
+                '错误日志',
+                `时间: ${error.time}\n\n消息: ${error.message}\n\n堆栈:\n${error.stack || '无堆栈信息'}`,
+                [
+                  { text: '复制', onPress: () => console.log('错误信息:', error) },
+                  { text: '清空', onPress: () => AsyncStorage.removeItem('lastError') },
+                  { text: '确定' }
+                ]
+              );
+            } else {
+              Alert.alert('提示', '暂无错误日志');
+            }
+          } catch (e) {
+            Alert.alert('读取错误失败', String(e));
+          }
+        }}
+      >
+        <Text style={styles.loginTitle}>经营宝</Text>
+      </TouchableOpacity>
       <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
       <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
         <Text style={{ color: PRIMARY_COLOR, marginBottom: 12 }}>历史账号</Text>
@@ -1503,8 +1528,7 @@ const ChatInfoScreen = ({ navigation }) => {
     </View>
   );
 };
-
-// ================== 内部沟通 ==================
+// ===== 第二段结束 =====// ================== 内部沟通 ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2111,9 +2135,8 @@ const HomePage = () => {
   const insets = useSafeAreaInsets();
   const [reportType, setReportType] = useState('daily');
 
-  // 如果没有用户，返回空，防止崩溃
   if (!user) {
-    console.warn('HomePage 渲染时 user 为空，可能登录状态丢失');
+    console.warn('HomePage 渲染时 user 为空');
     return (
       <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
         <Text>请重新登录</Text>
@@ -2381,7 +2404,8 @@ const HomePage = () => {
     </SafeAreaView>
   );
 };
-// ===== 第二段结束 =====// ================== 底部标签导航 ==================
+
+// ================== 底部标签导航 ==================
 function RootTabs() {
   const { state } = useApp();
   const isEmployee = state.user?.role === '员工';
@@ -2436,20 +2460,56 @@ function MainStack() {
   );
 }
 
-// ================== App 容器 ==================
+// ================== App 容器（带全局错误捕获） ==================
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
 
+  // 全局错误捕获
+  useEffect(() => {
+    const errorHandler = (error) => {
+      console.error('全局捕获错误:', error);
+      const errorInfo = {
+        message: error?.message || String(error),
+        stack: error?.stack || '',
+        time: new Date().toISOString(),
+      };
+      AsyncStorage.setItem('lastError', JSON.stringify(errorInfo)).catch(() => {});
+    };
+
+    const rejectionHandler = (event) => { errorHandler(event.reason); };
+    const errorListener = (event) => { errorHandler(event.error || event.message); };
+
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      if (global.ErrorUtils) {
+        const originalHandler = global.ErrorUtils.getGlobalHandler?.() || (() => {});
+        global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+          errorHandler(error);
+          originalHandler(error, isFatal);
+        });
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', errorListener);
+      window.addEventListener('unhandledrejection', rejectionHandler);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('error', errorListener);
+        window.removeEventListener('unhandledrejection', rejectionHandler);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. 恢复全部数据（含历史账号）
         const appData = await loadAllData();
         if (appData) {
           dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
         }
-        // 2. 覆盖登录状态（实现自动登录）
         const userStr = await AsyncStorage.getItem('user');
         const shopStr = await AsyncStorage.getItem('shopInfo');
         if (userStr && shopStr) {
@@ -2459,6 +2519,7 @@ export default function App() {
         }
       } catch (error) {
         console.warn('初始化加载失败', error);
+        AsyncStorage.setItem('lastError', JSON.stringify({ message: error.message, stack: error.stack, time: new Date().toISOString() })).catch(() => {});
       } finally {
         setLoading(false);
       }
