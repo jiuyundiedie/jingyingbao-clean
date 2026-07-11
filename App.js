@@ -63,6 +63,14 @@ const formatTime = (dateStr) => {
   const d = new Date(dateStr);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+const getWeekStart = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday;
+};
 
 // ===== 压缩图片 =====
 const compressImage = async (uri) => {
@@ -97,6 +105,102 @@ async function fetchZhipuChat(msgList, prompt) {
   }
 }
 
+// ===== 日报/周报/月报计算 =====
+const calcDailyReport = (state) => {
+  try {
+    const todayStr = getTodayStr();
+    const businessHistory = state.businessHistory || [];
+    const existing = businessHistory.find(r => r.date === todayStr);
+    if (existing) return existing;
+    const globalOrderRecord = state.globalOrderRecord || [];
+    const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
+    let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+    todayOrders.forEach(order => {
+      switch(order.platform) {
+        case "美团": meituanIncome += order.couponPrice || 0; break;
+        case "抖音": douyinIncome += order.couponPrice || 0; break;
+        case "大众点评": dianpingIncome += order.couponPrice || 0; break;
+      }
+    });
+    const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
+    const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+    const purchaseCost = Number(costCache.purchaseCost) || 0;
+    const fixedCost = Number(costCache.fixedCost) || 0;
+    const lastBusinessInput = state.lastBusinessInput || {};
+    const tempLoss = Number(lastBusinessInput.loss) || 0;
+    const tempOtherCost = Number(lastBusinessInput.otherCost) || 0;
+    const subLoss = Number(lastBusinessInput.lossOverdue||0) + Number(lastBusinessInput.lossOperate||0) + Number(lastBusinessInput.lossOther||0);
+    const totalLoss = tempLoss + subLoss;
+    const totalCost = purchaseCost + fixedCost + tempOtherCost + totalLoss;
+    const profit = totalIncome - totalCost;
+    const profitRate = totalIncome === 0 ? 0 : Number((profit / totalIncome * 100).toFixed(2));
+    return {
+      id: new Date().getTime().toString(),
+      date: todayStr,
+      shopName: (state.shopConfig || {}).shopName || '我的门店',
+      income: totalIncome,
+      meituanIncome,
+      douyinIncome,
+      dianpingIncome,
+      totalOrder: todayOrders.length,
+      purchaseCost,
+      loss: totalLoss,
+      fixedCost,
+      otherCost: tempOtherCost,
+      totalCost,
+      profit,
+      profitRate
+    };
+  } catch (e) { return null; }
+};
+
+const generateWeekReport = (state) => {
+  try {
+    const today = new Date();
+    const weekStart = getWeekStart();
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const businessHistory = state.businessHistory || [];
+    const weekList = businessHistory.filter(item => {
+      const d = new Date(item.date);
+      return d >= weekStart && d <= weekEnd;
+    });
+    if(weekList.length === 0) return null;
+    const totalIncome = weekList.reduce((s,r)=>s + (r.income || 0), 0);
+    const totalProfit = weekList.reduce((s,r)=>s + (r.profit || 0), 0);
+    const totalOrder = weekList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
+    const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
+    return {
+      startDate: formatDate(weekStart.toISOString()),
+      endDate: formatDate(weekEnd.toISOString()),
+      totalIncome,
+      totalProfit,
+      totalOrder,
+      avgDailyIncome
+    };
+  } catch (e) { return null; }
+};
+
+const generateMonthReport = (state) => {
+  try {
+    const today = new Date();
+    const monthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+    const businessHistory = state.businessHistory || [];
+    const monthList = businessHistory.filter(item => item.date && item.date.startsWith(monthStr));
+    if(monthList.length === 0) return null;
+    const totalIncome = monthList.reduce((s,r)=>s + (r.income || 0), 0);
+    const totalProfit = monthList.reduce((s,r)=>s + (r.profit || 0), 0);
+    const totalOrder = monthList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
+    return {
+      yearMonth: monthStr,
+      totalIncome,
+      totalProfit,
+      totalOrder,
+      dayCount: monthList.length
+    };
+  } catch (e) { return null; }
+};
+
 // ===== Reducer =====
 const defaultState = {
   user: null,
@@ -110,6 +214,12 @@ const defaultState = {
   badReviewList: [],
   privateChatMessages: {},
   customerTags: {},
+  businessHistory: [],
+  costCache: { purchaseCost: "", fixedCost: "" },
+  shopConfig: { shopName: "我的门店", industry: "餐饮类" },
+  lastBusinessInput: { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+  latestDailyReport: null,
+  groupChatMessages: [],
 };
 
 const initialState = JSON.parse(JSON.stringify(defaultState));
@@ -154,6 +264,20 @@ function appReducer(state, action) {
       const existing = state.customerTags[phone] || [];
       return { ...state, customerTags: { ...state.customerTags, [phone]: existing.includes(tag) ? existing : [...existing, tag] } };
     }
+    case 'ADD_GROUP_MESSAGE':
+      return { ...state, groupChatMessages: [...(state.groupChatMessages || []), action.payload] };
+    case 'SET_GROUP_MESSAGES':
+      return { ...state, groupChatMessages: action.payload || [] };
+    case 'ADD_BUSINESS_REPORT':
+      return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
+    case 'SET_COST_CACHE':
+      return { ...state, costCache: action.payload || { purchaseCost: "", fixedCost: "" } };
+    case 'SET_SHOP_CONFIG':
+      return { ...state, shopConfig: action.payload || { shopName: "我的门店", industry: "餐饮类" } };
+    case 'SET_LAST_BUSINESS_INPUT':
+      return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
+    case 'SET_LATEST_DAILY_REPORT':
+      return { ...state, latestDailyReport: action.payload };
     case 'ADD_PREVIOUS_ACCOUNT': {
       const exists = (state.previousAccounts || []).find(a => a.phone === action.payload.phone);
       if (exists) return state;
@@ -172,10 +296,16 @@ function appReducer(state, action) {
         badReviewList: Array.isArray(r.badReviewList) ? r.badReviewList : [],
         privateChatMessages: (r.privateChatMessages && typeof r.privateChatMessages === 'object') ? r.privateChatMessages : {},
         customerTags: (r.customerTags && typeof r.customerTags === 'object') ? r.customerTags : {},
+        businessHistory: Array.isArray(r.businessHistory) ? r.businessHistory : [],
+        groupChatMessages: Array.isArray(r.groupChatMessages) ? r.groupChatMessages : [],
         previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
         user: r.user || null,
         shopInfo: r.shopInfo || { shopName: '', phone: '', industry: '餐饮类' },
         badReviewCount: typeof r.badReviewCount === 'number' ? r.badReviewCount : 0,
+        costCache: r.costCache || { purchaseCost: "", fixedCost: "" },
+        shopConfig: r.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
+        lastBusinessInput: r.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+        latestDailyReport: r.latestDailyReport || null,
       };
     }
     default:
@@ -201,9 +331,15 @@ const saveAllData = async (state) => {
       badReviewList: state.badReviewList || [],
       privateChatMessages: state.privateChatMessages || {},
       customerTags: state.customerTags || {},
+      businessHistory: state.businessHistory || [],
+      groupChatMessages: state.groupChatMessages || [],
       previousAccounts: state.previousAccounts || [],
       user: state.user,
       shopInfo: state.shopInfo,
+      costCache: state.costCache || { purchaseCost: "", fixedCost: "" },
+      shopConfig: state.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
+      lastBusinessInput: state.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
+      latestDailyReport: state.latestDailyReport || null,
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -314,6 +450,13 @@ const styles = StyleSheet.create({
   scannerContainer: { flex: 1 },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
   cancelText: { color: '#fff', fontSize: 16 },
+  reportCard: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginTop: 16, ...SHADOW },
+  reportTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
+  reportRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  reportLabel: { fontSize: 14, color: TEXT_SECOND },
+  reportValue: { fontSize: 14, color: TEXT_MAIN, fontWeight: '500' },
+  exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start' },
+  exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
 });
 
 // ================== 登录页面 ==================
@@ -417,8 +560,7 @@ const LoginScreen = () => {
       </TouchableOpacity>
     </View>
   );
-};
-// ===== 第一段结束 =====// ================== 差评列表 ==================
+};// ================== 差评列表 ==================
 const BadReviewListPage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -720,7 +862,7 @@ const ProductOverview = () => {
   );
 };
 
-// ================== 出入库管理（含语音录入） ==================
+// ================== 出入库管理（四组一排，按钮缩小） ==================
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -738,7 +880,6 @@ const StockManage = () => {
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
 
-  // 语音录入（模拟）
   const voiceInput = () => {
     Alert.prompt(
       '语音录入',
@@ -754,7 +895,6 @@ const StockManage = () => {
     );
   };
 
-  // 手动录入商品并提交出入库
   const handleManualSubmit = () => {
     if (!manualProductName.trim()) { showToast('请输入商品名称'); return; }
     const qty = parseInt(quantity);
@@ -876,7 +1016,8 @@ const StockManage = () => {
         if (status !== 'granted') { showToast('需要相机权限'); return; }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.7, // 仍保留压缩，但不裁剪
+          allowsEditing: false, // 不裁剪，直接拍照后勾选即用
+          quality: 0.7,
         });
         if (!result.canceled) {
           const compressed = await compressImage(result.assets[0].uri);
@@ -888,6 +1029,7 @@ const StockManage = () => {
         if (status !== 'granted') { showToast('需要相册权限'); return; }
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
           quality: 0.7,
           selectionLimit: 10,
         });
@@ -954,14 +1096,14 @@ const StockManage = () => {
         </TouchableOpacity>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 6 }}>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', paddingVertical: 8 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>📷扫码入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', backgroundColor: DANGER_COLOR, paddingVertical: 8 }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>📷扫码出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', paddingVertical: 8 }]} onPress={() => { setType('入库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>📸拍照入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', backgroundColor: DANGER_COLOR, paddingVertical: 8 }]} onPress={() => { setType('出库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>📸拍照出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', paddingVertical: 8 }]} onPress={() => { setType('入库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>🖼️相册入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', backgroundColor: DANGER_COLOR, paddingVertical: 8 }]} onPress={() => { setType('出库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>🖼️相册出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', backgroundColor: SUCCESS_COLOR, paddingVertical: 8 }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}><Text style={styles.sendTxt}>✏️手动录入</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, minWidth: '45%', backgroundColor: '#FF8C00', paddingVertical: 8 }]} onPress={voiceInput}><Text style={styles.sendTxt}>🎤语音录入</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>扫码入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>扫码出库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>拍照入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>拍照出库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>相册入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>相册出库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: SUCCESS_COLOR, paddingVertical: 6 }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}><Text style={styles.sendTxt}>手动录入</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: '#FF8C00', paddingVertical: 6 }]} onPress={voiceInput}><Text style={styles.sendTxt}>语音录入</Text></TouchableOpacity>
       </View>
       <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
         <Text style={{ fontWeight: '600', marginBottom: 6 }}>📤 上架平台</Text>
@@ -1077,7 +1219,7 @@ const StockManage = () => {
   );
 };
 
-// ================== 顾客客服（选图不裁剪，多选预览） ==================
+// ================== 顾客客服（不裁剪，选图预览，点击发送） ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1111,7 +1253,6 @@ const CustomerService = () => {
           const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
           images.push(`data:image/jpeg;base64,${base64}`);
         }
-        // 发送第一张图片，其余作为附加（可扩展）
         const msg = {
           id: Date.now().toString(),
           text: text || '图片消息',
@@ -1190,7 +1331,8 @@ const CustomerService = () => {
         if (status !== 'granted') { showToast('需要相机权限'); return; }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.7, // 不裁剪
+          allowsEditing: false,
+          quality: 0.7,
         });
         if (!result.canceled) {
           setSelectedImages([...selectedImages, result.assets[0].uri]);
@@ -1201,6 +1343,7 @@ const CustomerService = () => {
         if (status !== 'granted') { showToast('需要相册权限'); return; }
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
           quality: 0.7,
           selectionLimit: 10,
         });
@@ -1418,7 +1561,7 @@ const CustomerService = () => {
         </TouchableOpacity>
         {selectedImages.length > 0 && (
           <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}>
-            <Text style={styles.sendTxt}>📷</Text>
+            <Text style={styles.sendTxt}>📷 发送图片</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1427,7 +1570,7 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部聊天（修复：表情、图片、拍照、文字） ==================
+// ================== 内部聊天（修复：表情、图片、拍照、文字均可发送） ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1445,11 +1588,14 @@ const InternalChat = () => {
       let text = inputText.trim();
       let image = null;
       if (type === 'image') {
-        if (!imageUri) return;
+        if (!imageUri) { showToast('请先选择图片'); return; }
         const compressed = await compressImage(imageUri);
         const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
         image = `data:image/jpeg;base64,${base64}`;
-      } else if (!text) return;
+      } else if (!text) {
+        showToast('请输入内容');
+        return;
+      }
       const msg = {
         id: Date.now().toString(),
         text: type === 'text' ? text : '',
@@ -1563,13 +1709,15 @@ const InternalChat = () => {
   );
 };
 
-// ================== 首页 ==================
+// ================== 首页（完整功能：日报/周报/月报、员工私聊、设置等） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const user = state.user;
   const [settingOpen, setSettingOpen] = useState(false);
+  const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [reportType, setReportType] = useState('daily');
 
   if (!user) {
     return (
@@ -1582,21 +1730,124 @@ const HomePage = () => {
   const globalOrderRecord = state.globalOrderRecord || [];
   const todayStr = getTodayStr();
   const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
-  let totalIncome = 0;
-  todayOrders.forEach(order => { totalIncome += order.couponPrice || 0; });
+  let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+  todayOrders.forEach(order => {
+    if (order && order.platform) {
+      switch(order.platform) {
+        case '美团': meituanIncome += order.couponPrice || 0; break;
+        case '抖音': douyinIncome += order.couponPrice || 0; break;
+        case '大众点评': dianpingIncome += order.couponPrice || 0; break;
+      }
+    }
+  });
+  const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const report = calcDailyReport(state);
+      if (report) dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
+    } catch (error) {}
+    setRefreshing(false);
+  }, [state]);
+
+  const exportData = async () => {
+    try {
+      const businessHistory = state.businessHistory || [];
+      const csv = "日期,订单数,总营收,净利润,利润率\n" + businessHistory.map(r => `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`).join('\n');
+      const uri = FileSystem.documentDirectory + 'business_report.csv';
+      await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(uri);
+    } catch (e) { showToast('导出失败'); }
+  };
 
   const isEmployee = user?.role === '员工';
+  const allMenuList = [
+    { icon: "🎫", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
+    { icon: "📦", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
+    { icon: "👥", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
+    { icon: "💬", label: "顾客客服", key: 'CustomerService', tab: 'CustomerTab', screen: 'CustomerService' },
+    { icon: "🤝", label: "内部沟通", key: 'InternalChat', tab: 'InternalTab', screen: 'InternalChat' },
+    { icon: "🤖", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
+    { icon: "📊", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
+  ];
+  const menuList = allMenuList.filter(item => {
+    if (isEmployee) return ['VerifyOrder', 'StockManage', 'InternalChat'].includes(item.key);
+    return true;
+  });
+
+  let chatStaffList = [];
+  if (isEmployee) {
+    const bossPhone = state.shopInfo?.phone || '';
+    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
+  } else {
+    chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
+  }
+  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
+
+  const handleMenuPress = (item) => {
+    try {
+      if (item.internal) navigation.navigate(item.screen);
+      else navigation.getParent().navigate(item.tab, { screen: item.screen });
+    } catch (e) { showToast('跳转失败'); }
+  };
+
+  const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
+
+  const latestReport = state.latestDailyReport;
+  const menuVisibility = state.menuVisibility || {};
+
+  const handleApprove = (phone) => {
+    try {
+      dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
+      const staff = state.staffMemberList.find(s => s.phone === phone);
+      if (staff) {
+        const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
+        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
+        showToast(`${staff.name} 已批准入职`);
+      }
+    } catch (error) { showToast('操作失败'); }
+  };
+  const handleReject = (phone) => {
+    try {
+      dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
+      showToast('已拒绝');
+    } catch (error) { showToast('操作失败'); }
+  };
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (navigation.isFocused() && !navigation.canGoBack()) {
+        if (exitTimer) { BackHandler.exitApp(); return true; }
+        showToast('再按一次退出');
+        const timer = setTimeout(() => setExitTimer(null), 2000);
+        setExitTimer(timer);
+        return true;
+      }
+      return false;
+    });
+    return () => backHandler.remove();
+  }, [navigation, exitTimer]);
+
+  const getReportData = () => {
+    if (reportType === 'daily') return latestReport;
+    if (reportType === 'weekly') return generateWeekReport(state);
+    return generateMonthReport(state);
+  };
+  const reportData = getReportData();
+
+  const topPadding = StatusBar.currentHeight || 32;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BG_PAGE }}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: topPadding }]}>
         <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
-        <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }}>
+        <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
@@ -1628,8 +1879,107 @@ const HomePage = () => {
               </>
             )}
           </View>
+
+          {!isEmployee && (
+            <View style={styles.dailyReportCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.reportTitle}>📊 经营报告</Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {['daily', 'weekly', 'monthly'].map(type => {
+                    const label = type === 'daily' ? '日报' : type === 'weekly' ? '周报' : '月报';
+                    return (
+                      <TouchableOpacity key={type} style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16, backgroundColor: reportType === type ? PRIMARY_COLOR : LIGHT_PRIMARY }} onPress={() => setReportType(type)}>
+                        <Text style={{ color: reportType === type ? '#fff' : TEXT_MAIN, fontSize: 12 }}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              {reportData ? (
+                <>
+                  {reportType === 'daily' && (
+                    <>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{reportData.date}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate}%</Text></View>
+                    </>
+                  )}
+                  {reportType === 'weekly' && (
+                    <>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>周期</Text><Text style={styles.reportValue}>{reportData.startDate} ~ {reportData.endDate}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome}</Text></View>
+                    </>
+                  )}
+                  {reportType === 'monthly' && (
+                    <>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>月份</Text><Text style={styles.reportValue}>{reportData.yearMonth}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>有效天数</Text><Text style={styles.reportValue}>{reportData.dayCount}天</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit}</Text></View>
+                    </>
+                  )}
+                </>
+              ) : (
+                <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 8 }}>
+                  {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据'}
+                </Text>
+              )}
+              <TouchableOpacity style={styles.exportBtn} onPress={exportData}><Text style={styles.exportBtnText}>📤 导出CSV</Text></TouchableOpacity>
+            </View>
+          )}
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
+              {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
+                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
+                  <Text style={{ fontSize: 28 }}>{item.icon}</Text>
+                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {chatStaffList.length > 0 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
+              {chatStaffList.map(staff => (
+                <TouchableOpacity key={staff.id} style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => goToPrivateChat(staff)}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>👤 {staff.name}</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginLeft: 8 }}>({staff.phone})</Text>
+                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {!isEmployee && pendingStaff.length > 0 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📩 入职申请</Text>
+              {pendingStaff.map(staff => (
+                <View key={staff.id} style={styles.listItem}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name} ({staff.phone})</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => handleApprove(staff.phone)}><Text style={styles.sendTxt}>同意</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleReject(staff.phone)}><Text style={styles.sendTxt}>拒绝</Text></TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </View>
+
+      {!isEmployee && (
+        <TouchableOpacity style={{ position: 'absolute', bottom: 80, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW, zIndex: 999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
+          <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -1769,7 +2119,7 @@ const VerifyOrder = () => {
   );
 };
 
-// ================== AI助手（完整） ==================
+// ================== AI助手（完整：问答+图片生成并显示图片） ==================
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1846,7 +2196,8 @@ const MerchantAssistant = () => {
       if (showImageGen) {
         // 图片生成模式
         try {
-          const fullPrompt = `${text}，适用于餐饮店铺的宣传，风格时尚吸引人。`;
+          const shopName = state.shopInfo?.shopName || '我的店铺';
+          const fullPrompt = `${text}，适用于餐饮店铺「${shopName}」的宣传，风格时尚吸引人。`;
           const res = await fetch('https://image-api.my-image-api.workers.dev', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
@@ -1865,6 +2216,7 @@ const MerchantAssistant = () => {
               };
               setMessages(prev => [...prev, aiMsg]);
               setLoading(false);
+              setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
             };
             reader.onerror = () => {
               setLoading(false);
@@ -2005,7 +2357,7 @@ const MerchantAssistant = () => {
   );
 };
 
-// ================== 占位页面 ==================
+// ================== 占位页面（暂未使用，但保留） ==================
 const PlaceholderPage = ({ title }) => {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE }}>
