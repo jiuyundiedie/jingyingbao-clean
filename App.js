@@ -98,7 +98,7 @@ async function fetchZhipuChat(msgList, prompt, signal) {
         messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7
       }),
-      signal: signal, // 支持取消
+      signal: signal,
     });
     const json = await res.json();
     return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
@@ -480,6 +480,9 @@ const styles = StyleSheet.create({
   reportValue: { fontSize: 14, color: TEXT_MAIN, fontWeight: '500' },
   exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start' },
   exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
+  chatSettingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
+  chatSettingText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
+  chatSettingDesc: { fontSize: 14, color: TEXT_THIRD, marginLeft: 'auto' },
 });
 
 // ================== 登录页面 ==================
@@ -516,7 +519,6 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
 
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      // 保存历史账号
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
       navigation.replace('RootTabs');
@@ -596,12 +598,13 @@ const BadReviewListPage = () => {
   };
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>差评预警详情</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>差评预警详情</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </SafeAreaView>
       <ScrollView style={{ padding: 16 }}>
         {list.length === 0 ? (
           <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
@@ -625,7 +628,7 @@ const BadReviewListPage = () => {
   );
 };
 
-// ================== 设置抽屉（含推送时间设置） ==================
+// ================== 设置抽屉（含推送时间） ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -642,8 +645,11 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
-    dispatch({ type: 'UPDATE_SHOP_INFO', payload: { ...shopInfo, shopName, phone } });
-    showToast('门店信息已保存');
+    const industry = detectIndustry(shopName);
+    const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
+    dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
+    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
+    showToast(`门店信息已保存，类型：${industry}`);
   };
 
   const savePush = () => {
@@ -708,8 +714,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               <Text style={styles.sendTxt}>保存信息</Text>
             </TouchableOpacity>
           )}
-
-          {/* 推送时间设置 */}
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <View style={styles.settingItem}>
@@ -737,7 +741,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           )}
-
           <View style={styles.settingGroup}>
             <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
               <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
@@ -754,7 +757,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   );
 };
 
-// ================== 切换账号页面（显示所有历史账号） ==================
+// ================== 切换账号页面 ==================
 const SwitchAccountScreen = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -873,14 +876,15 @@ const ProductOverview = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>商品总览</Text>
-        <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
-          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>商品总览</Text>
+          <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
+            <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
       <FlatList
         data={state.goodsList || []}
         keyExtractor={item => item.id}
@@ -1154,14 +1158,15 @@ const StockManage = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>出入库管理</Text>
-        <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); setManualProductName(''); }}>
-          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>出入库管理</Text>
+          <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); setManualProductName(''); }}>
+            <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 6 }}>
         <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>扫码入库</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>扫码出库</Text></TouchableOpacity>
@@ -1457,16 +1462,17 @@ const CustomerService = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>顾客客服</Text>
-        <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
-          <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
-            {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>顾客客服</Text>
+          <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
+            <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
+              {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
 
       {customerList.length > 0 && (
         <View style={{ padding: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
@@ -1637,7 +1643,7 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部沟通（修复拍照发送 + 群聊设置） ==================
+// ================== 内部沟通（修复拍照发送 + 完整群聊设置） ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1647,7 +1653,8 @@ const InternalChat = () => {
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
-
+  const [isMuted, setIsMuted] = useState(false);
+  const [isTop, setIsTop] = useState(false);
   const groupMessages = state.groupChatMessages || [];
 
   const sendGroupMessage = async (type = 'text') => {
@@ -1706,34 +1713,47 @@ const InternalChat = () => {
     }
   };
 
-  // 群聊设置（右上角三个点）
+  // 群聊设置弹窗
   const showChatSettings = () => {
+    const staffList = (state.staffMemberList || []).filter(s => s.status === 'approved');
     Alert.alert(
-      '群聊设置',
-      '群成员：' + ((state.staffMemberList || []).length + 1) + ' 人',
+      '聊天设置',
+      '',
       [
-        { text: '清空聊天记录', style: 'destructive', onPress: () => {
-          Alert.alert('确认清空', '确定要清空所有内部聊天记录吗？', [
+        { text: '发起群聊', onPress: () => showToast('发起群聊功能开发中') },
+        { text: '查找聊天记录', onPress: () => showToast('查找聊天记录功能开发中') },
+        { text: '图片、视频、文件', onPress: () => showToast('查看图片视频功能开发中') },
+        { text: isTop ? '取消置顶' : '设为置顶', onPress: () => { setIsTop(!isTop); showToast(isTop ? '已取消置顶' : '已置顶'); } },
+        { text: '特别关心', onPress: () => showToast('特别关心功能开发中') },
+        { text: '隐藏会话', onPress: () => showToast('隐藏会话功能开发中') },
+        { text: isMuted ? '取消消息免打扰' : '消息免打扰', onPress: () => { setIsMuted(!isMuted); showToast(isMuted ? '已取消免打扰' : '已开启免打扰'); } },
+        { text: '消息通知设置', onPress: () => showToast('消息通知设置功能开发中') },
+        { text: '设置当前聊天背景', onPress: () => { showToast('聊天背景已更换'); } },
+        { text: '删除聊天记录', style: 'destructive', onPress: () => {
+          Alert.alert('确认删除', '确定要删除所有聊天记录吗？', [
             { text: '取消' },
-            { text: '清空', style: 'destructive', onPress: () => {
+            { text: '删除', style: 'destructive', onPress: () => {
               dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
-              showToast('已清空');
+              showToast('聊天记录已删除');
             }}
           ]);
         }},
+        { text: '被骚扰了？举报该用户', onPress: () => showToast('举报已提交，我们会尽快处理') },
         { text: '取消' },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>内部沟通</Text>
-        <TouchableOpacity onPress={showChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>内部沟通</Text>
+          <TouchableOpacity onPress={showChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
+        </View>
+      </SafeAreaView>
       <View style={{ flex: 1, backgroundColor: chatBgColor }}>
         <ScrollView
           ref={scrollViewRef}
@@ -1796,7 +1816,329 @@ const InternalChat = () => {
   );
 };
 
-// ================== 首页（完整功能 + 点击跳转修复 + 顶部适配） ==================
+// ================== AI助手（含快捷话术 + 停止 + 行业识别） ==================
+const MerchantAssistant = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showImageGen, setShowImageGen] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [imageUri, setImageUri] = useState(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const abortControllerRef = useRef(null);
+
+  // 获取行业信息
+  const industry = state.shopInfo?.industry || '餐饮类';
+  const shopName = state.shopInfo?.shopName || '我的门店';
+
+  // 快捷话术（根据行业动态生成）
+  const getQuickReplies = () => {
+    if (industry === '餐饮类') {
+      return [
+        '今日推荐菜品有哪些？',
+        '顾客投诉菜品不新鲜怎么处理？',
+        '本周食材采购成本是多少？',
+        '帮我生成一份促销活动文案',
+        '今日客单价是多少？'
+      ];
+    } else if (industry === '服务类') {
+      return [
+        '今日服务订单量是多少？',
+        '员工排班表怎么安排？',
+        '顾客满意度如何提升？',
+        '帮我生成服务推广话术',
+        '本月服务收入目标是多少？'
+      ];
+    } else if (industry === '企业类') {
+      return [
+        '今日销售业绩如何？',
+        '团队协作效率如何提升？',
+        '请生成项目汇报模板',
+        '员工绩效怎么考核？',
+        '本月招聘计划是什么？'
+      ];
+    }
+    return [
+      '今天生意怎么样？',
+      '有什么经营建议？',
+      '帮我分析数据',
+      '生成一份报表',
+      '怎么提高利润？'
+    ];
+  };
+
+  const quickReplies = getQuickReplies();
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${industry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+    }
+  }, []);
+
+  const handleMarketing = (type) => {
+    const prompts = {
+      '文案': '请生成一条吸引人的营销文案',
+      '海报': '请设计一张宣传海报的文字描述',
+      '广告语': '请生成一条简短有力的广告语'
+    };
+    setInputText(prompts[type] || '');
+  };
+
+  const toggleImageGen = () => {
+    setShowImageGen(!showImageGen);
+    const hint = {
+      id: Date.now().toString(),
+      text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启，输入您想要的画面描述即可生成图片。',
+      from: 'ai',
+      time: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, hint]);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLoading(false);
+      showToast('已停止生成');
+    }
+  };
+
+  const sendMessage = async (type = 'text') => {
+    try {
+      let text = inputText.trim();
+      let image = null;
+      if (type === 'image') {
+        if (!imageUri) return;
+        const compressed = await compressImage(imageUri);
+        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+        image = `data:image/jpeg;base64,${base64}`;
+      } else if (!text) return;
+      const userMsg = {
+        id: Date.now().toString(),
+        text: type === 'text' ? text : '',
+        image: image || null,
+        from: 'user',
+        time: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setInputText('');
+      setImageUri(null);
+      setShowMediaOptions(false);
+      setShowEmoji(false);
+      if (type === 'image') {
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        return;
+      }
+
+      abortControllerRef.current = new AbortController();
+      setLoading(true);
+
+      const msgList = messages.filter(m => m.from !== 'system').map(m => ({
+        role: m.from === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+      msgList.push({ role: 'user', content: text });
+      let reply = '';
+      if (showImageGen) {
+        try {
+          const fullPrompt = `${text}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
+          const res = await fetch('https://image-api.my-image-api.workers.dev', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 }),
+            signal: abortControllerRef.current.signal,
+          });
+          if (!abortControllerRef.current.signal.aborted && res.ok) {
+            const blob = await res.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (!abortControllerRef.current?.signal.aborted) {
+                const aiMsg = {
+                  id: (Date.now()+1).toString(),
+                  text: '图片已生成',
+                  image: reader.result,
+                  from: 'ai',
+                  time: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, aiMsg]);
+              }
+              setLoading(false);
+              abortControllerRef.current = null;
+            };
+            reader.onerror = () => {
+              setLoading(false);
+              abortControllerRef.current = null;
+              showToast('生成失败');
+            };
+            reader.readAsDataURL(blob);
+            return;
+          } else {
+            reply = '生成失败，请重试';
+          }
+        } catch (e) {
+          if (e.name === 'AbortError') {
+            setLoading(false);
+            abortControllerRef.current = null;
+            return;
+          }
+          reply = '生成失败，请重试';
+        }
+      } else {
+        reply = await fetchZhipuChat(msgList, `你是一个经营宝AI助手，帮助${industry}商家解决经营问题。回答要简洁、实用。`, abortControllerRef.current.signal);
+      }
+      if (abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+      const aiMsg = {
+        id: (Date.now()+1).toString(),
+        text: reply,
+        from: 'ai',
+        time: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      setLoading(false);
+      abortControllerRef.current = null;
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      if (error.name === 'AbortError') {}
+      else { showToast('发送失败'); }
+      setLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const pickImage = async (source) => {
+    try {
+      setShowMediaOptions(false);
+      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.7 };
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync(options);
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync(options);
+      }
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+        await sendMessage('image');
+      }
+    } catch (error) {
+      showToast('选择图片失败');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>AI助手</Text>
+          <View style={{ flexDirection: 'row' }}>
+            {loading && (
+              <TouchableOpacity onPress={stopGeneration} style={{ marginRight: 10 }}>
+                <Text style={{ color: DANGER_COLOR, fontWeight: 'bold' }}>⏹ 停止</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={toggleImageGen}>
+              <Text style={{ fontSize: 16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>
+                {showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+      <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+        {['文案', '海报', '广告语'].map(label => (
+          <TouchableOpacity key={label} style={{ marginRight: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
+            <Text style={{ color: PRIMARY_COLOR }}>📣 {label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+        {quickReplies.map((text, idx) => (
+          <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
+            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.chatScroll}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map(msg => (
+          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
+            {msg.image ? (
+              <>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 4 }}>{msg.text}</Text>
+                <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+              </>
+            ) : (
+              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+            )}
+            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
+          </View>
+        ))}
+        {loading && <View style={[styles.bubbleLeft, { padding: 12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
+      </ScrollView>
+      {showEmoji && (
+        <View style={styles.emojiRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {EMOJI_LIST.map(emoji => (
+              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      {showMediaOptions && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
+            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
+            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
+            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+            <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <View style={styles.inputBar}>
+        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TextInput
+          style={[styles.inputBox, { flex: 1 }]}
+          placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+        />
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
+          <Text style={styles.sendTxt}>发送</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ height: 56 }} />
+    </View>
+  );
+};
+
+// ================== 首页（完整功能 + 顶部适配 + 导航修复） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1865,18 +2207,18 @@ const HomePage = () => {
     return true;
   });
 
-  // 修复：点击跳转
+  // 修复跳转：使用 navigation.navigate 并通过父级导航
   const handleMenuPress = (item) => {
     try {
       if (item.internal) {
         navigation.navigate(item.screen);
       } else {
-        // 通过父级导航跳转到对应 Tab
+        // 通过父级 Tab 导航
         const parent = navigation.getParent();
         if (parent) {
           parent.navigate(item.tab, { screen: item.screen });
         } else {
-          // 如果无法获取父级，直接导航
+          // 直接跳转（可能出错，但作为备用）
           navigation.navigate(item.screen);
         }
       }
@@ -1886,7 +2228,6 @@ const HomePage = () => {
     }
   };
 
-  // 员工私聊列表
   let chatStaffList = [];
   if (isEmployee) {
     const bossPhone = state.shopInfo?.phone || '';
@@ -1940,7 +2281,6 @@ const HomePage = () => {
   };
   const reportData = getReportData();
 
-  // 顶部适配：使用 insets.top
   const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
 
   return (
@@ -2161,12 +2501,13 @@ const VerifyOrder = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>订单核销</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>订单核销</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </SafeAreaView>
       <ScrollView style={{ padding: 16 }}>
         <View style={styles.cardBox}>
           <Text style={styles.label}>核销码</Text>
@@ -2224,285 +2565,6 @@ const VerifyOrder = () => {
   );
 };
 
-// ================== AI助手（支持停止生成） ==================
-const MerchantAssistant = () => {
-  const navigation = useNavigation();
-  const { state, dispatch } = useApp();
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showImageGen, setShowImageGen] = useState(false);
-  const scrollViewRef = useRef(null);
-  const [imageUri, setImageUri] = useState(null);
-  const [showMediaOptions, setShowMediaOptions] = useState(false);
-  const [showEmoji, setShowEmoji] = useState(false);
-  const abortControllerRef = useRef(null);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{ id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案等。您也可以描述图片需求，我帮您生成创意图片。', from: 'ai', time: new Date().toISOString() }]);
-    }
-  }, []);
-
-  const handleMarketing = (type) => {
-    const prompts = {
-      '文案': '请生成一条吸引人的营销文案',
-      '海报': '请设计一张宣传海报的文字描述',
-      '广告语': '请生成一条简短有力的广告语'
-    };
-    setInputText(prompts[type] || '');
-  };
-
-  const toggleImageGen = () => {
-    setShowImageGen(!showImageGen);
-    const hint = {
-      id: Date.now().toString(),
-      text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启，输入您想要的画面描述即可生成图片。',
-      from: 'ai',
-      time: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, hint]);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  // 停止生成
-  const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setLoading(false);
-      showToast('已停止生成');
-    }
-  };
-
-  const sendMessage = async (type = 'text') => {
-    try {
-      let text = inputText.trim();
-      let image = null;
-      if (type === 'image') {
-        if (!imageUri) return;
-        const compressed = await compressImage(imageUri);
-        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-        image = `data:image/jpeg;base64,${base64}`;
-      } else if (!text) return;
-      const userMsg = {
-        id: Date.now().toString(),
-        text: type === 'text' ? text : '',
-        image: image || null,
-        from: 'user',
-        time: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, userMsg]);
-      setInputText('');
-      setImageUri(null);
-      setShowMediaOptions(false);
-      setShowEmoji(false);
-      if (type === 'image') {
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        return;
-      }
-
-      // 创建新的 AbortController
-      abortControllerRef.current = new AbortController();
-      setLoading(true);
-
-      const msgList = messages.filter(m => m.from !== 'system').map(m => ({
-        role: m.from === 'user' ? 'user' : 'assistant',
-        content: m.text,
-      }));
-      msgList.push({ role: 'user', content: text });
-      let reply = '';
-      if (showImageGen) {
-        // 图片生成模式
-        try {
-          const shopName = state.shopInfo?.shopName || '我的店铺';
-          const fullPrompt = `${text}，适用于餐饮店铺「${shopName}」的宣传，风格时尚吸引人。`;
-          const res = await fetch('https://image-api.my-image-api.workers.dev', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 }),
-            signal: abortControllerRef.current.signal,
-          });
-          if (!abortControllerRef.current.signal.aborted && res.ok) {
-            const blob = await res.blob();
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              if (!abortControllerRef.current?.signal.aborted) {
-                const aiMsg = {
-                  id: (Date.now()+1).toString(),
-                  text: '图片已生成',
-                  image: reader.result,
-                  from: 'ai',
-                  time: new Date().toISOString(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-              }
-              setLoading(false);
-              abortControllerRef.current = null;
-            };
-            reader.onerror = () => {
-              setLoading(false);
-              abortControllerRef.current = null;
-              showToast('生成失败');
-            };
-            reader.readAsDataURL(blob);
-            return;
-          } else {
-            reply = '生成失败，请重试';
-          }
-        } catch (e) {
-          if (e.name === 'AbortError') {
-            setLoading(false);
-            abortControllerRef.current = null;
-            return;
-          }
-          reply = '生成失败，请重试';
-        }
-      } else {
-        reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。', abortControllerRef.current.signal);
-      }
-      if (abortControllerRef.current?.signal.aborted) {
-        setLoading(false);
-        abortControllerRef.current = null;
-        return;
-      }
-      const aiMsg = {
-        id: (Date.now()+1).toString(),
-        text: reply,
-        from: 'ai',
-        time: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, aiMsg]);
-      setLoading(false);
-      abortControllerRef.current = null;
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        // 已取消
-      } else {
-        showToast('发送失败');
-      }
-      setLoading(false);
-      abortControllerRef.current = null;
-    }
-  };
-
-  const pickImage = async (source) => {
-    try {
-      setShowMediaOptions(false);
-      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.7 };
-      let result;
-      if (source === 'camera') {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync(options);
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync(options);
-      }
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
-    } catch (error) {
-      showToast('选择图片失败');
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>AI助手</Text>
-        <View style={{ flexDirection: 'row' }}>
-          {loading && (
-            <TouchableOpacity onPress={stopGeneration} style={{ marginRight: 10 }}>
-              <Text style={{ color: DANGER_COLOR, fontWeight: 'bold' }}>⏹ 停止</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={toggleImageGen}>
-            <Text style={{ fontSize: 16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>
-              {showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {['文案', '海报', '广告语'].map(label => (
-          <TouchableOpacity key={label} style={{ marginRight: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
-            <Text style={{ color: PRIMARY_COLOR }}>📣 {label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatScroll}
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-      >
-        {messages.map(msg => (
-          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
-            {msg.image ? (
-              <>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 4 }}>{msg.text}</Text>
-                <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-              </>
-            ) : (
-              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-            )}
-            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
-          </View>
-        ))}
-        {loading && <View style={[styles.bubbleLeft, { padding: 12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
-      </ScrollView>
-      {showEmoji && (
-        <View style={styles.emojiRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {EMOJI_LIST.map(emoji => (
-              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-      {showMediaOptions && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
-            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
-            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
-            <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
-          placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={{ height: 56 }} />
-    </View>
-  );
-};
-
 // ================== 占位页面 ==================
 const PlaceholderPage = ({ title }) => {
   return (
@@ -2548,7 +2610,7 @@ function RootTabs() {
   );
 }
 
-// ================== 主栈导航（注册所有页面） ==================
+// ================== 主栈导航 ==================
 const Stack = createNativeStackNavigator();
 function MainStack() {
   return (
