@@ -13,7 +13,8 @@ import { BarCodeScanner } from 'expo-barcode-scanner';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Sharing from 'expo-sharing';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
 const showToast = (msg) => {
@@ -87,7 +88,7 @@ const compressImage = async (uri) => {
 };
 
 // ===== AI 聊天 =====
-async function fetchZhipuChat(msgList, prompt) {
+async function fetchZhipuChat(msgList, prompt, signal) {
   try {
     const res = await fetch(ZHIPU_URL, {
       method: "POST",
@@ -96,11 +97,13 @@ async function fetchZhipuChat(msgList, prompt) {
         model: ZHIPU_MODEL,
         messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7
-      })
+      }),
+      signal: signal, // 支持取消
     });
     const json = await res.json();
     return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
   } catch (err) {
+    if (err.name === 'AbortError') return '已取消';
     return "网络异常，获取回复失败";
   }
 }
@@ -220,6 +223,16 @@ const defaultState = {
   lastBusinessInput: { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
   latestDailyReport: null,
   groupChatMessages: [],
+  pushConfig: { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+  menuVisibility: {
+    VerifyOrder: true,
+    StockManage: true,
+    StaffManage: true,
+    CustomerService: true,
+    InternalChat: true,
+    MerchantAssistant: true,
+    ProductOverview: true,
+  },
 };
 
 const initialState = JSON.parse(JSON.stringify(defaultState));
@@ -278,6 +291,12 @@ function appReducer(state, action) {
       return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
     case 'SET_LATEST_DAILY_REPORT':
       return { ...state, latestDailyReport: action.payload };
+    case 'SET_PUSH_CONFIG':
+      return { ...state, pushConfig: action.payload || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" } };
+    case 'TOGGLE_MENU_VISIBILITY': {
+      const { key, visible } = action.payload;
+      return { ...state, menuVisibility: { ...state.menuVisibility, [key]: visible } };
+    }
     case 'ADD_PREVIOUS_ACCOUNT': {
       const exists = (state.previousAccounts || []).find(a => a.phone === action.payload.phone);
       if (exists) return state;
@@ -306,6 +325,8 @@ function appReducer(state, action) {
         shopConfig: r.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
         lastBusinessInput: r.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
         latestDailyReport: r.latestDailyReport || null,
+        pushConfig: r.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+        menuVisibility: { ...defaultState.menuVisibility, ...(r.menuVisibility || {}) },
       };
     }
     default:
@@ -340,6 +361,8 @@ const saveAllData = async (state) => {
       shopConfig: state.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
       lastBusinessInput: state.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
       latestDailyReport: state.latestDailyReport || null,
+      pushConfig: state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
+      menuVisibility: state.menuVisibility || {},
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -493,6 +516,7 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
 
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      // 保存历史账号
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
       navigation.replace('RootTabs');
@@ -560,7 +584,8 @@ const LoginScreen = () => {
       </TouchableOpacity>
     </View>
   );
-};// ================== 差评列表 ==================
+};
+// ===== 第一段结束 =====// ================== 差评列表 ==================
 const BadReviewListPage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -600,7 +625,7 @@ const BadReviewListPage = () => {
   );
 };
 
-// ================== 设置抽屉 ==================
+// ================== 设置抽屉（含推送时间设置） ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -609,11 +634,23 @@ const SettingDrawer = ({ visible, onClose }) => {
   const isEmployee = user?.role === '员工';
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
+  const pushConfig = state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" };
+  const [workH, setWorkH] = useState(pushConfig.workHour);
+  const [workM, setWorkM] = useState(pushConfig.workMinute);
+  const [offH, setOffH] = useState(pushConfig.offHour);
+  const [offM, setOffM] = useState(pushConfig.offMinute);
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: { ...shopInfo, shopName, phone } });
     showToast('门店信息已保存');
+  };
+
+  const savePush = () => {
+    if (isEmployee) return;
+    const config = { workHour: workH, workMinute: workM, offHour: offH, offMinute: offM };
+    dispatch({ type: 'SET_PUSH_CONFIG', payload: config });
+    showToast("推送时间保存成功");
   };
 
   const handleLogout = async () => {
@@ -671,6 +708,36 @@ const SettingDrawer = ({ visible, onClose }) => {
               <Text style={styles.sendTxt}>保存信息</Text>
             </TouchableOpacity>
           )}
+
+          {/* 推送时间设置 */}
+          {!isEmployee && (
+            <View style={styles.settingGroup}>
+              <View style={styles.settingItem}>
+                <Ionicons name="time-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>每周早间周报推送</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={workH} onChangeText={setWorkH} placeholder="小时" />
+                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={workM} onChangeText={setWorkM} placeholder="分钟" />
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.settingItem, styles.settingItemLast]}>
+                <Ionicons name="moon-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>每日下班/月末推送</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={offH} onChangeText={setOffH} placeholder="小时" />
+                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={offM} onChangeText={setOffM} placeholder="分钟" />
+                  </View>
+                  <TouchableOpacity style={[styles.miniBlueBtn, { marginTop: 8, alignSelf: 'flex-start' }]} onPress={savePush}>
+                    <Text style={styles.sendTxt}>保存时间</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
           <View style={styles.settingGroup}>
             <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
               <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
@@ -687,7 +754,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   );
 };
 
-// ================== 切换账号页面 ==================
+// ================== 切换账号页面（显示所有历史账号） ==================
 const SwitchAccountScreen = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -862,7 +929,7 @@ const ProductOverview = () => {
   );
 };
 
-// ================== 出入库管理（四组一排，按钮缩小） ==================
+// ================== 出入库管理（四组一排） ==================
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1016,7 +1083,7 @@ const StockManage = () => {
         if (status !== 'granted') { showToast('需要相机权限'); return; }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: false, // 不裁剪，直接拍照后勾选即用
+          allowsEditing: false,
           quality: 0.7,
         });
         if (!result.canceled) {
@@ -1219,7 +1286,7 @@ const StockManage = () => {
   );
 };
 
-// ================== 顾客客服（不裁剪，选图预览，点击发送） ==================
+// ================== 顾客客服 ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1570,7 +1637,7 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部聊天（修复：表情、图片、拍照、文字均可发送） ==================
+// ================== 内部沟通（修复拍照发送 + 群聊设置） ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1639,13 +1706,33 @@ const InternalChat = () => {
     }
   };
 
+  // 群聊设置（右上角三个点）
+  const showChatSettings = () => {
+    Alert.alert(
+      '群聊设置',
+      '群成员：' + ((state.staffMemberList || []).length + 1) + ' 人',
+      [
+        { text: '清空聊天记录', style: 'destructive', onPress: () => {
+          Alert.alert('确认清空', '确定要清空所有内部聊天记录吗？', [
+            { text: '取消' },
+            { text: '清空', style: 'destructive', onPress: () => {
+              dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
+              showToast('已清空');
+            }}
+          ]);
+        }},
+        { text: '取消' },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.safeTop} />
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
         <Text style={styles.pageTitle}>内部沟通</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('ChatInfo')}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
+        <TouchableOpacity onPress={showChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
       </View>
       <View style={{ flex: 1, backgroundColor: chatBgColor }}>
         <ScrollView
@@ -1709,11 +1796,12 @@ const InternalChat = () => {
   );
 };
 
-// ================== 首页（完整功能：日报/周报/月报、员工私聊、设置等） ==================
+// ================== 首页（完整功能 + 点击跳转修复 + 顶部适配） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const user = state.user;
+  const insets = useSafeAreaInsets();
   const [settingOpen, setSettingOpen] = useState(false);
   const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -1757,7 +1845,8 @@ const HomePage = () => {
       const csv = "日期,订单数,总营收,净利润,利润率\n" + businessHistory.map(r => `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`).join('\n');
       const uri = FileSystem.documentDirectory + 'business_report.csv';
       await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(uri);
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+      else showToast('分享不可用');
     } catch (e) { showToast('导出失败'); }
   };
 
@@ -1776,6 +1865,28 @@ const HomePage = () => {
     return true;
   });
 
+  // 修复：点击跳转
+  const handleMenuPress = (item) => {
+    try {
+      if (item.internal) {
+        navigation.navigate(item.screen);
+      } else {
+        // 通过父级导航跳转到对应 Tab
+        const parent = navigation.getParent();
+        if (parent) {
+          parent.navigate(item.tab, { screen: item.screen });
+        } else {
+          // 如果无法获取父级，直接导航
+          navigation.navigate(item.screen);
+        }
+      }
+    } catch (e) {
+      console.warn('跳转失败', e);
+      showToast('跳转失败');
+    }
+  };
+
+  // 员工私聊列表
   let chatStaffList = [];
   if (isEmployee) {
     const bossPhone = state.shopInfo?.phone || '';
@@ -1784,13 +1895,6 @@ const HomePage = () => {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
   const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
-
-  const handleMenuPress = (item) => {
-    try {
-      if (item.internal) navigation.navigate(item.screen);
-      else navigation.getParent().navigate(item.tab, { screen: item.screen });
-    } catch (e) { showToast('跳转失败'); }
-  };
 
   const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
 
@@ -1836,7 +1940,8 @@ const HomePage = () => {
   };
   const reportData = getReportData();
 
-  const topPadding = StatusBar.currentHeight || 32;
+  // 顶部适配：使用 insets.top
+  const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BG_PAGE }}>
@@ -2119,7 +2224,7 @@ const VerifyOrder = () => {
   );
 };
 
-// ================== AI助手（完整：问答+图片生成并显示图片） ==================
+// ================== AI助手（支持停止生成） ==================
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2131,6 +2236,7 @@ const MerchantAssistant = () => {
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -2157,6 +2263,16 @@ const MerchantAssistant = () => {
     };
     setMessages(prev => [...prev, hint]);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
+  // 停止生成
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLoading(false);
+      showToast('已停止生成');
+    }
   };
 
   const sendMessage = async (type = 'text') => {
@@ -2186,7 +2302,10 @@ const MerchantAssistant = () => {
         return;
       }
 
+      // 创建新的 AbortController
+      abortControllerRef.current = new AbortController();
       setLoading(true);
+
       const msgList = messages.filter(m => m.from !== 'system').map(m => ({
         role: m.from === 'user' ? 'user' : 'assistant',
         content: m.text,
@@ -2201,25 +2320,29 @@ const MerchantAssistant = () => {
           const res = await fetch('https://image-api.my-image-api.workers.dev', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 })
+            body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 }),
+            signal: abortControllerRef.current.signal,
           });
-          if (res.ok) {
+          if (!abortControllerRef.current.signal.aborted && res.ok) {
             const blob = await res.blob();
             const reader = new FileReader();
             reader.onloadend = () => {
-              const aiMsg = {
-                id: (Date.now()+1).toString(),
-                text: '图片已生成',
-                image: reader.result,
-                from: 'ai',
-                time: new Date().toISOString(),
-              };
-              setMessages(prev => [...prev, aiMsg]);
+              if (!abortControllerRef.current?.signal.aborted) {
+                const aiMsg = {
+                  id: (Date.now()+1).toString(),
+                  text: '图片已生成',
+                  image: reader.result,
+                  from: 'ai',
+                  time: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, aiMsg]);
+              }
               setLoading(false);
-              setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+              abortControllerRef.current = null;
             };
             reader.onerror = () => {
               setLoading(false);
+              abortControllerRef.current = null;
               showToast('生成失败');
             };
             reader.readAsDataURL(blob);
@@ -2228,10 +2351,20 @@ const MerchantAssistant = () => {
             reply = '生成失败，请重试';
           }
         } catch (e) {
+          if (e.name === 'AbortError') {
+            setLoading(false);
+            abortControllerRef.current = null;
+            return;
+          }
           reply = '生成失败，请重试';
         }
       } else {
-        reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。');
+        reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。', abortControllerRef.current.signal);
+      }
+      if (abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
       }
       const aiMsg = {
         id: (Date.now()+1).toString(),
@@ -2241,10 +2374,16 @@ const MerchantAssistant = () => {
       };
       setMessages(prev => [...prev, aiMsg]);
       setLoading(false);
+      abortControllerRef.current = null;
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
-      showToast('发送失败');
+      if (error.name === 'AbortError') {
+        // 已取消
+      } else {
+        showToast('发送失败');
+      }
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -2277,11 +2416,18 @@ const MerchantAssistant = () => {
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
         <Text style={styles.pageTitle}>AI助手</Text>
-        <TouchableOpacity onPress={toggleImageGen}>
-          <Text style={{ fontSize: 16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>
-            {showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          {loading && (
+            <TouchableOpacity onPress={stopGeneration} style={{ marginRight: 10 }}>
+              <Text style={{ color: DANGER_COLOR, fontWeight: 'bold' }}>⏹ 停止</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={toggleImageGen}>
+            <Text style={{ fontSize: 16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>
+              {showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
         {['文案', '海报', '广告语'].map(label => (
@@ -2357,7 +2503,7 @@ const MerchantAssistant = () => {
   );
 };
 
-// ================== 占位页面（暂未使用，但保留） ==================
+// ================== 占位页面 ==================
 const PlaceholderPage = ({ title }) => {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE }}>
@@ -2402,7 +2548,7 @@ function RootTabs() {
   );
 }
 
-// ================== 主栈导航 ==================
+// ================== 主栈导航（注册所有页面） ==================
 const Stack = createNativeStackNavigator();
 function MainStack() {
   return (
@@ -2412,6 +2558,8 @@ function MainStack() {
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
+      <Stack.Screen name="StaffManage" component={() => <PlaceholderPage title="员工管理" />} />
+      <Stack.Screen name="PrivateChat" component={() => <PlaceholderPage title="私聊" />} />
     </Stack.Navigator>
   );
 }
