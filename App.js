@@ -9,7 +9,6 @@ import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import moment from 'moment';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -23,6 +22,7 @@ if (typeof SharedArrayBuffer === 'undefined') {
   global.SharedArrayBuffer = function () {};
 }
 
+// ===== 通知处理 =====
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -31,6 +31,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// ===== 常量 =====
 const { width, height } = Dimensions.get('window');
 const PRIMARY_COLOR = '#165DFF';
 const LIGHT_PRIMARY = '#E8F3FF';
@@ -56,6 +57,58 @@ const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
+// ===== 工具函数 =====
+const showToast = (msg) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  } else {
+    Alert.alert('提示', msg);
+  }
+};
+
+const checkBadReview = (text) => {
+  const badWords = ["难吃", "差", "慢", "差评", "失望", "不干净", "贵", "坑", "服务差", "太难吃", "退款", "投诉", "垃圾"];
+  return badWords.some(word => text.includes(word));
+};
+
+const detectIndustry = (shopName) => {
+  const foodKeywords = ['火锅', '烧烤', '奶茶', '咖啡', '面馆', '川菜', '粤菜', '日料', '韩餐', '西餐', '烘焙', '小吃', '餐厅', '饭店', '餐饮', '美食', '快餐', '外卖', '茶饮', '饮品', '糕点', '甜品'];
+  for (const kw of foodKeywords) { if (shopName.includes(kw)) return '餐饮类'; }
+  return '餐饮类';
+};
+
+// ===== 日期工具（替代 moment） =====
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const formatDate = (dateStr) => {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const formatTime = (dateStr) => {
+  const d = new Date(dateStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+const isSameDay = (d1, d2) => {
+  return formatDate(d1) === formatDate(d2);
+};
+const getWeekStart = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now);
+  monday.setDate(diff);
+  return monday;
+};
+const getWeekEnd = () => {
+  const monday = getWeekStart();
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return sunday;
+};
+
+// ===== 压缩图片 =====
 const compressImage = async (uri) => {
   try {
     const result = await ImageManipulator.manipulateAsync(
@@ -65,10 +118,136 @@ const compressImage = async (uri) => {
     );
     return result.uri;
   } catch (error) {
+    console.warn('压缩失败', error);
     return uri;
   }
 };
 
+// ===== AI 聊天 =====
+async function fetchZhipuChat(msgList, prompt) {
+  try {
+    const res = await fetch(ZHIPU_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
+      body: JSON.stringify({
+        model: ZHIPU_MODEL,
+        messages: [{ role: "system", content: prompt }, ...msgList],
+        temperature: 0.7
+      })
+    });
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
+  } catch (err) {
+    console.warn('AI请求失败', err);
+    return "网络异常，获取回复失败";
+  }
+}
+
+// ===== 计算日报 =====
+const calcDailyReport = (state) => {
+  try {
+    const todayStr = getTodayStr();
+    const businessHistory = state.businessHistory || [];
+    const existing = businessHistory.find(r => r.date === todayStr);
+    if (existing) return existing;
+    const globalOrderRecord = state.globalOrderRecord || [];
+    const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
+    let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+    todayOrders.forEach(order => {
+      switch(order.platform) {
+        case "美团": meituanIncome += order.couponPrice || 0; break;
+        case "抖音": douyinIncome += order.couponPrice || 0; break;
+        case "大众点评": dianpingIncome += order.couponPrice || 0; break;
+      }
+    });
+    const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
+    const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+    const purchaseCost = Number(costCache.purchaseCost) || 0;
+    const fixedCost = Number(costCache.fixedCost) || 0;
+    const lastBusinessInput = state.lastBusinessInput || {};
+    const tempLoss = Number(lastBusinessInput.loss) || 0;
+    const tempOtherCost = Number(lastBusinessInput.otherCost) || 0;
+    const subLoss = Number(lastBusinessInput.lossOverdue||0) + Number(lastBusinessInput.lossOperate||0) + Number(lastBusinessInput.lossOther||0);
+    const totalLoss = tempLoss + subLoss;
+    const totalCost = purchaseCost + fixedCost + tempOtherCost + totalLoss;
+    const profit = totalIncome - totalCost;
+    const profitRate = totalIncome === 0 ? 0 : Number((profit / totalIncome * 100).toFixed(2));
+    return {
+      id: new Date().getTime().toString(),
+      date: todayStr,
+      shopName: (state.shopConfig || {}).shopName || '我的门店',
+      income: totalIncome,
+      meituanIncome,
+      douyinIncome,
+      dianpingIncome,
+      totalOrder: todayOrders.length,
+      purchaseCost,
+      loss: totalLoss,
+      fixedCost,
+      otherCost: tempOtherCost,
+      totalCost,
+      profit,
+      profitRate
+    };
+  } catch (error) {
+    console.warn('计算日报失败', error);
+    return null;
+  }
+};
+
+const generateWeekReport = (state) => {
+  try {
+    const today = new Date();
+    const weekStart = getWeekStart();
+    const weekEnd = getWeekEnd();
+    const businessHistory = state.businessHistory || [];
+    const weekList = businessHistory.filter(item => {
+      const d = new Date(item.date);
+      return d >= weekStart && d <= weekEnd;
+    });
+    if(weekList.length === 0) return null;
+    const totalIncome = weekList.reduce((s,r)=>s + (r.income || 0), 0);
+    const totalProfit = weekList.reduce((s,r)=>s + (r.profit || 0), 0);
+    const totalOrder = weekList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
+    const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
+    return {
+      startDate: formatDate(weekStart.toISOString()),
+      endDate: formatDate(weekEnd.toISOString()),
+      totalIncome,
+      totalProfit,
+      totalOrder,
+      avgDailyIncome
+    };
+  } catch (error) {
+    console.warn('生成周报失败', error);
+    return null;
+  }
+};
+
+const generateMonthReport = (state) => {
+  try {
+    const today = new Date();
+    const monthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+    const businessHistory = state.businessHistory || [];
+    const monthList = businessHistory.filter(item => item.date && item.date.startsWith(monthStr));
+    if(monthList.length === 0) return null;
+    const totalIncome = monthList.reduce((s,r)=>s + (r.income || 0), 0);
+    const totalProfit = monthList.reduce((s,r)=>s + (r.profit || 0), 0);
+    const totalOrder = monthList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
+    return {
+      yearMonth: monthStr,
+      totalIncome,
+      totalProfit,
+      totalOrder,
+      dayCount: monthList.length
+    };
+  } catch (error) {
+    console.warn('生成月报失败', error);
+    return null;
+  }
+};
+
+// ===== Reducer =====
 const defaultState = {
   user: null,
   shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
@@ -223,115 +402,7 @@ const useApp = () => {
   return ctx;
 };
 
-const showToast = (msg) => {
-  if (Platform.OS === 'android') {
-    ToastAndroid.show(msg, ToastAndroid.SHORT);
-  } else {
-    Alert.alert('提示', msg);
-  }
-};
-
-const checkBadReview = (text) => {
-  const badWords = ["难吃", "差", "慢", "差评", "失望", "不干净", "贵", "坑", "服务差", "太难吃", "退款", "投诉", "垃圾"];
-  return badWords.some(word => text.includes(word));
-};
-
-const detectIndustry = (shopName) => {
-  const foodKeywords = ['火锅', '烧烤', '奶茶', '咖啡', '面馆', '川菜', '粤菜', '日料', '韩餐', '西餐', '烘焙', '小吃', '餐厅', '饭店', '餐饮', '美食', '快餐', '外卖', '茶饮', '饮品', '糕点', '甜品'];
-  for (const kw of foodKeywords) { if (shopName.includes(kw)) return '餐饮类'; }
-  return '餐饮类';
-};
-
-async function fetchZhipuChat(msgList, prompt) {
-  try {
-    const res = await fetch(ZHIPU_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
-      body: JSON.stringify({
-        model: ZHIPU_MODEL,
-        messages: [{ role: "system", content: prompt }, ...msgList],
-        temperature: 0.7
-      })
-    });
-    const json = await res.json();
-    return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
-  } catch (err) {
-    return "网络异常，获取回复失败";
-  }
-}
-
-const calcDailyReport = (state) => {
-  const todayStr = moment().format("YYYY-MM-DD");
-  const businessHistory = state.businessHistory || [];
-  const existing = businessHistory.find(r => r.date === todayStr);
-  if (existing) return existing;
-  const globalOrderRecord = state.globalOrderRecord || [];
-  const todayOrders = globalOrderRecord.filter(item => moment(item.time).format("YYYY-MM-DD") === todayStr);
-  let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
-  todayOrders.forEach(order => {
-    switch(order.platform) {
-      case "美团": meituanIncome += order.couponPrice || 0; break;
-      case "抖音": douyinIncome += order.couponPrice || 0; break;
-      case "大众点评": dianpingIncome += order.couponPrice || 0; break;
-    }
-  });
-  const totalIncome = meituanIncome + douyinIncome + dianpingIncome;
-  const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
-  const purchaseCost = Number(costCache.purchaseCost) || 0;
-  const fixedCost = Number(costCache.fixedCost) || 0;
-  const lastBusinessInput = state.lastBusinessInput || {};
-  const tempLoss = Number(lastBusinessInput.loss) || 0;
-  const tempOtherCost = Number(lastBusinessInput.otherCost) || 0;
-  const subLoss = Number(lastBusinessInput.lossOverdue||0) + Number(lastBusinessInput.lossOperate||0) + Number(lastBusinessInput.lossOther||0);
-  const totalLoss = tempLoss + subLoss;
-  const totalCost = purchaseCost + fixedCost + tempOtherCost + totalLoss;
-  const profit = totalIncome - totalCost;
-  const profitRate = totalIncome === 0 ? 0 : Number((profit / totalIncome * 100).toFixed(2));
-  return {
-    id: new Date().getTime().toString(),
-    date: todayStr,
-    shopName: (state.shopConfig || {}).shopName || '我的门店',
-    income: totalIncome,
-    meituanIncome,
-    douyinIncome,
-    dianpingIncome,
-    totalOrder: todayOrders.length,
-    purchaseCost,
-    loss: totalLoss,
-    fixedCost,
-    otherCost: tempOtherCost,
-    totalCost,
-    profit,
-    profitRate
-  };
-};
-
-const generateWeekReport = (state) => {
-  const today = moment();
-  const weekStart = today.clone().startOf("week");
-  const weekEnd = today.clone().endOf("week");
-  const businessHistory = state.businessHistory || [];
-  const weekList = businessHistory.filter(item => moment(item.date).isBetween(weekStart, weekEnd, null, "[]"));
-  if(weekList.length === 0) return null;
-  const totalIncome = weekList.reduce((s,r)=>s+r.income,0);
-  const totalProfit = weekList.reduce((s,r)=>s+r.profit,0);
-  const totalOrder = weekList.reduce((s,r)=>s+r.totalOrder,0);
-  const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
-  return { startDate: weekStart.format("MM-DD"), endDate: weekEnd.format("MM-DD"), totalIncome, totalProfit, totalOrder, avgDailyIncome };
-};
-
-const generateMonthReport = (state) => {
-  const today = moment();
-  const monthStr = today.format("YYYY-MM");
-  const businessHistory = state.businessHistory || [];
-  const monthList = businessHistory.filter(item => item.date.startsWith(monthStr));
-  if(monthList.length === 0) return null;
-  const totalIncome = monthList.reduce((s,r)=>s+r.income,0);
-  const totalProfit = monthList.reduce((s,r)=>s+r.profit,0);
-  const totalOrder = monthList.reduce((s,r)=>s+r.totalOrder,0);
-  return { yearMonth: monthStr, totalIncome, totalProfit, totalOrder, dayCount: monthList.length };
-};
-
+// ===== 持久化 =====
 const saveAllData = async (state) => {
   try {
     const dataToSave = {
@@ -351,6 +422,8 @@ const saveAllData = async (state) => {
       menuVisibility: state.menuVisibility || {},
       customerTags: state.customerTags || {},
       previousAccounts: state.previousAccounts || [],
+      user: state.user,
+      shopInfo: state.shopInfo,
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -364,6 +437,7 @@ const loadAllData = async () => {
     if (data) return JSON.parse(data);
     return null;
   } catch (error) {
+    console.warn('加载数据失败', error);
     return null;
   }
 };
@@ -483,21 +557,27 @@ const LoginScreen = () => {
   const [shopName, setShopName] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [loading, setLoading] = useState(false);
   const previousAccounts = state.previousAccounts || [];
 
   useEffect(() => {
-    if (state.user) navigation.replace('RootTabs');
-  }, [state.user]);
+    if (state.user) {
+      const timer = setTimeout(() => navigation.replace('RootTabs'), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [state.user, navigation]);
 
   const handleLogin = async () => {
+    if (loading) return;
+    setLoading(true);
     try {
-      if (phone.length !== 11) { showToast('请输入11位手机号'); return; }
-      if (code !== '123456') { showToast('验证码错误'); return; }
+      if (phone.length !== 11) { showToast('请输入11位手机号'); setLoading(false); return; }
+      if (code !== '123456') { showToast('验证码错误'); setLoading(false); return; }
       if (role === '员工') {
-        if (!employeeName.trim()) { showToast('请输入员工姓名'); return; }
-        if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
+        if (!employeeName.trim()) { showToast('请输入员工姓名'); setLoading(false); return; }
+        if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
       } else {
-        if (!shopName.trim()) { showToast('请输入店铺名称'); return; }
+        if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
       }
 
       const industry = detectIndustry(shopName);
@@ -510,17 +590,22 @@ const LoginScreen = () => {
         showToast('入职申请已发送，等待商家审批');
       }
 
+      // 保存登录凭证
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-
-      navigation.replace('RootTabs');
+      setTimeout(() => {
+        navigation.replace('RootTabs');
+        setLoading(false);
+      }, 300);
     } catch (error) {
       console.error('登录失败:', error);
       showToast('登录失败，请重试');
+      setLoading(false);
     }
   };
 
@@ -528,11 +613,11 @@ const LoginScreen = () => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
       const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
-      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-      navigation.replace('RootTabs');
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
+      setTimeout(() => navigation.replace('RootTabs'), 200);
     } catch (error) {
       console.error('切换历史账号失败:', error);
       showToast('切换失败，请重试');
@@ -578,8 +663,8 @@ const LoginScreen = () => {
           <TextInput style={styles.formInput} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
         </>
       )}
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-        <Text style={styles.loginBtnText}>登录</Text>
+      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+        <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -815,11 +900,11 @@ const SwitchAccountScreen = () => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
       const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
-      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-      navigation.replace('RootTabs');
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
+      setTimeout(() => navigation.replace('RootTabs'), 200);
     } catch (error) {
       showToast('切换失败');
     }
@@ -865,8 +950,7 @@ const SwitchAccountScreen = () => {
     </View>
   );
 };
-// ===== 第一段结束 =====// ===== 第二段开始 =====
-// ================== 订单核销 ==================
+// ===== 第一段结束 =====// ================== 订单核销 ==================
 const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -897,7 +981,7 @@ const VerifyOrder = () => {
       const record = { id: Date.now().toString(), code: orderCode.trim(), platform, couponPrice: price, time: new Date().toISOString(), goodsId: selectedGoodsId, staff: state.user?.name || '未知' };
       dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
       if (checkBadReview(orderCode)) {
-        const bad = { id: Date.now().toString(), content: orderCode, platform, time: moment().format('YYYY-MM-DD HH:mm'), handled: false };
+        const bad = { id: Date.now().toString(), content: orderCode, platform, time: formatDate(new Date()) + ' ' + formatTime(new Date()), handled: false };
         dispatch({ type: 'ADD_BAD_REVIEW', payload: bad });
         showToast('⚠️ 检测到疑似差评内容，已记录');
       } else {
@@ -907,6 +991,7 @@ const VerifyOrder = () => {
       setCouponPrice('');
       setSelectedGoodsId(null);
     } catch (error) {
+      console.warn('核销失败', error);
       showToast('核销失败');
     }
   };
@@ -961,15 +1046,15 @@ const VerifyOrder = () => {
         <View style={styles.cardBox}>
           <Text style={{ fontSize:16, fontWeight:'600', marginBottom:8 }}>今日已核销</Text>
           {(state.globalOrderRecord || [])
-            .filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD'))
+            .filter(item => item.time && formatDate(item.time) === getTodayStr())
             .map((item, idx) => (
               <View key={idx} style={styles.listItem}>
                 <Text style={{ fontSize:14, color:TEXT_MAIN }}>{item.platform} - ¥{item.couponPrice}</Text>
-                <Text style={{ fontSize:12, color:TEXT_THIRD }}>{moment(item.time).format('HH:mm')} {item.staff && `核销员: ${item.staff}`}</Text>
+                <Text style={{ fontSize:12, color:TEXT_THIRD }}>{formatTime(item.time)} {item.staff && `核销员: ${item.staff}`}</Text>
               </View>
             ))
           }
-          {(state.globalOrderRecord || []).filter(item => moment(item.time).format('YYYY-MM-DD') === moment().format('YYYY-MM-DD')).length === 0 && (
+          {(state.globalOrderRecord || []).filter(item => item.time && formatDate(item.time) === getTodayStr()).length === 0 && (
             <Text style={{ color:TEXT_THIRD, textAlign:'center', padding:12 }}>今日暂无核销记录</Text>
           )}
         </View>
@@ -1006,6 +1091,7 @@ const ProductOverview = () => {
       setStock('');
       setEditingItem(null);
     } catch (error) {
+      console.warn('操作失败', error);
       showToast('操作失败');
     }
   };
@@ -1017,9 +1103,7 @@ const ProductOverview = () => {
         try {
           dispatch({ type: 'SET_GOODS_LIST', payload: (state.goodsList || []).filter(item => item.id !== id) });
           showToast('已删除');
-        } catch (error) {
-          showToast('删除失败');
-        }
+        } catch (error) { showToast('删除失败'); }
       }}
     ]);
   };
@@ -1110,9 +1194,7 @@ const StaffManage = () => {
         try {
           dispatch({ type: 'SET_STAFF_LIST', payload: (state.staffMemberList || []).filter(item => item.id !== id) });
           showToast('已移除');
-        } catch (error) {
-          showToast('移除失败');
-        }
+        } catch (error) { showToast('移除失败'); }
       }}
     ]);
   };
@@ -1154,7 +1236,7 @@ const StaffManage = () => {
                 <View>
                   <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>{item.name}</Text>
                   <Text style={{ fontSize:14, color:TEXT_SECOND }}>{item.phone} · {item.role}</Text>
-                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>加入: {moment(item.joinedAt).format('YYYY-MM-DD')}</Text>
+                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>加入: {formatDate(item.joinedAt)}</Text>
                 </View>
                 <TouchableOpacity style={[styles.editBtn, { backgroundColor:DANGER_COLOR }]} onPress={() => handleRemoveStaff(item.id)}>
                   <Text style={{ color:'#fff', fontSize:13, fontWeight:'500' }}>移除</Text>
@@ -1194,7 +1276,7 @@ const StaffManage = () => {
                 <View>
                   <Text style={{ fontSize:16, fontWeight:'500', color:TEXT_MAIN }}>{item.name}</Text>
                   <Text style={{ fontSize:14, color:TEXT_SECOND }}>{item.phone}</Text>
-                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>申请时间: {moment(item.joinedAt).format('YYYY-MM-DD HH:mm')}</Text>
+                  <Text style={{ fontSize:12, color:TEXT_THIRD }}>申请时间: {formatDate(item.joinedAt)} {formatTime(item.joinedAt)}</Text>
                 </View>
                 <View style={{ flexDirection:'row', gap:8 }}>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => {
@@ -1203,9 +1285,7 @@ const StaffManage = () => {
                       const welcomeMsg = { id: Date.now().toString(), text: `🎉 ${item.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
                       dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcomeMsg });
                       showToast(`${item.name} 已批准入职`);
-                    } catch (error) {
-                      showToast('操作失败');
-                    }
+                    } catch (error) { showToast('操作失败'); }
                   }}>
                     <Text style={styles.sendTxt}>同意</Text>
                   </TouchableOpacity>
@@ -1213,9 +1293,7 @@ const StaffManage = () => {
                     try {
                       dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone: item.phone } });
                       showToast('已拒绝');
-                    } catch (error) {
-                      showToast('操作失败');
-                    }
+                    } catch (error) { showToast('操作失败'); }
                   }}>
                     <Text style={styles.sendTxt}>拒绝</Text>
                   </TouchableOpacity>
@@ -1296,14 +1374,17 @@ const StockManage = () => {
       setSelectedGoodsId(null);
       setPhotoUri(null);
     } catch (error) {
+      console.warn('操作失败', error);
       showToast('操作失败');
     }
   };
 
   const handleScan = async () => {
-    const { status } = await BarCodeScanner.requestPermissionsAsync();
-    if (status !== 'granted') { showToast('需要相机权限'); return; }
-    setScanning(true);
+    try {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      setScanning(true);
+    } catch (error) { showToast('扫码失败'); }
   };
 
   const handleBarCodeScanned = ({ data }) => {
@@ -1323,9 +1404,7 @@ const StockManage = () => {
         setPhotoUri(compressed);
         showToast('已上传照片');
       }
-    } catch (error) {
-      showToast('选择照片失败');
-    }
+    } catch (error) { showToast('选择照片失败'); }
   };
 
   const handleShelf = async (platform, goodsId) => {
@@ -1339,6 +1418,7 @@ const StockManage = () => {
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
     } catch (error) {
+      console.warn(`${platform}上架失败`, error);
       showToast(`${platform}上架生成失败`);
     } finally {
       setLoadingPlatform(null);
@@ -1356,6 +1436,7 @@ const StockManage = () => {
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
     } catch (error) {
+      console.warn('一键上架失败', error);
       showToast('一键上架生成失败');
     } finally {
       setLoadingPlatform(null);
@@ -1532,6 +1613,7 @@ const InternalChat = () => {
       setShowMediaOptions(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
+      console.warn('发送失败', error);
       showToast('发送失败');
     }
   };
@@ -1555,6 +1637,7 @@ const InternalChat = () => {
         await sendGroupMessage('image');
       }
     } catch (error) {
+      console.warn('选择图片失败', error);
       showToast('选择图片失败');
     }
   };
@@ -1575,7 +1658,7 @@ const InternalChat = () => {
             return (
               <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
                 {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
-                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
                 <Text style={{ fontSize:10, color:TEXT_THIRD }}>{msg.from}</Text>
               </View>
             );
@@ -1640,6 +1723,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
       setShowMediaOptions(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
+      console.warn('发送失败', error);
       showToast('发送失败');
     }
   };
@@ -1663,6 +1747,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
         await sendMessage('image');
       }
     } catch (error) {
+      console.warn('选择图片失败', error);
       showToast('选择图片失败');
     }
   };
@@ -1683,7 +1768,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
             return (
               <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
                 {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
-                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+                <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
                 <Text style={{ fontSize:10, color:TEXT_THIRD }}>{msg.from}</Text>
               </View>
             );
@@ -1718,8 +1803,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
     </View>
   );
 };
-
-// ================== 顾客客服 ==================
+// ===== 第二段结束 =====// ================== 顾客客服 ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1764,6 +1848,7 @@ const CustomerService = () => {
         } catch (e) {}
       }
     } catch (error) {
+      console.warn('发送失败', error);
       showToast('发送失败');
     }
   };
@@ -1787,6 +1872,7 @@ const CustomerService = () => {
         await sendMessage('image');
       }
     } catch (error) {
+      console.warn('选择图片失败', error);
       showToast('选择图片失败');
     }
   };
@@ -1801,6 +1887,7 @@ const CustomerService = () => {
       setTagInput('');
       showToast('标签已添加');
     } catch (error) {
+      console.warn('添加标签失败', error);
       showToast('添加标签失败');
     }
   };
@@ -1808,7 +1895,7 @@ const CustomerService = () => {
   const getCustomerStats = (phone) => {
     const orders = (state.globalOrderRecord || []).filter(o => o.phone === phone);
     const total = orders.reduce((s,o) => s + (o.couponPrice || 0), 0);
-    return { total, count: orders.length, lastOrder: orders.length > 0 ? moment(orders[0].time).format('YYYY-MM-DD') : '无' };
+    return { total, count: orders.length, lastOrder: orders.length > 0 ? formatDate(orders[0].time) : '无' };
   };
 
   return (
@@ -1855,7 +1942,7 @@ const CustomerService = () => {
         {currentMessages.map(msg => (
           <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
             {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
-            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
             {msg.from === 'ai' && <Text style={{ fontSize:9, color:SUCCESS_COLOR }}>🤖 AI回复</Text>}
           </View>
         ))}
@@ -1924,6 +2011,7 @@ const ImageGenScreen = ({ navigation }) => {
       reader.onerror = () => { showToast('读取失败'); setLoading(false); };
       reader.readAsDataURL(blob);
     } catch (error) {
+      console.warn('生成图片失败', error);
       showToast('生成失败');
       setLoading(false);
     }
@@ -2010,6 +2098,7 @@ const MerchantAssistant = () => {
       setLoading(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
+      console.warn('发送失败', error);
       showToast('发送失败');
       setLoading(false);
     }
@@ -2034,6 +2123,7 @@ const MerchantAssistant = () => {
         await sendMessage('image');
       }
     } catch (error) {
+      console.warn('选择图片失败', error);
       showToast('选择图片失败');
     }
   };
@@ -2064,7 +2154,7 @@ const MerchantAssistant = () => {
             ) : (
               <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>
             )}
-            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{moment(msg.time).format('HH:mm')}</Text>
+            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
           </View>
         ))}
         {loading && <View style={[styles.bubbleLeft, { padding:12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
@@ -2097,7 +2187,7 @@ const MerchantAssistant = () => {
     </View>
   );
 };
-// ===== 第二段结束 =====// ===== 第三段开始 =====
+
 // ================== 首页 ==================
 const HomePage = () => {
   const navigation = useNavigation();
@@ -2106,7 +2196,12 @@ const HomePage = () => {
   const [settingOpen, setSettingOpen] = useState(false);
   const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const insets = useSafeAreaInsets();
+  let insets;
+  try {
+    insets = useSafeAreaInsets();
+  } catch (e) {
+    insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  }
   const [reportType, setReportType] = useState('daily');
 
   if (!user) {
@@ -2118,8 +2213,8 @@ const HomePage = () => {
   }
 
   const globalOrderRecord = state.globalOrderRecord || [];
-  const todayStr = moment().format('YYYY-MM-DD');
-  const todayOrders = globalOrderRecord.filter(item => moment(item.time).format('YYYY-MM-DD') === todayStr);
+  const todayStr = getTodayStr();
+  const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
   let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
   todayOrders.forEach(order => {
     if (order && order.platform) {
@@ -2149,7 +2244,7 @@ const HomePage = () => {
       await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
       else showToast('分享不可用');
-    } catch (e) { showToast('导出失败'); }
+    } catch (e) { console.warn('导出失败', e); showToast('导出失败'); }
   };
 
   const isEmployee = user?.role === '员工';
@@ -2180,7 +2275,7 @@ const HomePage = () => {
     try {
       if (item.internal) navigation.navigate(item.screen);
       else navigation.getParent().navigate(item.tab, { screen: item.screen });
-    } catch (e) { showToast('跳转失败'); }
+    } catch (e) { console.warn('跳转失败', e); showToast('跳转失败'); }
   };
 
   const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
@@ -2197,17 +2292,13 @@ const HomePage = () => {
         dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
         showToast(`${staff.name} 已批准入职`);
       }
-    } catch (error) {
-      showToast('操作失败');
-    }
+    } catch (error) { console.warn('操作失败', error); showToast('操作失败'); }
   };
   const handleReject = (phone) => {
     try {
       dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
       showToast('已拒绝');
-    } catch (error) {
-      showToast('操作失败');
-    }
+    } catch (error) { console.warn('操作失败', error); showToast('操作失败'); }
   };
 
   useEffect(() => {
