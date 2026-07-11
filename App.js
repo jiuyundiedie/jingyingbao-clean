@@ -297,7 +297,8 @@ const HomePage = () => {
     </View>
   );
 };
-// ===== 第二段结束 =====// ================== 底部标签导航 ==================
+// ===== 第二段结束 =====// // ================== 底部标签导航 ==================
+const Tab = createBottomTabNavigator();  // 添加这一行
 function RootTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
