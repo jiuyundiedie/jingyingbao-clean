@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   settingText: { fontSize: 16, color: '#1D2129', marginLeft: 12 },
 });
 
-// ================== 登录页面 ==================
+// ================== 登录页面（带详细错误显示） ==================
 const LoginScreen = () => {
   const { state, dispatch } = useApp();
   const navigation = useNavigation();
@@ -121,16 +121,26 @@ const LoginScreen = () => {
     try {
       if (phone.length !== 11) { showToast('请输入11位手机号'); setLoading(false); return; }
       if (code !== '123456') { showToast('验证码错误'); setLoading(false); return; }
+      
+      // 构建用户对象
       const user = { phone, name: '老板' };
       const shopInfo = { shopName: '我的店铺', phone };
+      
+      // 存储到 AsyncStorage
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      
+      // 更新 Redux
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, name: user.name } });
+      
+      // 跳转
       navigation.replace('RootTabs');
       setLoading(false);
     } catch (error) {
-      showToast('登录失败');
+      // 显示详细错误信息
+      Alert.alert('登录失败', `错误详情:\n${error.message || String(error)}\n\n堆栈:\n${error.stack || '无堆栈'}`);
+      console.error('登录错误:', error);
       setLoading(false);
     }
   };
@@ -144,7 +154,7 @@ const LoginScreen = () => {
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       navigation.replace('RootTabs');
     } catch (error) {
-      showToast('切换失败');
+      Alert.alert('切换失败', error.message);
     }
   };
 
