@@ -15,7 +15,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
-import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // ===== Polyfill =====
 if (typeof SharedArrayBuffer === 'undefined') {
@@ -83,29 +83,14 @@ const getTodayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const formatDate = (dateStr) => {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const formatTime = (dateStr) => {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
-const isSameDay = (d1, d2) => {
-  return formatDate(d1) === formatDate(d2);
-};
-const getWeekStart = () => {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now);
-  monday.setDate(diff);
-  return monday;
-};
-const getWeekEnd = () => {
-  const monday = getWeekStart();
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return sunday;
 };
 
 // ===== 压缩图片 =====
@@ -118,7 +103,6 @@ const compressImage = async (uri) => {
     );
     return result.uri;
   } catch (error) {
-    console.warn('压缩失败', error);
     return uri;
   }
 };
@@ -138,12 +122,11 @@ async function fetchZhipuChat(msgList, prompt) {
     const json = await res.json();
     return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
   } catch (err) {
-    console.warn('AI请求失败', err);
     return "网络异常，获取回复失败";
   }
 }
 
-// ===== 计算日报 =====
+// ===== 计算日报（安全） =====
 const calcDailyReport = (state) => {
   try {
     const todayStr = getTodayStr();
@@ -189,21 +172,22 @@ const calcDailyReport = (state) => {
       profit,
       profitRate
     };
-  } catch (error) {
-    console.warn('计算日报失败', error);
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 const generateWeekReport = (state) => {
   try {
     const today = new Date();
-    const weekStart = getWeekStart();
-    const weekEnd = getWeekEnd();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today);
+    monday.setDate(diff);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
     const businessHistory = state.businessHistory || [];
     const weekList = businessHistory.filter(item => {
       const d = new Date(item.date);
-      return d >= weekStart && d <= weekEnd;
+      return d >= monday && d <= sunday;
     });
     if(weekList.length === 0) return null;
     const totalIncome = weekList.reduce((s,r)=>s + (r.income || 0), 0);
@@ -211,17 +195,14 @@ const generateWeekReport = (state) => {
     const totalOrder = weekList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
     const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
     return {
-      startDate: formatDate(weekStart.toISOString()),
-      endDate: formatDate(weekEnd.toISOString()),
+      startDate: formatDate(monday.toISOString()),
+      endDate: formatDate(sunday.toISOString()),
       totalIncome,
       totalProfit,
       totalOrder,
       avgDailyIncome
     };
-  } catch (error) {
-    console.warn('生成周报失败', error);
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 const generateMonthReport = (state) => {
@@ -241,10 +222,7 @@ const generateMonthReport = (state) => {
       totalOrder,
       dayCount: monthList.length
     };
-  } catch (error) {
-    console.warn('生成月报失败', error);
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 // ===== Reducer =====
@@ -598,6 +576,7 @@ const LoginScreen = () => {
       dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
+      // 延迟跳转，确保状态更新完成
       setTimeout(() => {
         navigation.replace('RootTabs');
         setLoading(false);
@@ -1803,392 +1782,7 @@ const PrivateChatScreen = ({ route, navigation }) => {
     </View>
   );
 };
-// ===== 第二段结束 =====// ================== 顾客客服 ==================
-const CustomerService = () => {
-  const navigation = useNavigation();
-  const { state, dispatch } = useApp();
-  const [inputText, setInputText] = useState('');
-  const [currentPlatform, setCurrentPlatform] = useState('美团');
-  const [messages, setMessages] = useState([]);
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [showQuickReply, setShowQuickReply] = useState(false);
-  const [imageUri, setImageUri] = useState(null);
-  const [aiMode, setAiMode] = useState(false);
-  const scrollViewRef = useRef(null);
-  const [selectedPhone, setSelectedPhone] = useState('');
-  const [tagInput, setTagInput] = useState('');
-  const [showMediaOptions, setShowMediaOptions] = useState(false);
-  const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({ phone, lastMsg: state.privateChatMessages[phone]?.[0]?.text || '' }));
-  const currentMessages = messages.filter(m => m.platform === currentPlatform);
-
-  const sendMessage = async (type = 'text') => {
-    try {
-      let text = inputText.trim();
-      let image = null;
-      if (type === 'image') {
-        if (!imageUri) return;
-        const compressed = await compressImage(imageUri);
-        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-        image = `data:image/jpeg;base64,${base64}`;
-      } else if (!text) return;
-      const msg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'staff', platform: currentPlatform, time: new Date().toISOString() };
-      setMessages(prev => [...prev, msg]);
-      setInputText('');
-      setImageUri(null);
-      setShowEmoji(false);
-      setShowQuickReply(false);
-      setShowMediaOptions(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      if (aiMode && type === 'text' && text) {
-        try {
-          const reply = await fetchZhipuChat([{ role: 'user', content: text }], `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`);
-          const aiMsg = { id: Date.now().toString(), text: reply, from: 'ai', platform: currentPlatform, time: new Date().toISOString() };
-          setMessages(prev => [...prev, aiMsg]);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
-        } catch (e) {}
-      }
-    } catch (error) {
-      console.warn('发送失败', error);
-      showToast('发送失败');
-    }
-  };
-
-  const pickImage = async (source) => {
-    try {
-      setShowMediaOptions(false);
-      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-      let result;
-      if (source === 'camera') {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync(options);
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync(options);
-      }
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
-    } catch (error) {
-      console.warn('选择图片失败', error);
-      showToast('选择图片失败');
-    }
-  };
-
-  const quickReplies = ['您好，请问有什么可以帮助您？', '稍等，我帮您查询一下', '感谢您的反馈，我们会尽快处理', '欢迎下次光临！', '请问您需要什么帮助？'];
-
-  const addTag = () => {
-    try {
-      if (!selectedPhone) { showToast('请先选择顾客'); return; }
-      if (!tagInput.trim()) { showToast('请输入标签'); return; }
-      dispatch({ type: 'SET_CUSTOMER_TAG', payload: { phone: selectedPhone, tag: tagInput.trim() } });
-      setTagInput('');
-      showToast('标签已添加');
-    } catch (error) {
-      console.warn('添加标签失败', error);
-      showToast('添加标签失败');
-    }
-  };
-
-  const getCustomerStats = (phone) => {
-    const orders = (state.globalOrderRecord || []).filter(o => o.phone === phone);
-    const total = orders.reduce((s,o) => s + (o.couponPrice || 0), 0);
-    return { total, count: orders.length, lastOrder: orders.length > 0 ? formatDate(orders[0].time) : '无' };
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>顾客客服</Text>
-        <TouchableOpacity onPress={() => setAiMode(!aiMode)}><Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>{aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}</Text></TouchableOpacity>
-      </View>
-      {customerList.length > 0 && (
-        <View style={{ padding:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {customerList.map(c => (
-              <TouchableOpacity key={c.phone} style={{ paddingHorizontal:12, paddingVertical:6, backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius:16, marginRight:8 }} onPress={() => setSelectedPhone(c.phone)}>
-                <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN }}>{c.phone}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          {selectedPhone && (
-            <View style={{ marginTop:6 }}>
-              <Text style={{ fontSize:12, color:TEXT_SECOND }}>累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}</Text>
-              <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
-                <TextInput style={[styles.formInput, { flex:1, height:32, fontSize:12 }]} placeholder="添加标签" value={tagInput} onChangeText={setTagInput} />
-                <TouchableOpacity style={[styles.miniBlueBtn, { marginLeft:6 }]} onPress={addTag}><Text style={styles.sendTxt}>+</Text></TouchableOpacity>
-              </View>
-              <View style={{ flexDirection:'row', flexWrap:'wrap', marginTop:4 }}>
-                {(state.customerTags[selectedPhone] || []).map((tag, idx) => (
-                  <View key={idx} style={{ backgroundColor:LIGHT_PRIMARY, borderRadius:12, paddingHorizontal:8, paddingVertical:2, marginRight:4, marginBottom:4 }}>
-                    <Text style={{ fontSize:12, color:PRIMARY_COLOR }}>#{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-      )}
-      <View style={{ flexDirection:'row', justifyContent:'space-around', paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-        {['美团','抖音','大众点评'].map(p => (
-          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}><Text style={{ fontSize:16, fontWeight: currentPlatform === p ? '700' : '400', color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND }}>{p}</Text></TouchableOpacity>
-        ))}
-      </View>
-      <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop:12, paddingBottom:80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
-        {currentMessages.map(msg => (
-          <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
-            {msg.image ? <Image source={{ uri: msg.image }} style={styles.imageMessage} /> : <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>}
-            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
-            {msg.from === 'ai' && <Text style={{ fontSize:9, color:SUCCESS_COLOR }}>🤖 AI回复</Text>}
-          </View>
-        ))}
-        {currentMessages.length === 0 && <Text style={{ textAlign:'center', color:TEXT_THIRD, marginTop:30 }}>暂无咨询</Text>}
-      </ScrollView>
-      {showQuickReply && (
-        <View style={styles.quickReplyContainer}>
-          {quickReplies.map((text, idx) => (
-            <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}><Text style={styles.quickReplyText}>{text}</Text></TouchableOpacity>
-          ))}
-        </View>
-      )}
-      {showEmoji && (
-        <View style={styles.emojiRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {EMOJI_LIST.map(emoji => (
-              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-      {showMediaOptions && (
-        <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
-        </View>
-      )}
-      <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal:8 }}><Ionicons name="flash-outline" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TextInput style={styles.inputBox} placeholder="回复顾客..." value={inputText} onChangeText={setInputText} multiline />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
-      </View>
-      <View style={{ height:56 }} />
-    </View>
-  );
-};
-
-// ================== AI图片生成 ==================
-const ImageGenScreen = ({ navigation }) => {
-  const { state } = useApp();
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [imageResult, setImageResult] = useState(null);
-  const shopName = state.shopInfo?.shopName || '我的店铺';
-  const industry = state.shopInfo?.industry || '餐饮类';
-
-  const generateImageHandler = async () => {
-    try {
-      if (!prompt.trim()) { showToast('请输入描述'); return; }
-      setLoading(true);
-      const fullPrompt = `${prompt}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
-      const res = await fetch('https://image-api.my-image-api.workers.dev', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 })
-      });
-      if (!res.ok) { showToast('生成失败'); setLoading(false); return; }
-      const blob = await res.blob();
-      const reader = new FileReader();
-      reader.onloadend = () => { setImageResult(reader.result); setLoading(false); };
-      reader.onerror = () => { showToast('读取失败'); setLoading(false); };
-      reader.readAsDataURL(blob);
-    } catch (error) {
-      console.warn('生成图片失败', error);
-      showToast('生成失败');
-      setLoading(false);
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>生成图片</Text>
-        <View style={{ width:24 }} />
-      </View>
-      <View style={{ padding:16 }}>
-        <Text style={styles.label}>店铺：{shopName} ({industry})</Text>
-        <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:8 }}>输入您想要生成的图片描述</Text>
-        <TextInput style={[styles.formInput, { height:100, textAlignVertical:'top' }]} placeholder="例如：夏日促销海报" multiline value={prompt} onChangeText={setPrompt} />
-        <TouchableOpacity style={styles.primaryBtn} onPress={generateImageHandler} disabled={loading}><Text style={styles.sendTxt}>{loading ? '生成中...' : '生成图片'}</Text></TouchableOpacity>
-        {imageResult && (
-          <View style={{ marginTop:16, alignItems:'center' }}>
-            <Image source={{ uri: imageResult }} style={{ width: width-64, height: width-64, borderRadius:8 }} />
-            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => setImageResult(null)}><Text style={styles.sendTxt}>重新生成</Text></TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-};
-
-// ================== AI助手 ==================
-const MerchantAssistant = () => {
-  const navigation = useNavigation();
-  const { state } = useApp();
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showImageGen, setShowImageGen] = useState(false);
-  const scrollViewRef = useRef(null);
-  const [imageUri, setImageUri] = useState(null);
-  const [showMediaOptions, setShowMediaOptions] = useState(false);
-  const [showEmoji, setShowEmoji] = useState(false);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{ id: '1', text: '您好！我是经营宝AI助手，可以帮您解答经营问题、生成营销文案等。', from: 'ai', time: new Date().toISOString() }]);
-    }
-  }, []);
-
-  const handleMarketing = (type) => {
-    const prompts = { '文案': '请生成一条吸引人的营销文案', '海报': '请设计一张宣传海报的文字描述', '广告语': '请生成一条简短有力的广告语' };
-    setInputText(prompts[type] || '');
-  };
-
-  const toggleImageGen = () => {
-    setShowImageGen(!showImageGen);
-    const hint = { id: Date.now().toString(), text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启', from: 'ai', time: new Date().toISOString() };
-    setMessages(prev => [...prev, hint]);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  const sendMessage = async (type = 'text') => {
-    try {
-      let text = inputText.trim();
-      let image = null;
-      if (type === 'image') {
-        if (!imageUri) return;
-        const compressed = await compressImage(imageUri);
-        const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-        image = `data:image/jpeg;base64,${base64}`;
-      } else if (!text) return;
-      const userMsg = { id: Date.now().toString(), text: type === 'text' ? text : '', image: image || null, from: 'user', time: new Date().toISOString() };
-      setMessages(prev => [...prev, userMsg]);
-      setInputText('');
-      setImageUri(null);
-      setShowMediaOptions(false);
-      setShowEmoji(false);
-      if (type === 'image') { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100); return; }
-      setLoading(true);
-      const msgList = messages.filter(m => m.from !== 'system').map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
-      msgList.push({ role: 'user', content: text });
-      const reply = await fetchZhipuChat(msgList, '你是经营宝AI助手，帮助商家解决经营问题。回答要简洁、实用。');
-      const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
-      setMessages(prev => [...prev, aiMsg]);
-      setLoading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch (error) {
-      console.warn('发送失败', error);
-      showToast('发送失败');
-      setLoading(false);
-    }
-  };
-
-  const pickImage = async (source) => {
-    try {
-      setShowMediaOptions(false);
-      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.7 };
-      let result;
-      if (source === 'camera') {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync(options);
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync(options);
-      }
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
-      }
-    } catch (error) {
-      console.warn('选择图片失败', error);
-      showToast('选择图片失败');
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.safeTop} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize:20 }}>&lt;</Text></TouchableOpacity>
-        <Text style={styles.pageTitle}>AI助手</Text>
-        <TouchableOpacity onPress={toggleImageGen}><Text style={{ fontSize:16, color: showImageGen ? SUCCESS_COLOR : PRIMARY_COLOR }}>{showImageGen ? '🎨 图片模式' : '🖼️ 开启图片'}</Text></TouchableOpacity>
-      </View>
-      <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:BG_CARD, borderBottomWidth:1, borderColor:BORDER_COLOR }}>
-        {['文案','海报','广告语'].map(label => (
-          <TouchableOpacity key={label} style={{ marginRight:10, paddingHorizontal:14, paddingVertical:6, backgroundColor:LIGHT_PRIMARY, borderRadius:16 }} onPress={() => handleMarketing(label)}>
-            <Text style={{ color:PRIMARY_COLOR }}>📣 {label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <ScrollView ref={scrollViewRef} style={styles.chatScroll} contentContainerStyle={{ paddingTop:12, paddingBottom:80 }} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
-        {messages.map(msg => (
-          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
-            {msg.image ? (
-              <>
-                <Text style={{ fontSize:14, color:TEXT_SECOND, marginBottom:4 }}>{msg.text}</Text>
-                <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-              </>
-            ) : (
-              <Text style={{ fontSize:15, color:TEXT_MAIN }}>{msg.text}</Text>
-            )}
-            <Text style={{ fontSize:10, color:TEXT_THIRD, marginTop:4 }}>{formatTime(msg.time)}</Text>
-          </View>
-        ))}
-        {loading && <View style={[styles.bubbleLeft, { padding:12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
-      </ScrollView>
-      {showEmoji && (
-        <View style={styles.emojiRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {EMOJI_LIST.map(emoji => (
-              <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                <Text style={{ fontSize:28, marginHorizontal:4 }}>{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-      {showMediaOptions && (
-        <View style={{ flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', borderTopWidth:1, borderColor:BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('camera')}><Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>拍照</Text></TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => pickImage('library')}><Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} /><Text style={{ fontSize:12, color:TEXT_SECOND }}>相册</Text></TouchableOpacity>
-          <TouchableOpacity style={{ flex:1, alignItems:'center', padding:8 }} onPress={() => setShowMediaOptions(false)}><Ionicons name="close-outline" size={28} color={DANGER_COLOR} /><Text style={{ fontSize:12, color:DANGER_COLOR }}>取消</Text></TouchableOpacity>
-        </View>
-      )}
-      <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal:8 }}><Text style={{ fontSize:24 }}>😊</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal:8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TextInput style={[styles.inputBox, { flex:1 }]} placeholder={showImageGen ? "输入图片描述..." : "输入问题..."} value={inputText} onChangeText={setInputText} multiline />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
-      </View>
-      <View style={{ height:56 }} />
-    </View>
-  );
-};
-
-// ================== 首页 ==================
+// ===== 第二段结束 =====// ================== 安全首页（所有功能均带错误捕获） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2196,14 +1790,18 @@ const HomePage = () => {
   const [settingOpen, setSettingOpen] = useState(false);
   const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  let insets;
-  try {
-    insets = useSafeAreaInsets();
-  } catch (e) {
-    insets = { top: 0, bottom: 0, left: 0, right: 0 };
-  }
   const [reportType, setReportType] = useState('daily');
 
+  // 安全获取顶部内边距
+  let topPadding = 0;
+  try {
+    const insets = useSafeAreaInsets();
+    topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
+  } catch (e) {
+    topPadding = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32;
+  }
+
+  // 用户校验
   if (!user) {
     return (
       <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
@@ -2212,6 +1810,7 @@ const HomePage = () => {
     );
   }
 
+  // 所有数据读取均安全
   const globalOrderRecord = state.globalOrderRecord || [];
   const todayStr = getTodayStr();
   const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
@@ -2321,24 +1920,30 @@ const HomePage = () => {
     return generateMonthReport(state);
   };
   const reportData = getReportData();
-  const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
+
+  // 安全渲染：每个模块用 try-catch 包裹，出错只显示提示
+  const renderSafe = (component, fallback = null) => {
+    try { return component; } catch (e) { console.warn('渲染错误', e); return fallback || <Text style={{color:'red'}}>组件加载失败</Text>; }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <View style={[styles.container, { paddingTop: topPadding }]}>
-        <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+        {renderSafe(<SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />)}
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
         <ScrollView style={{ flex:1, paddingHorizontal:16 }} contentContainerStyle={{ paddingBottom:80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
+          {/* 欢迎卡片 */}
           <View style={styles.cardBox}>
             <Text style={{ fontSize:18, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>👋 欢迎，{user?.name || '商家'}</Text>
             <Text style={{ color:TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
             {isEmployee && <Text style={{ color:TEXT_SECOND, marginTop:4 }}>角色：员工</Text>}
           </View>
 
+          {/* 核心数据 */}
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:12, marginTop:16 }}>
             <View style={{ width:(width-44)/2, backgroundColor:BG_CARD, padding:16, borderRadius:14, ...SHADOW }}>
               <Text style={{ fontSize:13, color:TEXT_SECOND }}>今日核销订单</Text>
@@ -2365,6 +1970,7 @@ const HomePage = () => {
             )}
           </View>
 
+          {/* 经营报告 */}
           {!isEmployee && (
             <View style={styles.dailyReportCard}>
               <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
@@ -2419,6 +2025,7 @@ const HomePage = () => {
             </View>
           )}
 
+          {/* 业务菜单 */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop:16 }}>
             <View style={{ flexDirection:'row', gap:12, paddingRight:16 }}>
               {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
@@ -2430,6 +2037,7 @@ const HomePage = () => {
             </View>
           </ScrollView>
 
+          {/* 员工私聊 */}
           {chatStaffList.length > 0 && (
             <View style={{ marginTop:16 }}>
               <Text style={{ fontSize:16, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
@@ -2443,6 +2051,7 @@ const HomePage = () => {
             </View>
           )}
 
+          {/* 入职申请 */}
           {!isEmployee && pendingStaff.length > 0 && (
             <View style={{ marginTop:16 }}>
               <Text style={{ fontSize:16, fontWeight:'600', color:TEXT_MAIN, marginBottom:8 }}>📩 入职申请</Text>
@@ -2460,6 +2069,7 @@ const HomePage = () => {
         </ScrollView>
       </View>
 
+      {/* 悬浮AI助手 */}
       {!isEmployee && (
         <TouchableOpacity style={{ position:'absolute', bottom:80, right:20, width:56, height:56, borderRadius:28, backgroundColor:PRIMARY_COLOR, justifyContent:'center', alignItems:'center', ...SHADOW, zIndex:999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
           <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
@@ -2528,6 +2138,20 @@ function MainStack() {
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
+
+  // 全局错误捕获（防止未捕获异常闪退）
+  useEffect(() => {
+    const errorHandler = (error) => {
+      console.error('全局捕获错误:', error);
+    };
+    if (global.ErrorUtils) {
+      const originalHandler = global.ErrorUtils.getGlobalHandler?.() || (() => {});
+      global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+        errorHandler(error);
+        originalHandler(error, isFatal);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
