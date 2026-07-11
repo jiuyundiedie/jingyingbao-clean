@@ -12,6 +12,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -102,6 +103,7 @@ const defaultState = {
   shopInfo: { shopName: '', phone: '', industry: '餐饮类' },
   previousAccounts: [],
   globalOrderRecord: [],
+  globalStockRecord: [],
   goodsList: [],
   staffMemberList: [],
   badReviewCount: 0,
@@ -122,6 +124,8 @@ function appReducer(state, action) {
       return { ...state, shopInfo: action.payload };
     case 'ADD_ORDER_RECORD':
       return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
+    case 'ADD_STOCK_RECORD':
+      return { ...state, globalStockRecord: [action.payload, ...(state.globalStockRecord || [])] };
     case 'SET_GOODS_LIST':
       return { ...state, goodsList: action.payload || [] };
     case 'SET_STAFF_LIST':
@@ -162,6 +166,7 @@ function appReducer(state, action) {
       return {
         ...state,
         globalOrderRecord: Array.isArray(r.globalOrderRecord) ? r.globalOrderRecord : [],
+        globalStockRecord: Array.isArray(r.globalStockRecord) ? r.globalStockRecord : [],
         goodsList: Array.isArray(r.goodsList) ? r.goodsList : [],
         staffMemberList: Array.isArray(r.staffMemberList) ? r.staffMemberList : [],
         badReviewList: Array.isArray(r.badReviewList) ? r.badReviewList : [],
@@ -190,6 +195,7 @@ const saveAllData = async (state) => {
   try {
     const dataToSave = {
       globalOrderRecord: state.globalOrderRecord || [],
+      globalStockRecord: state.globalStockRecord || [],
       goodsList: state.goodsList || [],
       staffMemberList: state.staffMemberList || [],
       badReviewList: state.badReviewList || [],
@@ -294,6 +300,20 @@ const styles = StyleSheet.create({
   badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
   badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
   imageMessage: { width: 150, height: 150, borderRadius: 12, marginTop: 4 },
+  productItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
+  productName: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
+  productStock: { fontSize: 14, color: TEXT_SECOND },
+  productPlatform: { fontSize: 12, color: TEXT_THIRD },
+  editBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 },
+  editBtnText: { color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' },
+  modalMask: { position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 20, padding: 24, ...SHADOW },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
+  closeTxt: { fontSize: 24, color: TEXT_THIRD },
+  scannerContainer: { flex: 1 },
+  cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
+  cancelText: { color: '#fff', fontSize: 16 },
 });
 
 // ================== 登录页面 ==================
@@ -582,7 +602,351 @@ const SwitchAccountScreen = () => {
   );
 };
 
-// ================== 顾客客服页面 ==================
+// ================== 商品管理 ==================
+const ProductOverview = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [name, setName] = useState('');
+  const [stock, setStock] = useState('');
+  const [platform, setPlatform] = useState('美团');
+
+  const handleSave = () => {
+    try {
+      if (!name.trim()) { showToast('请输入商品名称'); return; }
+      const stockNum = parseInt(stock) || 0;
+      if (editingItem) {
+        const updated = (state.goodsList || []).map(item =>
+          item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
+        );
+        dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+        showToast('已更新');
+      } else {
+        const newItem = {
+          id: Date.now().toString(),
+          name: name.trim(),
+          stock: stockNum,
+          platform,
+          createdAt: new Date().toISOString(),
+        };
+        dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
+        showToast('添加成功');
+      }
+      setModalVisible(false);
+      setName('');
+      setStock('');
+      setEditingItem(null);
+    } catch (error) {
+      showToast('操作失败');
+    }
+  };
+
+  const handleDelete = (id) => {
+    Alert.alert('确认删除', '确定删除该商品？', [
+      { text: '取消', style: 'cancel' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        try {
+          dispatch({ type: 'SET_GOODS_LIST', payload: (state.goodsList || []).filter(item => item.id !== id) });
+          showToast('已删除');
+        } catch (error) { showToast('删除失败'); }
+      }}
+    ]);
+  };
+
+  const openEdit = (item) => {
+    setEditingItem(item);
+    setName(item.name);
+    setStock(String(item.stock));
+    setPlatform(item.platform || '美团');
+    setModalVisible(true);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>商品总览</Text>
+        <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
+          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <FlatList
+        data={state.goodsList || []}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <View style={[styles.productItem, { borderColor: item.stock < 5 ? DANGER_COLOR : 'transparent', borderWidth: item.stock < 5 ? 2 : 0 }]}>
+            <View>
+              <Text style={styles.productName}>{item.name}</Text>
+              <Text style={styles.productPlatform}>平台: {item.platform}</Text>
+              <Text style={[styles.productStock, { color: item.stock < 5 ? DANGER_COLOR : TEXT_SECOND }]}>库存: {item.stock} {item.stock < 5 && '⚠️'}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>编辑</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.editBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleDelete(item.id)}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>删除</Text></TouchableOpacity>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 40, color: TEXT_THIRD }}>暂无商品，点击右上角➕添加</Text>}
+        contentContainerStyle={{ padding: 16 }}
+      />
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingItem ? '编辑商品' : '添加商品'}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>商品名称</Text>
+            <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="例如：招牌牛肉面" />
+            <Text style={styles.label}>库存</Text>
+            <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>平台</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+              {['美团', '抖音', '大众点评'].map(p => (
+                <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
+                  <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}>
+              <Text style={styles.sendTxt}>{editingItem ? '更新' : '添加'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 出入库管理 ==================
+const StockManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [type, setType] = useState('入库');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('');
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [loadingPlatform, setLoadingPlatform] = useState(null);
+
+  const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
+
+  const handleSubmit = () => {
+    try {
+      if (!selectedGoodsId) { showToast('请选择商品'); return; }
+      const qty = parseInt(quantity);
+      if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      let newStock = goods.stock;
+      if (type === '入库') newStock += qty;
+      else {
+        if (goods.stock < qty) { showToast('库存不足'); return; }
+        newStock -= qty;
+      }
+      const updated = (state.goodsList || []).map(g =>
+        g.id === selectedGoodsId ? { ...g, stock: newStock } : g
+      );
+      dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+      const record = {
+        id: Date.now().toString(),
+        type,
+        productName: goods.name,
+        quantity: qty,
+        reason: reason.trim() || '无备注',
+        time: new Date().toISOString(),
+        photo: photoUri || null,
+      };
+      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+      showToast(`${type}成功: ${goods.name} ×${qty}`);
+      setModalVisible(false);
+      setQuantity('');
+      setReason('');
+      setSelectedGoodsId(null);
+      setPhotoUri(null);
+    } catch (error) {
+      showToast('操作失败');
+    }
+  };
+
+  const handleScan = async () => {
+    try {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      setScanning(true);
+    } catch (error) { showToast('扫码失败'); }
+  };
+
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    const matched = (state.goodsList || []).find(g => g.code === data);
+    if (matched) {
+      setSelectedGoodsId(matched.id);
+      showToast(`扫描到商品：${matched.name}`);
+    } else {
+      Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择`);
+    }
+  };
+
+  const pickPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled) {
+        const compressed = await compressImage(result.assets[0].uri);
+        setPhotoUri(compressed);
+        showToast('已上传照片');
+      }
+    } catch (error) { showToast('选择照片失败'); }
+  };
+
+  const handleShelf = async (platform, goodsId) => {
+    try {
+      if (!goodsId) { showToast('请先选择商品'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === goodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      setLoadingPlatform(platform);
+      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      Alert.alert(`上架到${platform}`, reply);
+      showToast(`已成功生成${platform}上架内容`);
+    } catch (error) {
+      showToast(`${platform}上架生成失败`);
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  const handleShelfAll = async (goodsId) => {
+    try {
+      if (!goodsId) { showToast('请先选择商品'); return; }
+      const goods = (state.goodsList || []).find(g => g.id === goodsId);
+      if (!goods) { showToast('商品不存在'); return; }
+      setLoadingPlatform('all');
+      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
+      Alert.alert('一键上架所有平台', reply);
+      showToast('已生成所有平台上架内容');
+    } catch (error) {
+      showToast('一键上架生成失败');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>出入库管理</Text>
+        <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}>
+          <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 }}>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>📷 扫码入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>📷 扫码出库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); pickPhoto(); }}><Text style={styles.sendTxt}>📸 拍照入库</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhoto(); }}><Text style={styles.sendTxt}>📸 拍照出库</Text></TouchableOpacity>
+      </View>
+      <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+        <Text style={{ fontWeight: '600', marginBottom: 6 }}>📤 上架平台</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {['美团', '抖音', '大众点评'].map(p => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
+              onPress={() => handleShelf(p, selectedGoodsId)}
+              disabled={loadingPlatform !== null}
+            >
+              <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
+            onPress={() => handleShelfAll(selectedGoodsId)}
+            disabled={loadingPlatform !== null}
+          >
+            <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
+          </TouchableOpacity>
+        </View>
+        {!selectedGoodsId && <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>⚠️ 请先在下方选择一个商品</Text>}
+      </View>
+      <View style={{ padding: 16 }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>库存列表</Text>
+        {(state.goodsList || []).map(g => (
+          <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
+            <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 16, fontWeight: '500' }}>{g.name}</Text>
+                <Text style={{ fontSize: 16, color: g.stock < 5 ? DANGER_COLOR : PRIMARY_COLOR }}>库存: {g.stock}</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}><Text style={styles.sendTxt}>入库</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUri(null); setModalVisible(true); }}><Text style={styles.sendTxt}>出库</Text></TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        {(state.goodsList || []).length === 0 && <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 20 }}>暂无商品，请先添加商品</Text>}
+      </View>
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{type}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>选择商品</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {goodsOptions.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]}
+                  onPress={() => setSelectedGoodsId(opt.value)}
+                >
+                  <Text style={{ color: selectedGoodsId === opt.value ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.label}>数量</Text>
+            <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
+            <Text style={styles.label}>备注</Text>
+            <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+            {photoUri && (
+              <View style={{ marginVertical: 8 }}>
+                <Image source={{ uri: photoUri }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+                <TouchableOpacity onPress={() => setPhotoUri(null)}><Text style={{ color: DANGER_COLOR, marginTop: 4 }}>移除照片</Text></TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}><Text style={styles.sendTxt}>确认{type}</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 顾客客服 ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -632,7 +996,6 @@ const CustomerService = () => {
       setShowMediaOptions(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
-      // AI 自动回复
       if (aiMode && type === 'text' && text) {
         try {
           const reply = await fetchZhipuChat(
@@ -933,7 +1296,7 @@ const HomePage = () => {
     </SafeAreaView>
   );
 };
-// ===== 第二段结束 =====// ================== 订单核销页面 ==================
+// ===== 第二段结束 =====// ================== 订单核销 ==================
 const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -997,14 +1360,9 @@ const VerifyOrder = () => {
 
   if (scanning) {
     return (
-      <View style={{ flex: 1 }}>
-        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={{ flex: 1 }} />
-        <TouchableOpacity
-          style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 }}
-          onPress={() => setScanning(false)}
-        >
-          <Text style={{ color: '#fff', fontSize: 16 }}>取消</Text>
-        </TouchableOpacity>
+      <View style={styles.scannerContainer}>
+        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消</Text></TouchableOpacity>
       </View>
     );
   }
@@ -1112,7 +1470,7 @@ function RootTabs() {
       <Tab.Screen name="首页" component={HomePage} />
       <Tab.Screen name="核销" component={VerifyOrder} />
       {!isEmployee && <Tab.Screen name="客服" component={CustomerService} />}
-      <Tab.Screen name="出入库" component={() => <PlaceholderPage title="出入库管理" />} />
+      <Tab.Screen name="出入库" component={StockManage} />
       <Tab.Screen name="内部" component={() => <PlaceholderPage title="内部沟通" />} />
       {!isEmployee && <Tab.Screen name="AI助手" component={() => <PlaceholderPage title="AI助手" />} />}
     </Tab.Navigator>
@@ -1128,6 +1486,7 @@ function MainStack() {
       <Stack.Screen name="RootTabs" component={RootTabs} />
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
+      <Stack.Screen name="ProductOverview" component={ProductOverview} />
     </Stack.Navigator>
   );
 }
