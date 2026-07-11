@@ -1,26 +1,37 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, TextInput, Alert,
-  ActivityIndicator, ScrollView, Dimensions
+  View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert,
+  BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
+  Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// ===== 常量 =====
-const { width } = Dimensions.get('window');
+// ===== 工具函数 =====
+const showToast = (msg) => {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  } else {
+    Alert.alert('提示', msg);
+  }
+};
+
+const { width, height } = Dimensions.get('window');
 const PRIMARY_COLOR = '#165DFF';
+const LIGHT_PRIMARY = '#E8F3FF';
 const DANGER_COLOR = '#F53F3F';
+const SUCCESS_COLOR = '#00B42A';
 const BG_PAGE = '#F2F3F5';
 const BG_CARD = '#FFFFFF';
 const TEXT_MAIN = '#1D2129';
 const TEXT_SECOND = '#4E5969';
 const TEXT_THIRD = '#86909C';
 const BORDER_COLOR = '#E5E6EB';
-
 const SHADOW = {
   shadowColor: '#000',
   shadowOffset: { width: 0, height: 2 },
@@ -29,25 +40,30 @@ const SHADOW = {
   elevation: 4,
 };
 
-// ===== 工具函数 =====
-const showToast = (msg) => {
-  Alert.alert('提示', msg);
+// ===== 日期工具 =====
+const getTodayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
-
-const detectIndustry = (shopName) => {
-  const foodKeywords = ['火锅', '烧烤', '奶茶', '咖啡', '面馆', '川菜', '粤菜', '日料', '韩餐', '西餐', '烘焙', '小吃', '餐厅', '饭店', '餐饮', '美食', '快餐', '外卖', '茶饮', '饮品', '糕点', '甜品'];
-  for (const kw of foodKeywords) { if (shopName.includes(kw)) return '餐饮类'; }
-  return '餐饮类';
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const formatTime = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
 // ===== Reducer =====
 const defaultState = {
   user: null,
-  shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
+  shopInfo: { shopName: '', phone: '', industry: '餐饮类' },
   previousAccounts: [],
-  staffMemberList: [],
   globalOrderRecord: [],
   goodsList: [],
+  staffMemberList: [],
   badReviewCount: 0,
   badReviewList: [],
 };
@@ -59,32 +75,33 @@ function appReducer(state, action) {
     case 'LOGIN':
       return { ...state, user: action.payload.user, shopInfo: action.payload.shopInfo };
     case 'LOGOUT':
-      return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类', staffList: [] } };
-    case 'SET_SHOP_CONFIG':
-      return { ...state, shopInfo: { ...state.shopInfo, ...action.payload } };
+      return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类' } };
+    case 'UPDATE_SHOP_INFO':
+      return { ...state, shopInfo: action.payload };
     case 'ADD_ORDER_RECORD':
       return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
     case 'SET_GOODS_LIST':
       return { ...state, goodsList: action.payload || [] };
     case 'SET_STAFF_LIST':
       return { ...state, staffMemberList: action.payload || [] };
-    case 'ADD_STAFF_APPLICATION': {
-      const { staff } = action.payload;
-      if (state.staffMemberList.find(s => s.phone === staff.phone)) return state;
-      return { ...state, staffMemberList: [...state.staffMemberList, { ...staff, status: 'pending' }] };
+    case 'SET_BAD_REVIEW_COUNT':
+      return { ...state, badReviewCount: action.payload };
+    case 'ADD_BAD_REVIEW': {
+      const newList = [action.payload, ...(state.badReviewList || [])];
+      return { ...state, badReviewList: newList, badReviewCount: newList.length };
     }
-    case 'APPROVE_STAFF_APPLICATION': {
-      const { phone } = action.payload;
-      return { ...state, staffMemberList: state.staffMemberList.map(s => s.phone === phone ? { ...s, status: 'approved' } : s) };
-    }
-    case 'REJECT_STAFF_APPLICATION': {
-      const { phone } = action.payload;
-      return { ...state, staffMemberList: state.staffMemberList.filter(s => s.phone !== phone) };
+    case 'MARK_BAD_REVIEW_HANDLED': {
+      const list = state.badReviewList || [];
+      const index = list.findIndex(item => item.id === action.payload);
+      if (index === -1) return state;
+      const newList = [...list];
+      newList[index] = { ...newList[index], handled: true };
+      return { ...state, badReviewList: newList };
     }
     case 'ADD_PREVIOUS_ACCOUNT': {
-      const exists = state.previousAccounts.find(a => a.phone === action.payload.phone);
+      const exists = (state.previousAccounts || []).find(a => a.phone === action.payload.phone);
       if (exists) return state;
-      return { ...state, previousAccounts: [...state.previousAccounts, action.payload] };
+      return { ...state, previousAccounts: [...(state.previousAccounts || []), action.payload] };
     }
     case 'CLEAR_PREVIOUS_ACCOUNTS':
       return { ...state, previousAccounts: [] };
@@ -92,14 +109,14 @@ function appReducer(state, action) {
       const r = action.payload || {};
       return {
         ...state,
-        previousAccounts: r.previousAccounts || [],
+        globalOrderRecord: Array.isArray(r.globalOrderRecord) ? r.globalOrderRecord : [],
+        goodsList: Array.isArray(r.goodsList) ? r.goodsList : [],
+        staffMemberList: Array.isArray(r.staffMemberList) ? r.staffMemberList : [],
+        badReviewList: Array.isArray(r.badReviewList) ? r.badReviewList : [],
+        previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
         user: r.user || null,
-        shopInfo: r.shopInfo || { shopName: '', phone: '', industry: '餐饮类', staffList: [] },
-        staffMemberList: r.staffMemberList || [],
-        globalOrderRecord: r.globalOrderRecord || [],
-        goodsList: r.goodsList || [],
-        badReviewList: r.badReviewList || [],
-        badReviewCount: r.badReviewList?.length || 0,
+        shopInfo: r.shopInfo || { shopName: '', phone: '', industry: '餐饮类' },
+        badReviewCount: typeof r.badReviewCount === 'number' ? r.badReviewCount : 0,
       };
     }
     default:
@@ -118,13 +135,13 @@ const useApp = () => {
 const saveAllData = async (state) => {
   try {
     const dataToSave = {
+      globalOrderRecord: state.globalOrderRecord || [],
+      goodsList: state.goodsList || [],
+      staffMemberList: state.staffMemberList || [],
+      badReviewList: state.badReviewList || [],
       previousAccounts: state.previousAccounts || [],
       user: state.user,
       shopInfo: state.shopInfo,
-      staffMemberList: state.staffMemberList || [],
-      globalOrderRecord: state.globalOrderRecord || [],
-      goodsList: state.goodsList || [],
-      badReviewList: state.badReviewList || [],
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -145,15 +162,7 @@ const loadAllData = async () => {
 
 // ===== 样式 =====
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG_PAGE },
-  loginContainer: { flex: 1, backgroundColor: '#F8FAFF', justifyContent: 'center', paddingHorizontal: 24 },
-  title: { fontSize: 28, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
-  subtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
-  label: { fontSize: 14, color: TEXT_SECOND, marginTop: 12, marginBottom: 6, fontWeight: '500' },
-  input: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, backgroundColor: '#fff', color: TEXT_MAIN },
-  loginBtn: { height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 16 },
-  loginBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  homeContainer: { flex: 1, backgroundColor: BG_PAGE },
+  safeTop: { height: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 32) },
   headerBar: {
     height: 52,
     flexDirection: 'row',
@@ -163,27 +172,48 @@ const styles = StyleSheet.create({
     backgroundColor: BG_CARD,
     ...SHADOW,
   },
+  pageTitle: { fontSize: 18, fontWeight: '600', color: TEXT_MAIN },
   homeTitle: { fontSize: 20, fontWeight: '700', color: TEXT_MAIN },
-  cardBox: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW, marginTop: 16 },
-  statItem: { width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW },
-  statLabel: { fontSize: 13, color: TEXT_SECOND },
-  statValue: { fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN },
+  container: { flex: 1, backgroundColor: BG_PAGE },
+  cardBox: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW },
   listItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
-  settingGroup: { marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden' },
+  label: { fontSize: 14, color: TEXT_SECOND, marginTop: 12, marginBottom: 6, fontWeight: '500' },
+  formInput: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, backgroundColor: BG_CARD, color: TEXT_MAIN },
+  primaryBtn: { marginTop: 16, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
+  miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 },
+  sendTxt: { color: '#fff', fontSize: 14, fontWeight: '500' },
+  loginContainer: { flex: 1, backgroundColor: '#F8FAFF', paddingHorizontal: 24, justifyContent: 'center' },
+  loginTitle: { fontSize: 28, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
+  loginSubtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
+  roleSelector: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
+  roleBtn: { flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_COLOR, alignItems: 'center' },
+  roleBtnActive: { borderColor: PRIMARY_COLOR, backgroundColor: LIGHT_PRIMARY },
+  roleText: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
+  loginBtn: { height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 16 },
+  loginBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  codeRow: { flexDirection: 'row', alignItems: 'center' },
+  codeInput: { flex: 1 },
+  getCodeBtn: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, marginLeft: 8 },
+  getCodeText: { color: PRIMARY_COLOR, fontSize: 14 },
+  tagNormal: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 20, backgroundColor: 'transparent' },
+  tagActive: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: PRIMARY_COLOR, borderRadius: 20 },
+  settingGroup: { marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW },
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   settingItemLast: { borderBottomWidth: 0 },
-  settingText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
   switchAccountContainer: { flex: 1, backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingTop: 20 },
-  accountItem: { backgroundColor: BG_CARD, padding: 16, borderRadius: 12, marginVertical: 6 },
-  registerBtn: { marginTop: 20, backgroundColor: PRIMARY_COLOR, padding: 14, borderRadius: 12, alignItems: 'center' },
-  registerBtnText: { color: '#fff', fontWeight: '600' },
-  dailyReportCard: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginTop: 16, ...SHADOW },
-  reportTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
-  reportRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  reportLabel: { fontSize: 14, color: TEXT_SECOND },
-  reportValue: { fontSize: 14, color: TEXT_MAIN, fontWeight: '500' },
-  exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start' },
-  exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
+  accountItem: { backgroundColor: BG_CARD, padding: 16, borderRadius: 12, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
+  accountInfo: { flex: 1 },
+  accountPhone: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
+  accountDetail: { fontSize: 14, color: TEXT_SECOND, marginTop: 2 },
+  registerBtn: { marginTop: 20, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
+  registerBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  badReviewItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
+  badReviewContent: { fontSize: 14, color: TEXT_MAIN },
+  badReviewMeta: { fontSize: 12, color: TEXT_THIRD, marginTop: 4 },
+  badReviewHandled: { fontSize: 12, color: SUCCESS_COLOR, marginTop: 4, fontWeight: '500' },
+  badReviewHandledBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: SUCCESS_COLOR, borderRadius: 6, marginLeft: 8 },
+  badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
+  badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
 });
 
 // ================== 登录页面 ==================
@@ -211,35 +241,21 @@ const LoginScreen = () => {
     try {
       if (phone.length !== 11) { showToast('请输入11位手机号'); setLoading(false); return; }
       if (code !== '123456') { showToast('验证码错误'); setLoading(false); return; }
-      if (role === '员工') {
-        if (!employeeName.trim()) { showToast('请输入员工姓名'); setLoading(false); return; }
-        if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
-      } else {
-        if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
-      }
+      if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
 
-      const industry = detectIndustry(shopName);
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
-      const shopInfo = { shopName, phone, industry, staffList: [] };
-
-      if (role === '员工') {
-        const staff = { id: Date.now().toString(), name: employeeName.trim(), phone, role: '员工', status: 'pending', joinedAt: new Date().toISOString() };
-        dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { staff } });
-        showToast('入职申请已发送，等待商家审批');
-      }
+      const shopInfo = { shopName, phone, industry: '餐饮类' };
 
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
 
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
       navigation.replace('RootTabs');
       setLoading(false);
     } catch (error) {
-      Alert.alert('登录失败', error.message || String(error));
-      console.error('登录错误:', error);
+      Alert.alert('登录失败', `错误: ${error.message || String(error)}`);
       setLoading(false);
     }
   };
@@ -247,11 +263,10 @@ const LoginScreen = () => {
   const handleHistorySelect = async (account) => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
       navigation.replace('RootTabs');
     } catch (error) {
       showToast('切换失败');
@@ -260,8 +275,8 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.loginContainer}>
-      <Text style={styles.title}>经营宝</Text>
-      <Text style={styles.subtitle}>登录您的店铺账号</Text>
+      <Text style={styles.loginTitle}>经营宝</Text>
+      <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
       <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
         <Text style={{ color: PRIMARY_COLOR, marginBottom: 12 }}>历史账号</Text>
       </TouchableOpacity>
@@ -275,26 +290,26 @@ const LoginScreen = () => {
         </View>
       )}
       <Text style={styles.label}>选择角色</Text>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 }}>
-        {['商家','员工'].map(r => (
-          <TouchableOpacity key={r} onPress={() => setRole(r)} style={{ flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: role === r ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: role === r ? '#E8F3FF' : 'transparent', alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontWeight: '500', color: role === r ? PRIMARY_COLOR : TEXT_MAIN }}>{r}</Text>
+      <View style={styles.roleSelector}>
+        {['商家', '员工'].map(r => (
+          <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)}>
+            <Text style={[styles.roleText, role === r && { color: '#fff' }]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </View>
       <Text style={styles.label}>手机号</Text>
-      <TextInput style={[styles.input, { marginBottom: 12 }]} placeholder="请输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+      <TextInput style={[styles.formInput, { marginBottom: 12 }]} placeholder="请输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
       <Text style={styles.label}>验证码</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="验证码" keyboardType="numeric" value={code} onChangeText={setCode} />
-        <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#E8F3FF', borderRadius: 8 }}><Text style={{ color: PRIMARY_COLOR }}>获取验证码</Text></TouchableOpacity>
+      <View style={[styles.codeRow, { marginBottom: 16 }]}>
+        <TextInput style={[styles.formInput, styles.codeInput]} placeholder="验证码 (123456)" keyboardType="numeric" value={code} onChangeText={setCode} />
+        <TouchableOpacity style={styles.getCodeBtn}><Text style={styles.getCodeText}>获取验证码</Text></TouchableOpacity>
       </View>
       <Text style={styles.label}>店铺名称</Text>
-      <TextInput style={[styles.input, { marginBottom: 12 }]} placeholder="请输入店铺名称" value={shopName} onChangeText={setShopName} />
+      <TextInput style={styles.formInput} placeholder="请输入店铺名称" value={shopName} onChangeText={setShopName} />
       {role === '员工' && (
         <>
           <Text style={styles.label}>员工姓名</Text>
-          <TextInput style={[styles.input, { marginBottom: 12 }]} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
+          <TextInput style={styles.formInput} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
         </>
       )}
       <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
@@ -303,10 +318,61 @@ const LoginScreen = () => {
     </View>
   );
 };
-// ===== 第一段结束 =====// ================== 设置抽屉 ==================
+// ===== 第一段结束 =====// ================== 差评列表 ==================
+const BadReviewListPage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const list = state.badReviewList || [];
+  const handleMark = (id) => {
+    dispatch({ type: 'MARK_BAD_REVIEW_HANDLED', payload: id });
+    showToast('已标记为已处理');
+  };
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>差评预警详情</Text>
+        <View style={{ width: 24 }} />
+      </View>
+      <ScrollView style={{ padding: 16 }}>
+        {list.length === 0 ? (
+          <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
+        ) : (
+          list.map(item => (
+            <View key={item.id} style={styles.badReviewItem}>
+              <Text style={styles.badReviewContent}>“{item.content}”</Text>
+              <Text style={styles.badReviewMeta}>平台：{item.platform} ｜ {item.time}</Text>
+              {item.handled ? (
+                <Text style={styles.badReviewHandled}>✅ 已处理</Text>
+              ) : (
+                <TouchableOpacity style={styles.badReviewHandledBtn} onPress={() => handleMark(item.id)}>
+                  <Text style={styles.badReviewHandledBtnText}>标记已处理</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+// ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const user = state.user;
+  const shopInfo = state.shopInfo || { shopName: '', phone: '' };
+  const isEmployee = user?.role === '员工';
+  const [shopName, setShopName] = useState(shopInfo.shopName || '');
+  const [phone, setPhone] = useState(shopInfo.phone || '');
+
+  const saveShop = () => {
+    if (isEmployee) { showToast('员工无权修改'); return; }
+    dispatch({ type: 'UPDATE_SHOP_INFO', payload: { ...shopInfo, shopName, phone } });
+    showToast('门店信息已保存');
+  };
 
   const handleLogout = async () => {
     try {
@@ -323,24 +389,58 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <View style={{ position:'absolute', zIndex:9998, top:0, left:0, right:0, bottom:0, flexDirection: 'row' }}>
+    <View style={{ position: 'absolute', zIndex: 9998, top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ width: '70%', height: '100%', backgroundColor: '#fff', padding: 16 }}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 20 }}>设置</Text>
-        <View style={styles.settingGroup}>
-          <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
-            <Ionicons name="person-outline" size={20} color={TEXT_SECOND} />
-            <Text style={styles.settingText}>切换账号</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} />
-            <Text style={{ ...styles.settingText, color: DANGER_COLOR }}>退出登录</Text>
-          </TouchableOpacity>
+      <ScrollView style={{ width: width * 0.7, height: '100%', backgroundColor: BG_CARD }}>
+        <View style={styles.safeTop} />
+        <View style={[styles.headerBar, { borderBottomWidth: 0 }]}>
+          <Text style={styles.pageTitle}>系统设置</Text>
+          <TouchableOpacity onPress={onClose}><Text style={{ fontSize: 20, color: TEXT_SECOND }}>✕</Text></TouchableOpacity>
         </View>
-        <TouchableOpacity style={{ marginTop: 20, alignSelf: 'flex-end' }} onPress={onClose}>
-          <Text style={{ fontSize: 18 }}>关闭</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={{ padding: 16 }}>
+          <View style={styles.settingGroup}>
+            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
+              <Ionicons name="storefront-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>门店名称</Text>
+                {isEmployee ? (
+                  <Text style={[styles.formInput, { backgroundColor: '#F5F5F5', color: TEXT_SECOND, marginTop: 4 }]}>{shopName}</Text>
+                ) : (
+                  <TextInput style={[styles.formInput, { marginTop: 4 }]} value={shopName} onChangeText={setShopName} placeholder="输入门店名称" editable={!isEmployee} />
+                )}
+              </View>
+            </View>
+          </View>
+          <View style={styles.settingGroup}>
+            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
+              <Ionicons name="call-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>绑定手机号</Text>
+                {isEmployee ? (
+                  <Text style={[styles.formInput, { backgroundColor: '#F5F5F5', color: TEXT_SECOND, marginTop: 4 }]}>{phone}</Text>
+                ) : (
+                  <TextInput style={[styles.formInput, { marginTop: 4 }]} value={phone} onChangeText={setPhone} placeholder="输入手机号" keyboardType="phone-pad" editable={!isEmployee} />
+                )}
+              </View>
+            </View>
+          </View>
+          {!isEmployee && (
+            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, height: 40 }]} onPress={saveShop}>
+              <Text style={styles.sendTxt}>保存信息</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.settingGroup}>
+            <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
+              <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} style={{ marginRight: 12 }} />
+              <Text style={{ color: DANGER_COLOR }}>退出登录</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -355,11 +455,10 @@ const SwitchAccountScreen = () => {
   const handleSelect = async (account) => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: detectIndustry(account.shopName), staffList: [] };
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: account.shopName, industry: shopInfo.industry } });
       navigation.replace('RootTabs');
     } catch (error) {
       showToast('切换失败');
@@ -382,13 +481,17 @@ const SwitchAccountScreen = () => {
 
   return (
     <View style={styles.switchAccountContainer}>
-      <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 16 }}>切换账号</Text>
+      <Text style={[styles.pageTitle, { marginBottom: 16 }]}>切换账号</Text>
       {allAccounts.length === 0 ? (
-        <Text style={{ textAlign: 'center', marginTop: 30, color: TEXT_THIRD }}>暂无历史账号</Text>
+        <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 30 }}>暂无历史账号</Text>
       ) : (
         allAccounts.map((acc, idx) => (
           <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelect(acc)} disabled={acc.isCurrent}>
-            <Text style={{ fontSize: 16 }}>{acc.phone} - {acc.shopName} ({acc.role}){acc.isCurrent ? ' (当前)' : ''}</Text>
+            <View style={styles.accountInfo}>
+              <Text style={styles.accountPhone}>{acc.phone}</Text>
+              <Text style={styles.accountDetail}>{acc.shopName} · {acc.role}{acc.isCurrent ? ' (当前)' : ''}</Text>
+            </View>
+            {!acc.isCurrent && <Ionicons name="chevron-forward" size={24} color={TEXT_THIRD} />}
           </TouchableOpacity>
         ))
       )}
@@ -399,184 +502,244 @@ const SwitchAccountScreen = () => {
   );
 };
 
-// ================== 首页（完整） ==================
+// ================== 首页 ==================
 const HomePage = () => {
-  const { state } = useApp();
-  const [settingOpen, setSettingOpen] = useState(false);
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
   const user = state.user;
-  const shopInfo = state.shopInfo || { shopName: '', phone: '' };
-  const isEmployee = user?.role === '员工';
+  const [settingOpen, setSettingOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // 获取今日核销订单数（模拟）
-  const todayOrders = (state.globalOrderRecord || []).filter(item => {
-    const today = new Date().toISOString().split('T')[0];
-    return item.time && item.time.startsWith(today);
-  });
-  const totalIncome = todayOrders.reduce((sum, order) => sum + (order.couponPrice || 0), 0);
-  const goodsCount = (state.goodsList || []).length;
-  const badReviewCount = state.badReviewCount || 0;
-
-  // 员工私聊列表（商家端显示所有已批准员工，员工端显示商家）
-  let chatStaffList = [];
-  if (isEmployee) {
-    const bossPhone = shopInfo.phone || '';
-    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
-  } else {
-    chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
+  if (!user) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>请重新登录</Text>
+      </View>
+    );
   }
 
-  // 待审批入职申请
-  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
+  const globalOrderRecord = state.globalOrderRecord || [];
+  const todayStr = getTodayStr();
+  const todayOrders = globalOrderRecord.filter(item => item.time && formatDate(item.time) === todayStr);
+  let totalIncome = 0;
+  todayOrders.forEach(order => { totalIncome += order.couponPrice || 0; });
+
+  const isEmployee = user?.role === '员工';
 
   return (
-    <View style={styles.homeContainer}>
-      <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
-      <View style={styles.headerBar}>
-        <View style={{ width: 40 }} />
-        <Text style={styles.homeTitle}>经营宝</Text>
-        <TouchableOpacity onPress={() => setSettingOpen(true)}>
-          <Ionicons name="settings-outline" size={24} color={TEXT_SECOND} />
-        </TouchableOpacity>
-      </View>
-      <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }}>
-        {/* 欢迎卡片 */}
-        <View style={styles.cardBox}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>
-            👋 欢迎，{user?.name || '商家'}
-          </Text>
-          <Text style={{ color: TEXT_SECOND }}>店铺：{shopInfo.shopName || '未设置'}</Text>
-          <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>手机号：{shopInfo.phone || '未绑定'}</Text>
-          {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
+    <SafeAreaView style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <View style={styles.container}>
+        <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+        <View style={styles.headerBar}>
+          <View style={{ width: 40 }} />
+          <Text style={styles.homeTitle}>经营宝</Text>
+          <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
-
-        {/* 核心数据卡片 */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>今日核销订单</Text>
-            <Text style={styles.statValue}>{todayOrders.length}</Text>
+        <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }}>
+          <View style={styles.cardBox}>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
+            <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
+            {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
-          {!isEmployee && (
-            <>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>今日总营收</Text>
-                <Text style={[styles.statValue, { color: PRIMARY_COLOR }]}>¥{totalIncome}</Text>
-              </View>
-              <TouchableOpacity style={styles.statItem} onPress={() => {}}>
-                <Text style={styles.statLabel}>差评预警</Text>
-                <Text style={[styles.statValue, { color: badReviewCount > 0 ? DANGER_COLOR : TEXT_MAIN }]}>
-                  {badReviewCount}
-                  {badReviewCount > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>总商品数</Text>
-                <Text style={styles.statValue}>{goodsCount}</Text>
-              </View>
-            </>
-          )}
-        </View>
 
-        {/* 日报预览（仅商家端） */}
-        {!isEmployee && (
-          <View style={styles.dailyReportCard}>
-            <Text style={styles.reportTitle}>📊 今日经营日报</Text>
-            <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{todayOrders.length}单</Text></View>
-            <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{totalIncome}</Text></View>
-            <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{totalIncome * 0.3}</Text></View>
-            <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>30%</Text></View>
-            <TouchableOpacity style={styles.exportBtn}><Text style={styles.exportBtnText}>📤 导出CSV</Text></TouchableOpacity>
-          </View>
-        )}
-
-        {/* 业务功能菜单 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
-          <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
-            <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-              <Text style={{ fontSize: 28 }}>🎫</Text>
-              <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>订单核销</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-              <Text style={{ fontSize: 28 }}>📦</Text>
-              <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>出入库</Text>
-            </TouchableOpacity>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
+            <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+              <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日核销订单</Text>
+              <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{todayOrders.length}</Text>
+            </View>
             {!isEmployee && (
               <>
-                <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-                  <Text style={{ fontSize: 28 }}>👥</Text>
-                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>员工管理</Text>
+                <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>今日总营收</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: PRIMARY_COLOR }}>¥{totalIncome}</Text>
+                </View>
+                <TouchableOpacity style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }} onPress={() => navigation.navigate('BadReviewList')}>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>差评预警</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: (state.badReviewCount || 0) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
+                    {state.badReviewCount || 0}
+                    {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-                  <Text style={{ fontSize: 28 }}>💬</Text>
-                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>顾客客服</Text>
-                </TouchableOpacity>
+                <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>总商品数</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
+                </View>
               </>
-            )}
-            <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-              <Text style={{ fontSize: 28 }}>🤝</Text>
-              <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>内部沟通</Text>
-            </TouchableOpacity>
-            {!isEmployee && (
-              <TouchableOpacity style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-                <Text style={{ fontSize: 28 }}>🤖</Text>
-                <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>AI助手</Text>
-              </TouchableOpacity>
             )}
           </View>
         </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+};
+// ===== 第二段结束 =====// ================== 订单核销页面 ==================
+const VerifyOrder = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [orderCode, setOrderCode] = useState('');
+  const [platform, setPlatform] = useState('美团');
+  const [couponPrice, setCouponPrice] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
 
-        {/* 员工私聊 */}
-        {chatStaffList.length > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
-            {chatStaffList.map(staff => (
-              <TouchableOpacity key={staff.id} style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN }}>👤 {staff.name}</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginLeft: 8 }}>({staff.phone})</Text>
+  const requestCameraPermission = async () => {
+    try {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      return status === 'granted';
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleVerify = () => {
+    try {
+      if (!orderCode.trim()) { showToast('请输入核销码'); return; }
+      const price = parseFloat(couponPrice);
+      if (isNaN(price) || price <= 0) { showToast('请输入有效金额'); return; }
+      if (selectedGoodsId) {
+        const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
+        if (goods && goods.stock < 1) {
+          Alert.alert('库存不足', `${goods.name} 库存不足`);
+          return;
+        }
+        if (goods) {
+          const updated = (state.goodsList || []).map(g =>
+            g.id === selectedGoodsId ? { ...g, stock: g.stock - 1 } : g
+          );
+          dispatch({ type: 'SET_GOODS_LIST', payload: updated });
+          showToast(`已扣减 ${goods.name} 库存 1 件`);
+        }
+      }
+      const record = {
+        id: Date.now().toString(),
+        code: orderCode.trim(),
+        platform,
+        couponPrice: price,
+        time: new Date().toISOString(),
+        goodsId: selectedGoodsId,
+        staff: state.user?.name || '未知',
+      };
+      dispatch({ type: 'ADD_ORDER_RECORD', payload: record });
+      showToast(`核销成功！${platform} ¥${price}`);
+      setOrderCode('');
+      setCouponPrice('');
+      setSelectedGoodsId(null);
+    } catch (error) {
+      showToast('核销失败，请重试');
+    }
+  };
+
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    setOrderCode(data);
+  };
+
+  if (scanning) {
+    return (
+      <View style={{ flex: 1 }}>
+        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={{ flex: 1 }} />
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 }}
+          onPress={() => setScanning(false)}
+        >
+          <Text style={{ color: '#fff', fontSize: 16 }}>取消</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.safeTop} />
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+        <Text style={styles.pageTitle}>订单核销</Text>
+        <View style={{ width: 24 }} />
+      </View>
+      <ScrollView style={{ padding: 16 }}>
+        <View style={styles.cardBox}>
+          <Text style={styles.label}>核销码</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TextInput style={[styles.formInput, { flex: 1 }]} placeholder="输入核销码或扫码" value={orderCode} onChangeText={setOrderCode} />
+            <TouchableOpacity style={styles.miniBlueBtn} onPress={async () => {
+              const ok = await requestCameraPermission();
+              if (ok) setScanning(true);
+              else showToast('需要相机权限');
+            }}>
+              <Text style={styles.sendTxt}>扫码</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.label}>平台</Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+            {['美团', '抖音', '大众点评'].map(p => (
+              <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
+                <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        )}
-
-        {/* 入职申请（商家端） */}
-        {!isEmployee && pendingStaff.length > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📩 入职申请</Text>
-            {pendingStaff.map(staff => (
-              <View key={staff.id} style={[styles.listItem]}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name} ({staff.phone})</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                  <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: SUCCESS_COLOR, borderRadius: 6 }}><Text style={{ color: '#fff' }}>同意</Text></TouchableOpacity>
-                  <TouchableOpacity style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: DANGER_COLOR, borderRadius: 6 }}><Text style={{ color: '#fff' }}>拒绝</Text></TouchableOpacity>
-                </View>
-              </View>
+          <Text style={styles.label}>金额 (¥)</Text>
+          <TextInput style={styles.formInput} placeholder="0.00" keyboardType="decimal-pad" value={couponPrice} onChangeText={setCouponPrice} />
+          <Text style={styles.label}>选择商品（可选，用于库存联动）</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+            {(state.goodsList || []).map(g => (
+              <TouchableOpacity key={g.id} style={[styles.tagNormal, selectedGoodsId === g.id && styles.tagActive]} onPress={() => setSelectedGoodsId(g.id)}>
+                <Text style={{ color: selectedGoodsId === g.id ? '#fff' : TEXT_MAIN }}>{g.name} ({g.stock})</Text>
+              </TouchableOpacity>
             ))}
+            {(state.goodsList || []).length === 0 && <Text style={{ color: TEXT_THIRD }}>暂无商品，请先添加</Text>}
           </View>
-        )}
-      </ScrollView>
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleVerify}>
+            <Text style={styles.sendTxt}>确认核销</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* 悬浮AI助手（仅商家端） */}
-      {!isEmployee && (
-        <TouchableOpacity style={{ position: 'absolute', bottom: 80, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW, zIndex: 999 }}>
-          <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
-        </TouchableOpacity>
-      )}
+        <View style={styles.cardBox}>
+          <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>今日已核销</Text>
+          {(state.globalOrderRecord || [])
+            .filter(item => item.time && formatDate(item.time) === getTodayStr())
+            .map((item, idx) => (
+              <View key={idx} style={styles.listItem}>
+                <Text style={{ fontSize: 14, color: TEXT_MAIN }}>{item.platform} - ¥{item.couponPrice}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatTime(item.time)} {item.staff && `核销员: ${item.staff}`}</Text>
+              </View>
+            ))
+          }
+          {(state.globalOrderRecord || []).filter(item => item.time && formatDate(item.time) === getTodayStr()).length === 0 && (
+            <Text style={{ color: TEXT_THIRD, textAlign: 'center', padding: 12 }}>今日暂无核销记录</Text>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 };
-// ===== 第二段结束 =====// ================== 底部标签导航 ==================
+
+// ================== 占位页面 ==================
+const PlaceholderPage = ({ title }) => {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE }}>
+      <Text style={{ fontSize: 20, color: TEXT_THIRD }}>📌 {title}</Text>
+      <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 8 }}>功能开发中，敬请期待</Text>
+    </View>
+  );
+};
+
+// ================== 底部标签导航 ==================
 const Tab = createBottomTabNavigator();
 function RootTabs() {
   const { state } = useApp();
   const isEmployee = state.user?.role === '员工';
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          if (route.name === 'HomeTab') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === 'VerifyTab') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
-          else if (route.name === 'InternalTab') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AITab') iconName = focused ? 'bulb' : 'bulb-outline';
+          if (route.name === '首页') iconName = focused ? 'home' : 'home-outline';
+          else if (route.name === '核销') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
+          else if (route.name === '客服') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          else if (route.name === '出入库') iconName = focused ? 'cube' : 'cube-outline';
+          else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'bulb' : 'bulb-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
@@ -585,30 +748,15 @@ function RootTabs() {
         tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
       })}
     >
-      <Tab.Screen name="HomeTab" component={HomePage} options={{ title: '首页' }} />
-      <Tab.Screen name="VerifyTab" component={VerifyOrderPlaceholder} options={{ title: '核销' }} />
-      <Tab.Screen name="InternalTab" component={InternalChatPlaceholder} options={{ title: '内部' }} />
-      {!isEmployee && <Tab.Screen name="AITab" component={AIPlaceholder} options={{ title: 'AI助手' }} />}
+      <Tab.Screen name="首页" component={HomePage} />
+      <Tab.Screen name="核销" component={VerifyOrder} />
+      {!isEmployee && <Tab.Screen name="客服" component={() => <PlaceholderPage title="顾客客服" />} />}
+      <Tab.Screen name="出入库" component={() => <PlaceholderPage title="出入库管理" />} />
+      <Tab.Screen name="内部" component={() => <PlaceholderPage title="内部沟通" />} />
+      {!isEmployee && <Tab.Screen name="AI助手" component={() => <PlaceholderPage title="AI助手" />} />}
     </Tab.Navigator>
   );
 }
-
-// 占位组件（后续替换为真实页面）
-const VerifyOrderPlaceholder = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text>订单核销页面（即将上线）</Text>
-  </View>
-);
-const InternalChatPlaceholder = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text>内部沟通页面（即将上线）</Text>
-  </View>
-);
-const AIPlaceholder = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <Text>AI助手页面（即将上线）</Text>
-  </View>
-);
 
 // ================== 主栈导航 ==================
 const Stack = createNativeStackNavigator();
@@ -618,6 +766,7 @@ function MainStack() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="RootTabs" component={RootTabs} />
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
+      <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
     </Stack.Navigator>
   );
 }
