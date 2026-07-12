@@ -11,7 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
-import { Camera } from 'expo-camera';
+import { Camera, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -578,31 +578,11 @@ const LoginScreen = () => {
   const [code, setCode] = useState('');
   const [role, setRole] = useState('商家');
   const [shopName, setShopName] = useState('');
-  const [selectedIndustry, setSelectedIndustry] = useState('餐饮类');
   const [employeeName, setEmployeeName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const previousAccounts = state.previousAccounts || [];
-
-  const detectIndustry = (name) => {
-    if (!name) return '餐饮类';
-    const foodKeywords = ['餐厅', '饭店', '酒楼', '火锅', '烧烤', '小吃', '快餐', '外卖', '奶茶', '咖啡', '甜品', '蛋糕', '面包', '烘焙', '寿司', '披萨', '汉堡', '炸鸡', '面馆', '粥', '麻辣烫', '串串', '冒菜', '烤肉', '牛排', '海鲜', '日料', '韩餐', '西餐', '中餐', '川菜', '粤菜', '湘菜', '东北菜', '早餐', '夜宵', '食堂', '餐吧', '酒馆'];
-    const serviceKeywords = ['美容', '美发', '理发', '美甲', '健身', '瑜伽', '按摩', '足浴', 'SPA', 'KTV', '酒吧', '洗浴', '桑拿', '酒店', '宾馆', '旅馆', '民宿', '旅行社', '旅游', '租车', '维修', '装修', '保洁', '搬家', '快递', '物流', '干洗', '摄影', '婚庆', '鲜花', '宠物', '诊所', '药店', '教育', '培训', '托管', '咨询', '广告', '设计', '印刷'];
-    const enterpriseKeywords = ['公司', '科技', '集团', '企业', '实业', '贸易', '商贸', '电商', '网络', '软件', '开发', '制造', '工厂', '建筑', '工程', '投资', '金融', '保险', '证券', '基金', '银行', '律师', '会计', '审计', '律所', '事务所', '研究院', '学院', '协会', '机构'];
-    
-    const lowerName = name.toLowerCase();
-    for (const kw of foodKeywords) {
-      if (name.includes(kw)) return '餐饮类';
-    }
-    for (const kw of serviceKeywords) {
-      if (name.includes(kw)) return '服务类';
-    }
-    for (const kw of enterpriseKeywords) {
-      if (name.includes(kw)) return '企业类';
-    }
-    return '餐饮类';
-  };
 
   useEffect(() => {
     if (!initialized) {
@@ -612,11 +592,6 @@ const LoginScreen = () => {
       }
     }
   }, [state.user, initialized]);
-
-  useEffect(() => {
-    const detected = detectIndustry(shopName);
-    setSelectedIndustry(detected);
-  }, [shopName]);
 
   const handleLogin = async () => {
     if (loading) return;
@@ -641,7 +616,7 @@ const LoginScreen = () => {
       console.log('Validation passed');
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
-      const shopInfo = { shopName, phone, industry: selectedIndustry };
+      const shopInfo = { shopName, phone, industry: '待识别' };
 
       console.log('Saving to AsyncStorage');
       try {
@@ -722,14 +697,6 @@ const LoginScreen = () => {
       </View>
       <Text style={styles.label}>店铺名称</Text>
       <TextInput style={styles.formInput} placeholder="请输入店铺名称" value={shopName} onChangeText={setShopName} />
-      <Text style={styles.label}>商家类型</Text>
-      <View style={styles.roleSelector}>
-        {['餐饮类', '服务类', '企业类'].map(industry => (
-          <TouchableOpacity key={industry} style={[styles.roleBtn, selectedIndustry === industry && styles.roleBtnActive]} onPress={() => setSelectedIndustry(industry)}>
-            <Text style={[styles.roleText, selectedIndustry === industry && { color: '#fff' }]}>{industry}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
       {role === '员工' && (
         <>
           <Text style={styles.label}>员工姓名</Text>
@@ -781,8 +748,13 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
-      navigation.replace('Login');
       onClose();
+      const rootNav = navigation.getParent();
+      if (rootNav) {
+        rootNav.replace('Login');
+      } else {
+        navigation.replace('Login');
+      }
     } catch (error) {
       showToast('退出失败');
     }
@@ -795,8 +767,13 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
-      navigation.replace('Login');
       onClose();
+      const rootNav = navigation.getParent();
+      if (rootNav) {
+        rootNav.replace('Login');
+      } else {
+        navigation.replace('Login');
+      }
     } catch (error) {
       showToast('切换失败');
     }
@@ -1953,7 +1930,7 @@ const InternalChat = () => {
       }
       if (!result.canceled) {
         setImageUri(result.assets[0].uri);
-        showToast('点击发送按钮发送图片');
+        await sendGroupMessage('image');
       }
     } catch (error) {
       showToast('选择图片失败');
@@ -2040,15 +2017,14 @@ const InternalChat = () => {
         <View style={{ height: 56 }} />
       </View>
       {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a1a1a', zIndex: 1000 }}>
-          {callType === 'video' && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', backgroundColor: '#1a1a1a', zIndex: 1000 }}>
+          {callType === 'video' && callStatus === 'connected' && (
             <Camera 
-              style={{ flex: 1 }} 
-              type={Camera.Constants.Type.front}
-              useCamera2Api={true}
+              style={{ flex: 1, width: '100%', height: '100%' }} 
+              type={CameraType.front}
             />
           )}
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: callType === 'video' ? 'transparent' : '#1a1a1a' }}>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: callType === 'video' && callStatus === 'connected' ? 'transparent' : '#1a1a1a' }}>
             <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: BG_CARD, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
               {callType === 'video' ? (
                 <Ionicons name="videocam-outline" size={48} color={PRIMARY_COLOR} />
@@ -2453,7 +2429,25 @@ const MerchantAssistant = () => {
 
   useEffect(() => {
     if (messages.length === 0) {
-      setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${industry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+      if (industry === '待识别') {
+        setMessages([{ id: '1', text: `您好！我是经营宝AI助手，正在识别您的店铺类型...`, from: 'ai', time: new Date().toISOString() }]);
+        const abortController = new AbortController();
+        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
+          .then(result => {
+            let detectedIndustry = '餐饮类';
+            if (result.includes('服务类')) detectedIndustry = '服务类';
+            else if (result.includes('企业类')) detectedIndustry = '企业类';
+            dispatch({ type: 'SET_SHOP_INFO', payload: { ...shopInfo, industry: detectedIndustry } });
+            setMessages([
+              { id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${detectedIndustry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }
+            ]);
+          })
+          .catch(() => {
+            setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+          });
+      } else {
+        setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${industry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+      }
     }
   }, []);
 
@@ -2598,7 +2592,7 @@ const MerchantAssistant = () => {
       }
       if (!result.canceled) {
         setImageUri(result.assets[0].uri);
-        showToast('点击发送按钮发送图片');
+        await sendMessage('image');
       }
     } catch (error) {
       showToast('选择图片失败');
