@@ -634,6 +634,9 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   const handleLogout = async () => {
     try {
+      if (user) {
+        dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: user.phone, role: user.role, shopName: shopInfo.shopName, name: user.name } });
+      }
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
@@ -643,7 +646,20 @@ const SettingDrawer = ({ visible, onClose }) => {
       showToast('退出失败');
     }
   };
-  const handleSwitchAccount = () => { onClose(); navigation.navigate('SwitchAccount'); };
+  const handleSwitchAccount = async () => {
+    try {
+      if (user) {
+        dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: user.phone, role: user.role, shopName: shopInfo.shopName, name: user.name } });
+      }
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('shopInfo');
+      dispatch({ type: 'LOGOUT' });
+      onClose();
+      navigation.replace('Login');
+    } catch (error) {
+      showToast('切换失败');
+    }
+  };
 
   if (!visible) return null;
   return (
@@ -2409,18 +2425,17 @@ const HomePage = () => {
   };
   const reportData = getReportData();
 
-  const topPadding = insets.top || (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 32);
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG_PAGE }}>
-      <View style={[styles.container, { paddingTop: topPadding }]}>
-        <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+    <View style={styles.container}>
+      <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
-        <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
+      </SafeAreaView>
+      <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
@@ -2555,14 +2570,13 @@ const HomePage = () => {
             </View>
           )}
         </ScrollView>
-      </View>
 
       {!isEmployee && (
         <TouchableOpacity style={{ position: 'absolute', bottom: 80, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW, zIndex: 999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
           <Ionicons name="sparkles" size={28} color="#fff" />
         </TouchableOpacity>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 // ===== 第二段结束 =====// ================== 订单核销 ==================
