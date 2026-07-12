@@ -10,6 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -761,7 +762,9 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-      navigation.replace('Login');
+      setTimeout(() => {
+        navigation.replace('Login');
+      }, 100);
     } catch (error) {
       showToast('切换失败');
     }
@@ -1815,30 +1818,46 @@ const InternalChat = () => {
   const [callStatus, setCallStatus] = useState('idle');
   const [callDuration, setCallDuration] = useState(0);
   const [callingName, setCallingName] = useState('');
-  let callTimer = null;
+  const callTimerRef = useRef(null);
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
+  
+  let chatStaffList = [];
+  const user = state.user;
+  if (user?.role === '员工') {
+    const bossPhone = state.shopInfo?.phone;
+    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
+  } else {
+    chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
+  }
 
-  const startCall = (type) => {
+  const startCall = async (type) => {
     setCallType(type);
     setCallStatus('calling');
     setCallDuration(0);
     setCallingName('正在呼叫...');
     setShowMediaOptions(false);
+    if (type === 'video') {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('需要相机权限');
+        return;
+      }
+    }
     setTimeout(() => {
       setCallStatus('connected');
       setCallingName('内部沟通群');
-      callTimer = setInterval(() => {
+      callTimerRef.current = setInterval(() => {
         setCallDuration(prev => prev + 1);
       }, 1000);
     }, 2000);
   };
 
   const endCall = () => {
-    if (callTimer) {
-      clearInterval(callTimer);
-      callTimer = null;
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
     }
     setCallStatus('ended');
     setTimeout(() => {
@@ -1989,28 +2008,86 @@ const InternalChat = () => {
         <View style={{ height: 56 }} />
       </View>
       {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a1a1a', zIndex: 1000, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: BG_CARD, justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
-            {callType === 'video' ? (
-              <Ionicons name="videocam-outline" size={48} color={PRIMARY_COLOR} />
-            ) : (
-              <Ionicons name="person-outline" size={48} color={PRIMARY_COLOR} />
-            )}
-          </View>
-          <Text style={{ fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 8 }}>{callingName}</Text>
-          <Text style={{ fontSize: 16, color: '#aaa', marginBottom: 48 }}>
-            {callStatus === 'calling' ? '正在呼叫...' : callStatus === 'connected' ? formatDuration(callDuration) : '通话已结束'}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 32 }}>
-            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已静音')}>
-              <Ionicons name="mic-off-outline" size={28} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换扬声器')}>
-              <Ionicons name="volume-high-outline" size={28} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }} onPress={endCall}>
-              <Ionicons name="call-outline" size={28} color="#fff" />
-            </TouchableOpacity>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a1a1a', zIndex: 1000 }}>
+          {callType === 'video' && (
+            <Camera 
+              style={{ flex: 1 }} 
+              type={Camera.Constants.Type.front}
+              useCamera2Api={true}
+            />
+          )}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: callType === 'video' ? 'transparent' : '#1a1a1a' }}>
+            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: BG_CARD, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              {callType === 'video' ? (
+                <Ionicons name="videocam-outline" size={48} color={PRIMARY_COLOR} />
+              ) : (
+                <Ionicons name="person-outline" size={48} color={PRIMARY_COLOR} />
+              )}
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 4 }}>{callingName}</Text>
+            <Text style={{ fontSize: 14, color: '#aaa', marginBottom: 8 }}>
+              {callType === 'video' ? '📹 视频通话' : '📞 语音通话'}
+            </Text>
+            <Text style={{ fontSize: 16, color: '#aaa', marginBottom: 8 }}>
+              {callStatus === 'calling' ? '正在呼叫...' : callStatus === 'connected' ? formatDuration(callDuration) : '通话已结束'}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 48 }}>
+              <Text style={{ fontSize: 12, color: '#888' }}>参与人员:</Text>
+              <View style={{ flexDirection: 'row' }}>
+                {chatStaffList.slice(0, 4).map((staff, idx) => (
+                  <View 
+                    key={idx} 
+                    style={{ 
+                      width: 32, 
+                      height: 32, 
+                      borderRadius: 16, 
+                      backgroundColor: LIGHT_PRIMARY, 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      marginLeft: idx > 0 ? -8 : 0,
+                      borderWidth: 2,
+                      borderColor: '#1a1a1a'
+                    }}
+                  >
+                    <Ionicons name="person-outline" size={16} color={PRIMARY_COLOR} />
+                  </View>
+                ))}
+                {chatStaffList.length > 4 && (
+                  <View 
+                    style={{ 
+                      width: 32, 
+                      height: 32, 
+                      borderRadius: 16, 
+                      backgroundColor: PRIMARY_COLOR, 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      marginLeft: -8,
+                      borderWidth: 2,
+                      borderColor: '#1a1a1a'
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 10 }}>+{chatStaffList.length - 4}</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{chatStaffList.length + 1}人</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 32 }}>
+              <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已静音')}>
+                <Ionicons name="mic-off-outline" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换扬声器')}>
+                <Ionicons name="volume-high-outline" size={28} color="#fff" />
+              </TouchableOpacity>
+              {callType === 'video' && (
+                <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换摄像头')}>
+                  <Ionicons name="camera-reverse-outline" size={28} color="#fff" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }} onPress={endCall}>
+                <Ionicons name="call-outline" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -2893,62 +2970,63 @@ const HomePage = () => {
 const DraggableFloatingButton = ({ onPress }) => {
   const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
   const [isDragging, setIsDragging] = useState(false);
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-  const [startTouch, setStartTouch] = useState({ x: 0, y: 0 });
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const startTouchRef = useRef({ x: 0, y: 0 });
+  const hasMovedRef = useRef(false);
 
-  const handlePanStart = (e) => {
-    const touch = e.nativeEvent.touches[0];
-    setIsDragging(true);
-    setStartPos({ x: position.x, y: position.y });
-    setStartTouch({ x: touch.clientX, y: touch.clientY });
-  };
-
-  const handlePanMove = (e) => {
-    if (!isDragging) return;
-    const touch = e.nativeEvent.touches[0];
-    const deltaX = touch.clientX - startTouch.x;
-    const deltaY = touch.clientY - startTouch.y;
-    let newX = startPos.x + deltaX;
-    let newY = startPos.y + deltaY;
-    newX = Math.max(0, Math.min(width - 56, newX));
-    newY = Math.max(0, Math.min(height - 100, newY));
-    setPosition({ x: newX, y: newY });
-  };
-
-  const handlePanEnd = () => {
-    setIsDragging(false);
-  };
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e, gestureState) => {
+        setIsDragging(true);
+        hasMovedRef.current = false;
+        startPosRef.current = { x: position.x, y: position.y };
+        startTouchRef.current = { x: gestureState.x0, y: gestureState.y0 };
+      },
+      onPanResponderMove: (e, gestureState) => {
+        const deltaX = gestureState.x0 - startTouchRef.current.x;
+        const deltaY = gestureState.y0 - startTouchRef.current.y;
+        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+          hasMovedRef.current = true;
+        }
+        let newX = startPosRef.current.x + (gestureState.x0 - startTouchRef.current.x);
+        let newY = startPosRef.current.y + (gestureState.y0 - startTouchRef.current.y);
+        newX = Math.max(0, Math.min(width - 56, newX));
+        newY = Math.max(0, Math.min(height - 100, newY));
+        setPosition({ x: newX, y: newY });
+      },
+      onPanResponderRelease: () => {
+        setIsDragging(false);
+        if (!hasMovedRef.current) {
+          onPress();
+        }
+      },
+    })
+  ).current;
 
   return (
-    <TouchableWithoutFeedback
-      onTouchStart={handlePanStart}
-      onTouchMove={handlePanMove}
-      onTouchEnd={handlePanEnd}
-      onPress={() => !isDragging && onPress()}
+    <View
+      {...panResponder.panHandlers}
+      style={{
+        position: 'absolute',
+        left: position.x,
+        top: position.y,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: PRIMARY_COLOR,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...SHADOW,
+        zIndex: 999,
+        transform: [{ scale: isDragging ? 1.1 : 1 }],
+      }}
     >
-      <View
-        style={{
-          position: 'absolute',
-          left: position.x,
-          top: position.y,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: PRIMARY_COLOR,
-          justifyContent: 'center',
-          alignItems: 'center',
-          ...SHADOW,
-          zIndex: 999,
-          transform: [{ scale: isDragging ? 1.1 : 1 }],
-          transition: 'transform 0.2s ease',
-        }}
-      >
-        <Ionicons name="sparkles" size={28} color="#fff" />
-        <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
-        </View>
+      <Ionicons name="sparkles" size={28} color="#fff" />
+      <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 };
 // ===== 第二段结束 =====// ================== 订单核销 ==================
