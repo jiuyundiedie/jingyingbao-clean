@@ -26,23 +26,23 @@ const showToast = (msg) => {
 };
 
 const { width, height } = Dimensions.get('window');
-const PRIMARY_COLOR = '#165DFF';
-const LIGHT_PRIMARY = '#E8F3FF';
+const PRIMARY_COLOR = '#5B6DF0'; // 更高级的紫蓝色
+const LIGHT_PRIMARY = '#EEF1FF';
 const DANGER_COLOR = '#F53F3F';
 const SUCCESS_COLOR = '#00B42A';
-const BG_PAGE = '#F2F3F5';
+const BG_PAGE = '#F5F7FA';
 const BG_CARD = '#FFFFFF';
-const TEXT_MAIN = '#1D2129';
-const TEXT_SECOND = '#4E5969';
-const TEXT_THIRD = '#86909C';
-const BORDER_COLOR = '#E5E6EB';
+const TEXT_MAIN = '#1A2332';
+const TEXT_SECOND = '#4A5A6E';
+const TEXT_THIRD = '#8E9DB0';
+const BORDER_COLOR = '#E8ECF1';
 const EMOJI_LIST = ['😀','😃','😄','😁','😆','🥲','😊','😇','🙂','🙃','😉','😌','🥰','😍','🤩','😘'];
 const SHADOW = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
+  shadowColor: '#1A2332',
+  shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 4,
+  shadowRadius: 12,
+  elevation: 6,
 };
 
 const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
@@ -222,7 +222,7 @@ const defaultState = {
   shopConfig: { shopName: "我的门店", industry: "餐饮类" },
   lastBusinessInput: { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
   latestDailyReport: null,
-  groupChatMessages: [],
+  groupChatMessages: {},
   pushConfig: { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
   menuVisibility: {
     VerifyOrder: true,
@@ -277,10 +277,21 @@ function appReducer(state, action) {
       const existing = state.customerTags[phone] || [];
       return { ...state, customerTags: { ...state.customerTags, [phone]: existing.includes(tag) ? existing : [...existing, tag] } };
     }
-    case 'ADD_GROUP_MESSAGE':
-      return { ...state, groupChatMessages: [...(state.groupChatMessages || []), action.payload] };
-    case 'SET_GROUP_MESSAGES':
-      return { ...state, groupChatMessages: action.payload || [] };
+    case 'ADD_GROUP_MESSAGE': {
+      const { chatId, message } = action.payload;
+      const existing = state.groupChatMessages[chatId] || [];
+      return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: [...existing, message] } };
+    }
+    case 'SET_GROUP_MESSAGES': {
+      const { chatId, messages } = action.payload;
+      return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: messages } };
+    }
+    case 'CLEAR_GROUP_MESSAGES': {
+      const { chatId } = action.payload;
+      const newState = { ...state };
+      delete newState.groupChatMessages[chatId];
+      return newState;
+    }
     case 'ADD_BUSINESS_REPORT':
       return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
     case 'SET_COST_CACHE':
@@ -316,7 +327,7 @@ function appReducer(state, action) {
         privateChatMessages: (r.privateChatMessages && typeof r.privateChatMessages === 'object') ? r.privateChatMessages : {},
         customerTags: (r.customerTags && typeof r.customerTags === 'object') ? r.customerTags : {},
         businessHistory: Array.isArray(r.businessHistory) ? r.businessHistory : [],
-        groupChatMessages: Array.isArray(r.groupChatMessages) ? r.groupChatMessages : [],
+        groupChatMessages: (r.groupChatMessages && typeof r.groupChatMessages === 'object') ? r.groupChatMessages : {},
         previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
         user: r.user || null,
         shopInfo: r.shopInfo || { shopName: '', phone: '', industry: '餐饮类' },
@@ -353,7 +364,7 @@ const saveAllData = async (state) => {
       privateChatMessages: state.privateChatMessages || {},
       customerTags: state.customerTags || {},
       businessHistory: state.businessHistory || [],
-      groupChatMessages: state.groupChatMessages || [],
+      groupChatMessages: state.groupChatMessages || {},
       previousAccounts: state.previousAccounts || [],
       user: state.user,
       shopInfo: state.shopInfo,
@@ -385,43 +396,44 @@ const loadAllData = async () => {
 const styles = StyleSheet.create({
   safeTop: { height: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 32) },
   headerBar: {
-    height: 52,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     backgroundColor: BG_CARD,
+    borderBottomWidth: 0,
     ...SHADOW,
   },
   pageTitle: { fontSize: 18, fontWeight: '600', color: TEXT_MAIN },
-  homeTitle: { fontSize: 20, fontWeight: '700', color: TEXT_MAIN },
+  homeTitle: { fontSize: 22, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 0.5 },
   container: { flex: 1, backgroundColor: BG_PAGE },
   chatScroll: { flex: 1, paddingHorizontal: 12 },
-  bubbleLeft: { backgroundColor: BG_CARD, padding: 12, borderRadius: 16, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-start', ...SHADOW },
-  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 12, borderRadius: 16, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-end', ...SHADOW },
+  bubbleLeft: { backgroundColor: BG_CARD, padding: 14, borderRadius: 18, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-start', ...SHADOW },
+  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 14, borderRadius: 18, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-end', ...SHADOW },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 0,
     borderColor: BORDER_COLOR,
-    backgroundColor: '#F7F7F7',
+    backgroundColor: BG_CARD,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     ...SHADOW,
   },
-  inputBox: { flex: 1, height: 44, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 0, borderRadius: 22, fontSize: 15, backgroundColor: '#FFFFFF', color: TEXT_MAIN, ...SHADOW },
-  sendBtn: { paddingHorizontal: 16, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 22, marginLeft: 8 },
+  inputBox: { flex: 1, height: 44, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 0, borderRadius: 24, fontSize: 15, backgroundColor: '#F2F4F8', color: TEXT_MAIN },
+  sendBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 24, marginLeft: 8 },
   sendTxt: { color: '#fff', fontSize: 14, fontWeight: '500' },
   label: { fontSize: 14, color: TEXT_SECOND, marginTop: 12, marginBottom: 6, fontWeight: '500' },
   formInput: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, backgroundColor: BG_CARD, color: TEXT_MAIN },
   primaryBtn: { marginTop: 16, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
   miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 },
-  loginContainer: { flex: 1, backgroundColor: '#F8FAFF', paddingHorizontal: 24, justifyContent: 'center' },
-  loginTitle: { fontSize: 28, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
+  loginContainer: { flex: 1, backgroundColor: '#F5F7FA', paddingHorizontal: 24, justifyContent: 'center' },
+  loginTitle: { fontSize: 32, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
   loginSubtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
   roleSelector: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
   roleBtn: { flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_COLOR, alignItems: 'center' },
@@ -473,7 +485,7 @@ const styles = StyleSheet.create({
   scannerContainer: { flex: 1 },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
   cancelText: { color: '#fff', fontSize: 16 },
-  reportCard: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginTop: 16, ...SHADOW },
+  reportCard: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, marginTop: 16, ...SHADOW },
   reportTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
   reportRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   reportLabel: { fontSize: 14, color: TEXT_SECOND },
@@ -483,6 +495,8 @@ const styles = StyleSheet.create({
   chatSettingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   chatSettingText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
   chatSettingDesc: { fontSize: 14, color: TEXT_THIRD, marginLeft: 'auto' },
+  voiceModal: { width: '80%', backgroundColor: BG_CARD, borderRadius: 20, padding: 24, alignItems: 'center' },
+  voiceTextInput: { width: '100%', height: 120, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, padding: 12, fontSize: 16, textAlignVertical: 'top' },
 });
 
 // ================== 登录页面 ==================
@@ -587,48 +601,7 @@ const LoginScreen = () => {
     </View>
   );
 };
-// ===== 第一段结束 =====// ================== 差评列表 ==================
-const BadReviewListPage = () => {
-  const navigation = useNavigation();
-  const { state, dispatch } = useApp();
-  const list = state.badReviewList || [];
-  const handleMark = (id) => {
-    dispatch({ type: 'MARK_BAD_REVIEW_HANDLED', payload: id });
-    showToast('已标记为已处理');
-  };
-  return (
-    <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
-        <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-          <Text style={styles.pageTitle}>差评预警详情</Text>
-          <View style={{ width: 24 }} />
-        </View>
-      </SafeAreaView>
-      <ScrollView style={{ padding: 16 }}>
-        {list.length === 0 ? (
-          <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
-        ) : (
-          list.map(item => (
-            <View key={item.id} style={styles.badReviewItem}>
-              <Text style={styles.badReviewContent}>“{item.content}”</Text>
-              <Text style={styles.badReviewMeta}>平台：{item.platform} ｜ {item.time}</Text>
-              {item.handled ? (
-                <Text style={styles.badReviewHandled}>✅ 已处理</Text>
-              ) : (
-                <TouchableOpacity style={styles.badReviewHandledBtn} onPress={() => handleMark(item.id)}>
-                  <Text style={styles.badReviewHandledBtnText}>标记已处理</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))
-        )}
-      </ScrollView>
-    </View>
-  );
-};
-
-// ================== 设置抽屉（含推送时间） ==================
+// ===== 第一段结束 =====// ================== 设置抽屉（含推送时间，图标已美化） ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -685,7 +658,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         <View style={{ padding: 16 }}>
           <View style={styles.settingGroup}>
             <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Ionicons name="storefront-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>门店名称</Text>
                 {isEmployee ? (
@@ -698,7 +671,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
           <View style={styles.settingGroup}>
             <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Ionicons name="call-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <Ionicons name="call-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>绑定手机号</Text>
                 {isEmployee ? (
@@ -717,7 +690,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           {!isEmployee && (
             <View style={styles.settingGroup}>
               <View style={styles.settingItem}>
-                <Ionicons name="time-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+                <Ionicons name="time-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.label}>每周早间周报推送</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -727,7 +700,7 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </View>
               </View>
               <View style={[styles.settingItem, styles.settingItemLast]}>
-                <Ionicons name="moon-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+                <Ionicons name="moon-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.label}>每日下班/月末推送</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -743,11 +716,11 @@ const SettingDrawer = ({ visible, onClose }) => {
           )}
           <View style={styles.settingGroup}>
             <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
-              <Ionicons name="person-outline" size={20} color={TEXT_SECOND} style={{ marginRight: 12 }} />
+              <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} style={{ marginRight: 12 }} />
+              <Ionicons name="log-out-outline" size={22} color={DANGER_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: DANGER_COLOR }}>退出登录</Text>
             </TouchableOpacity>
           </View>
@@ -781,7 +754,6 @@ const SwitchAccountScreen = () => {
     await AsyncStorage.removeItem('user');
     await AsyncStorage.removeItem('shopInfo');
     dispatch({ type: 'LOGOUT' });
-    dispatch({ type: 'CLEAR_PREVIOUS_ACCOUNTS' });
     navigation.replace('Login');
   };
 
@@ -794,22 +766,59 @@ const SwitchAccountScreen = () => {
   return (
     <View style={styles.switchAccountContainer}>
       <Text style={[styles.pageTitle, { marginBottom: 16 }]}>切换账号</Text>
-      {allAccounts.length === 0 ? (
-        <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 30 }}>暂无历史账号</Text>
-      ) : (
-        allAccounts.map((acc, idx) => (
-          <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelect(acc)} disabled={acc.isCurrent}>
-            <View style={styles.accountInfo}>
-              <Text style={styles.accountPhone}>{acc.phone}</Text>
-              <Text style={styles.accountDetail}>{acc.shopName} · {acc.role}{acc.isCurrent ? ' (当前)' : ''}</Text>
-            </View>
-            {!acc.isCurrent && <Ionicons name="chevron-forward" size={24} color={TEXT_THIRD} />}
-          </TouchableOpacity>
-        ))
-      )}
+      {allAccounts.map((acc, idx) => (
+        <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelect(acc)} disabled={acc.isCurrent}>
+          <View style={styles.accountInfo}>
+            <Text style={styles.accountPhone}>{acc.phone}</Text>
+            <Text style={styles.accountDetail}>{acc.shopName} · {acc.role}{acc.isCurrent ? ' (当前)' : ''}</Text>
+          </View>
+          {!acc.isCurrent && <Ionicons name="chevron-forward" size={24} color={TEXT_THIRD} />}
+        </TouchableOpacity>
+      ))}
       <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
         <Text style={styles.registerBtnText}>注册新账号</Text>
       </TouchableOpacity>
+    </View>
+  );
+};
+
+// ================== 差评列表 ==================
+const BadReviewListPage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const list = state.badReviewList || [];
+  const handleMark = (id) => {
+    dispatch({ type: 'MARK_BAD_REVIEW_HANDLED', payload: id });
+    showToast('已标记为已处理');
+  };
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>差评预警详情</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </SafeAreaView>
+      <ScrollView style={{ padding: 16 }}>
+        {list.length === 0 ? (
+          <Text style={styles.badReviewEmpty}>✅ 暂无差评，继续保持！</Text>
+        ) : (
+          list.map(item => (
+            <View key={item.id} style={styles.badReviewItem}>
+              <Text style={styles.badReviewContent}>“{item.content}”</Text>
+              <Text style={styles.badReviewMeta}>平台：{item.platform} ｜ {item.time}</Text>
+              {item.handled ? (
+                <Text style={styles.badReviewHandled}>✅ 已处理</Text>
+              ) : (
+                <TouchableOpacity style={styles.badReviewHandledBtn} onPress={() => handleMark(item.id)}>
+                  <Text style={styles.badReviewHandledBtnText}>标记已处理</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -881,7 +890,7 @@ const ProductOverview = () => {
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
           <Text style={styles.pageTitle}>商品总览</Text>
           <TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
-            <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+            <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -933,7 +942,7 @@ const ProductOverview = () => {
   );
 };
 
-// ================== 出入库管理（四组一排） ==================
+// ================== 出入库管理 ==================
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -948,22 +957,26 @@ const StockManage = () => {
   const [manualProductName, setManualProductName] = useState('');
   const [manualPlatform, setManualPlatform] = useState('美团');
   const [loadingPlatform, setLoadingPlatform] = useState(null);
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
 
   const voiceInput = () => {
-    Alert.prompt(
-      '语音录入',
-      '请输入商品名称（可手动修改）',
-      text => {
-        if (text) {
-          setManualProductName(text);
-          setShowManualInput(true);
-          setModalVisible(true);
-        }
-      },
-      'plain-text'
-    );
+    setVoiceModalVisible(true);
+    setVoiceText('');
+  };
+
+  const confirmVoice = () => {
+    if (voiceText.trim()) {
+      setManualProductName(voiceText.trim());
+      setShowManualInput(true);
+      setModalVisible(true);
+      setVoiceModalVisible(false);
+      setVoiceText('');
+    } else {
+      showToast('请输入商品名称');
+    }
   };
 
   const handleManualSubmit = () => {
@@ -1163,7 +1176,7 @@ const StockManage = () => {
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
           <Text style={styles.pageTitle}>出入库管理</Text>
           <TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); setManualProductName(''); }}>
-            <Text style={{ fontSize: 20, color: PRIMARY_COLOR }}>＋</Text>
+            <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -1287,11 +1300,36 @@ const StockManage = () => {
           </View>
         </View>
       </Modal>
+      {/* 语音录入自定义Modal */}
+      <Modal visible={voiceModalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.voiceModal}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>🎤 语音录入</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>请说出商品名称，可手动修改</Text>
+            <TextInput
+              style={styles.voiceTextInput}
+              multiline
+              placeholder="输入商品名称..."
+              value={voiceText}
+              onChangeText={setVoiceText}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setVoiceModalVisible(false); setVoiceText(''); }}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={confirmVoice}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>确认</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
-// ================== 顾客客服 ==================
+// ================== 顾客客服（AI暂停功能保留） ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1306,6 +1344,7 @@ const CustomerService = () => {
   const [selectedPhone, setSelectedPhone] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [aiPaused, setAiPaused] = useState(false);
 
   const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({
     phone,
@@ -1337,24 +1376,8 @@ const CustomerService = () => {
         setSelectedImages([]);
         setInputText('');
         setShowMediaOptions(false);
+        setAiPaused(true);
         setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        if (aiMode) {
-          try {
-            const reply = await fetchZhipuChat(
-              [{ role: 'user', content: '顾客发送了一张图片，请回复' }],
-              `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
-            );
-            const aiMsg = {
-              id: Date.now().toString(),
-              text: reply,
-              from: 'ai',
-              platform: currentPlatform,
-              time: new Date().toISOString(),
-            };
-            setMessages(prev => [...prev, aiMsg]);
-            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
-          } catch (e) {}
-        }
         return;
       }
       if (!text && selectedImages.length === 0) { showToast('请输入内容或选择图片'); return; }
@@ -1370,9 +1393,10 @@ const CustomerService = () => {
       setInputText('');
       setShowEmoji(false);
       setShowQuickReply(false);
+      setAiPaused(true);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
-      if (aiMode && text) {
+      if (aiMode && !aiPaused && text) {
         try {
           const reply = await fetchZhipuChat(
             [{ role: 'user', content: text }],
@@ -1392,6 +1416,11 @@ const CustomerService = () => {
     } catch (error) {
       showToast('发送失败');
     }
+  };
+
+  const resumeAI = () => {
+    setAiPaused(false);
+    showToast('AI已恢复，将自动回复顾客');
   };
 
   const pickImages = async (source) => {
@@ -1466,11 +1495,18 @@ const CustomerService = () => {
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
           <Text style={styles.pageTitle}>顾客客服</Text>
-          <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
-            <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
-              {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {aiPaused && (
+              <TouchableOpacity onPress={resumeAI} style={{ marginRight: 10 }}>
+                <Text style={{ color: SUCCESS_COLOR, fontWeight: 'bold' }}>▶ 恢复AI</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => setAiMode(!aiMode)}>
+              <Text style={{ color: aiMode ? SUCCESS_COLOR : TEXT_THIRD }}>
+                {aiMode ? '🤖 AI已开启' : '🤖 AI关闭'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -1598,15 +1634,15 @@ const CustomerService = () => {
       {showMediaOptions && (
         <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
-            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+            <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
             <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
-            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+            <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
             <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+            <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
             <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
           </TouchableOpacity>
         </View>
@@ -1643,7 +1679,7 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部沟通（修复拍照发送 + 完整群聊设置） ==================
+// ================== 内部沟通 ==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1653,9 +1689,9 @@ const InternalChat = () => {
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isTop, setIsTop] = useState(false);
-  const groupMessages = state.groupChatMessages || [];
+
+  const chatId = 'internal';
+  const groupMessages = state.groupChatMessages[chatId] || [];
 
   const sendGroupMessage = async (type = 'text') => {
     try {
@@ -1679,7 +1715,7 @@ const InternalChat = () => {
         time: new Date().toISOString(),
         type: 'text',
       };
-      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: msg });
+      dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: msg } });
       setInputText('');
       setImageUri(null);
       setShowEmoji(false);
@@ -1713,36 +1749,8 @@ const InternalChat = () => {
     }
   };
 
-  // 群聊设置弹窗
-  const showChatSettings = () => {
-    const staffList = (state.staffMemberList || []).filter(s => s.status === 'approved');
-    Alert.alert(
-      '聊天设置',
-      '',
-      [
-        { text: '发起群聊', onPress: () => showToast('发起群聊功能开发中') },
-        { text: '查找聊天记录', onPress: () => showToast('查找聊天记录功能开发中') },
-        { text: '图片、视频、文件', onPress: () => showToast('查看图片视频功能开发中') },
-        { text: isTop ? '取消置顶' : '设为置顶', onPress: () => { setIsTop(!isTop); showToast(isTop ? '已取消置顶' : '已置顶'); } },
-        { text: '特别关心', onPress: () => showToast('特别关心功能开发中') },
-        { text: '隐藏会话', onPress: () => showToast('隐藏会话功能开发中') },
-        { text: isMuted ? '取消消息免打扰' : '消息免打扰', onPress: () => { setIsMuted(!isMuted); showToast(isMuted ? '已取消免打扰' : '已开启免打扰'); } },
-        { text: '消息通知设置', onPress: () => showToast('消息通知设置功能开发中') },
-        { text: '设置当前聊天背景', onPress: () => { showToast('聊天背景已更换'); } },
-        { text: '删除聊天记录', style: 'destructive', onPress: () => {
-          Alert.alert('确认删除', '确定要删除所有聊天记录吗？', [
-            { text: '取消' },
-            { text: '删除', style: 'destructive', onPress: () => {
-              dispatch({ type: 'SET_GROUP_MESSAGES', payload: [] });
-              showToast('聊天记录已删除');
-            }}
-          ]);
-        }},
-        { text: '被骚扰了？举报该用户', onPress: () => showToast('举报已提交，我们会尽快处理') },
-        { text: '取消' },
-      ],
-      { cancelable: true }
-    );
+  const goToChatSettings = () => {
+    navigation.navigate('ChatSetting', { chatId });
   };
 
   return (
@@ -1751,7 +1759,7 @@ const InternalChat = () => {
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
           <Text style={styles.pageTitle}>内部沟通</Text>
-          <TouchableOpacity onPress={showChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
+          <TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
       <View style={{ flex: 1, backgroundColor: chatBgColor }}>
@@ -1791,15 +1799,15 @@ const InternalChat = () => {
         {showMediaOptions && (
           <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
             <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
-              <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+              <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
               <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
-              <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+              <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
               <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-              <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+              <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
               <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
             </TouchableOpacity>
           </View>
@@ -1816,7 +1824,132 @@ const InternalChat = () => {
   );
 };
 
-// ================== AI助手（含快捷话术 + 停止 + 行业识别） ==================
+// ================== 聊天设置页面 ==================
+const ChatSettingScreen = ({ route, navigation }) => {
+  const { chatId } = route.params || {};
+  const { state, dispatch } = useApp();
+  const [isMuted, setIsMuted] = useState(false);
+  const [isTop, setIsTop] = useState(false);
+  const [isSpecialCare, setIsSpecialCare] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    showToast(isMuted ? '已取消消息免打扰' : '已开启消息免打扰');
+  };
+
+  const toggleTop = () => {
+    setIsTop(!isTop);
+    showToast(isTop ? '已取消置顶' : '已置顶');
+  };
+
+  const toggleSpecialCare = () => {
+    setIsSpecialCare(!isSpecialCare);
+    showToast(isSpecialCare ? '已取消特别关心' : '已开启特别关心');
+  };
+
+  const toggleHidden = () => {
+    setIsHidden(!isHidden);
+    showToast(isHidden ? '已取消隐藏会话' : '已隐藏会话');
+  };
+
+  const clearMessages = () => {
+    Alert.alert('删除聊天记录', '确定要删除所有聊天记录吗？', [
+      { text: '取消' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        dispatch({ type: 'CLEAR_GROUP_MESSAGES', payload: { chatId } });
+        showToast('聊天记录已删除');
+        navigation.goBack();
+      }}
+    ]);
+  };
+
+  const reportUser = () => {
+    Alert.alert('举报用户', '确定要举报该用户吗？', [
+      { text: '取消' },
+      { text: '举报', onPress: () => showToast('举报已提交，我们会尽快处理') }
+    ]);
+  };
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>聊天设置</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </SafeAreaView>
+      <ScrollView style={{ paddingHorizontal: 16 }}>
+        <View style={{ marginTop: 16 }}>
+          <TouchableOpacity style={styles.chatSettingItem}>
+            <Text style={styles.pageTitle}>玖雲</Text>
+            <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群主</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('发起群聊功能开发中')}>
+            <Ionicons name="person-add-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>发起群聊</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('查找聊天记录功能开发中')}>
+            <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>查找聊天记录</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => showToast('查看图片视频功能开发中')}>
+            <Ionicons name="images-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>图片、视频、文件</Text>
+            <Text style={styles.chatSettingDesc}>></Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleTop}>
+            <Ionicons name="pin-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>{isTop ? '取消置顶' : '设为置顶'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleSpecialCare}>
+            <Ionicons name="heart-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>特别关心</Text>
+            {isSpecialCare && <Text style={[styles.chatSettingDesc, { color: SUCCESS_COLOR }]}>已开启</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleHidden}>
+            <Ionicons name="eye-off-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>隐藏会话</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={toggleMute}>
+            <Ionicons name={isMuted ? "notifications-off-outline" : "notifications-outline"} size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>{isMuted ? '取消消息免打扰' : '消息免打扰'}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('消息通知设置功能开发中')}>
+            <Ionicons name="notifications-circle-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>消息通知设置</Text>
+            <Text style={styles.chatSettingDesc}>通知预览、提示音等></Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => { showToast('聊天背景已更换'); }}>
+            <Ionicons name="color-palette-outline" size={22} color={PRIMARY_COLOR} />
+            <Text style={styles.chatSettingText}>设置当前聊天背景</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={clearMessages}>
+            <Ionicons name="trash-outline" size={22} color={DANGER_COLOR} />
+            <Text style={{ ...styles.chatSettingText, color: DANGER_COLOR }}>删除聊天记录</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={reportUser}>
+            <Ionicons name="alert-circle-outline" size={22} color={DANGER_COLOR} />
+            <Text style={{ ...styles.chatSettingText, color: DANGER_COLOR }}>被骚扰了？举报该用户</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// ================== AI助手（快捷话术 + 停止 + 行业识别） ==================
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -1830,11 +1963,9 @@ const MerchantAssistant = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const abortControllerRef = useRef(null);
 
-  // 获取行业信息
   const industry = state.shopInfo?.industry || '餐饮类';
   const shopName = state.shopInfo?.shopName || '我的门店';
 
-  // 快捷话术（根据行业动态生成）
   const getQuickReplies = () => {
     if (industry === '餐饮类') {
       return [
@@ -2106,15 +2237,15 @@ const MerchantAssistant = () => {
       {showMediaOptions && (
         <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
-            <Ionicons name="camera-outline" size={28} color={PRIMARY_COLOR} />
+            <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
             <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
-            <Ionicons name="images-outline" size={28} color={PRIMARY_COLOR} />
+            <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
             <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={28} color={DANGER_COLOR} />
+            <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
             <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
           </TouchableOpacity>
         </View>
@@ -2138,7 +2269,7 @@ const MerchantAssistant = () => {
   );
 };
 
-// ================== 首页（完整功能 + 顶部适配 + 导航修复） ==================
+// ================== 首页（完整功能 + 员工私聊长条按钮 + 顶部适配 + 导航修复） ==================
 const HomePage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -2194,31 +2325,28 @@ const HomePage = () => {
 
   const isEmployee = user?.role === '员工';
   const allMenuList = [
-    { icon: "🎫", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
-    { icon: "📦", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
-    { icon: "👥", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
-    { icon: "💬", label: "顾客客服", key: 'CustomerService', tab: 'CustomerTab', screen: 'CustomerService' },
-    { icon: "🤝", label: "内部沟通", key: 'InternalChat', tab: 'InternalTab', screen: 'InternalChat' },
-    { icon: "🤖", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
-    { icon: "📊", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
+    { icon: "qr-code-outline", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
+    { icon: "swap-horizontal-outline", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
+    { icon: "people-outline", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
+    { icon: "chatbox-outline", label: "顾客客服", key: 'CustomerService', tab: 'CustomerTab', screen: 'CustomerService' },
+    { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: 'InternalTab', screen: 'InternalChat' },
+    { icon: "sparkles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
+    { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
   ];
   const menuList = allMenuList.filter(item => {
     if (isEmployee) return ['VerifyOrder', 'StockManage', 'InternalChat'].includes(item.key);
     return true;
   });
 
-  // 修复跳转：使用 navigation.navigate 并通过父级导航
   const handleMenuPress = (item) => {
     try {
       if (item.internal) {
         navigation.navigate(item.screen);
       } else {
-        // 通过父级 Tab 导航
         const parent = navigation.getParent();
         if (parent) {
           parent.navigate(item.tab, { screen: item.screen });
         } else {
-          // 直接跳转（可能出错，但作为备用）
           navigation.navigate(item.screen);
         }
       }
@@ -2248,7 +2376,7 @@ const HomePage = () => {
       const staff = state.staffMemberList.find(s => s.phone === phone);
       if (staff) {
         const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
-        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: welcome });
+        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
         showToast(`${staff.name} 已批准入职`);
       }
     } catch (error) { showToast('操作失败'); }
@@ -2383,7 +2511,7 @@ const HomePage = () => {
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
               {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
                 <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
-                  <Text style={{ fontSize: 28 }}>{item.icon}</Text>
+                  <Ionicons name={item.icon} size={28} color={PRIMARY_COLOR} />
                   <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -2394,10 +2522,19 @@ const HomePage = () => {
             <View style={{ marginTop: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
               {chatStaffList.map(staff => (
-                <TouchableOpacity key={staff.id} style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => goToPrivateChat(staff)}>
-                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>👤 {staff.name}</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginLeft: 8 }}>({staff.phone})</Text>
-                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
+                <TouchableOpacity
+                  key={staff.id}
+                  style={{ backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, flexDirection: 'row', alignItems: 'center', ...SHADOW }}
+                  onPress={() => goToPrivateChat(staff)}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} />
+                  </View>
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{staff.phone}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -2422,7 +2559,7 @@ const HomePage = () => {
 
       {!isEmployee && (
         <TouchableOpacity style={{ position: 'absolute', bottom: 80, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW, zIndex: 999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
-          <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
+          <Ionicons name="sparkles" size={28} color="#fff" />
         </TouchableOpacity>
       )}
     </SafeAreaView>
@@ -2587,11 +2724,11 @@ function RootTabs() {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
           if (route.name === '首页') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === '核销') iconName = focused ? 'checkmark-circle' : 'checkmark-circle-outline';
-          else if (route.name === '客服') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-          else if (route.name === '出入库') iconName = focused ? 'cube' : 'cube-outline';
+          else if (route.name === '核销') iconName = focused ? 'qr-code' : 'qr-code-outline';
+          else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
+          else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'bulb' : 'bulb-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'sparkles' : 'sparkles-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
@@ -2622,6 +2759,7 @@ function MainStack() {
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
       <Stack.Screen name="StaffManage" component={() => <PlaceholderPage title="员工管理" />} />
       <Stack.Screen name="PrivateChat" component={() => <PlaceholderPage title="私聊" />} />
+      <Stack.Screen name="ChatSetting" component={ChatSettingScreen} />
     </Stack.Navigator>
   );
 }
