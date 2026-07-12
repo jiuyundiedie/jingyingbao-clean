@@ -1848,6 +1848,21 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [isTop, setIsTop] = useState(false);
   const [isSpecialCare, setIsSpecialCare] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+  const [bgColor, setBgColor] = useState('#F2F3F5');
+
+  const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
+  const staffMembers = state.staffMemberList || [];
+  const groupMessages = state.groupChatMessages[chatId] || [];
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -1887,6 +1902,42 @@ const ChatSettingScreen = ({ route, navigation }) => {
     ]);
   };
 
+  const searchMessages = () => {
+    if (!searchText.trim()) return;
+    const filtered = groupMessages.filter(msg => msg.text && msg.text.includes(searchText));
+    showToast(filtered.length > 0 ? `找到 ${filtered.length} 条记录` : '未找到匹配记录');
+    setShowSearchModal(false);
+    setSearchText('');
+  };
+
+  const toggleMemberSelect = (member) => {
+    const exists = selectedMembers.find(m => m.phone === member.phone);
+    if (exists) {
+      setSelectedMembers(selectedMembers.filter(m => m.phone !== member.phone));
+    } else {
+      setSelectedMembers([...selectedMembers, member]);
+    }
+  };
+
+  const createGroup = () => {
+    if (!groupName.trim()) { showToast('请输入群名称'); return; }
+    if (selectedMembers.length === 0) { showToast('请至少选择一位成员'); return; }
+    showToast(`群聊「${groupName}」已创建，包含 ${selectedMembers.length} 位成员`);
+    setShowCreateGroupModal(false);
+    setGroupName('');
+    setSelectedMembers([]);
+  };
+
+  const saveNotifySettings = () => {
+    showToast('通知设置已保存');
+    setShowNotifyModal(false);
+  };
+
+  const changeBgColor = (color) => {
+    setBgColor(color);
+    showToast('聊天背景已更换');
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
@@ -1899,20 +1950,20 @@ const ChatSettingScreen = ({ route, navigation }) => {
       <ScrollView style={{ paddingHorizontal: 16 }}>
         <View style={{ marginTop: 16 }}>
           <TouchableOpacity style={styles.chatSettingItem}>
-            <Text style={styles.pageTitle}>玖雲</Text>
-            <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群主</Text>
+            <Text style={styles.pageTitle}>内部群聊</Text>
+            <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群成员: {(state.staffMemberList || []).length + 1}人</Text>
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('发起群聊功能开发中')}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowCreateGroupModal(true)}>
             <Ionicons name="person-add-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>发起群聊</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('查找聊天记录功能开发中')}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowSearchModal(true)}>
             <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>查找聊天记录</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => showToast('查看图片视频功能开发中')}>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => setShowMediaModal(true)}>
             <Ionicons name="images-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>图片、视频、文件</Text>
             <Text style={styles.chatSettingDesc}>></Text>
@@ -1938,12 +1989,12 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => showToast('消息通知设置功能开发中')}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowNotifyModal(true)}>
             <Ionicons name="notifications-circle-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>消息通知设置</Text>
             <Text style={styles.chatSettingDesc}>通知预览、提示音等></Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => { showToast('聊天背景已更换'); }}>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => setShowMediaModal(true)}>
             <Ionicons name="color-palette-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>设置当前聊天背景</Text>
           </TouchableOpacity>
@@ -1961,6 +2012,100 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <Modal visible={showSearchModal} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>查找聊天记录</Text>
+              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); }}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <TextInput style={styles.formInput} placeholder="输入关键词搜索" value={searchText} onChangeText={setSearchText} />
+            <TouchableOpacity style={styles.primaryBtn} onPress={searchMessages}><Text style={styles.sendTxt}>搜索</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showMediaModal} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>媒体管理</Text>
+              <TouchableOpacity onPress={() => setShowMediaModal(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>选择聊天背景</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {bgColors.map((color, idx) => (
+                <TouchableOpacity key={idx} style={{ width: 50, height: 50, borderRadius: 10, backgroundColor: color, borderWidth: bgColor === color ? 3 : 0, borderColor: PRIMARY_COLOR }} onPress={() => { changeBgColor(color); setShowMediaModal(false); }} />
+              ))}
+            </View>
+            <Text style={styles.label}>图片和视频</Text>
+            <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 16 }}>暂无媒体文件</Text>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showNotifyModal} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>消息通知设置</Text>
+              <TouchableOpacity onPress={() => setShowNotifyModal(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <View style={styles.settingGroup}>
+              <View style={styles.settingItem}>
+                <Ionicons name="volume-high-outline" size={22} color={PRIMARY_COLOR} />
+                <Text style={{ flex: 1, color: TEXT_MAIN }}>提示音</Text>
+                <TouchableOpacity style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: soundEnabled ? PRIMARY_COLOR : '#ddd', justifyContent: 'center', paddingHorizontal: 4 }} onPress={() => setSoundEnabled(!soundEnabled)}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', marginLeft: soundEnabled ? 22 : 0 }} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.settingItem}>
+                <Ionicons name="vibrate-outline" size={22} color={PRIMARY_COLOR} />
+                <Text style={{ flex: 1, color: TEXT_MAIN }}>震动</Text>
+                <TouchableOpacity style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: vibrationEnabled ? PRIMARY_COLOR : '#ddd', justifyContent: 'center', paddingHorizontal: 4 }} onPress={() => setVibrationEnabled(!vibrationEnabled)}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', marginLeft: vibrationEnabled ? 22 : 0 }} />
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.settingItem, styles.settingItemLast]}>
+                <Ionicons name="eye-outline" size={22} color={PRIMARY_COLOR} />
+                <Text style={{ flex: 1, color: TEXT_MAIN }}>通知预览</Text>
+                <TouchableOpacity style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: previewEnabled ? PRIMARY_COLOR : '#ddd', justifyContent: 'center', paddingHorizontal: 4 }} onPress={() => setPreviewEnabled(!previewEnabled)}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', marginLeft: previewEnabled ? 22 : 0 }} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={saveNotifySettings}><Text style={styles.sendTxt}>保存设置</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showCreateGroupModal} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>发起群聊</Text>
+              <TouchableOpacity onPress={() => { setShowCreateGroupModal(false); setGroupName(''); setSelectedMembers([]); }}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>群名称</Text>
+            <TextInput style={styles.formInput} placeholder="输入群名称" value={groupName} onChangeText={setGroupName} />
+            <Text style={styles.label}>选择成员 ({selectedMembers.length})</Text>
+            <ScrollView style={{ maxHeight: 200 }}>
+              {staffMembers.map(member => (
+                <TouchableOpacity key={member.phone} style={{ padding: 12, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => toggleMemberSelect(member)}>
+                  <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: selectedMembers.find(m => m.phone === member.phone) ? PRIMARY_COLOR : BORDER_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    {selectedMembers.find(m => m.phone === member.phone) && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: PRIMARY_COLOR }} />}
+                  </View>
+                  <Text style={{ flex: 1, color: TEXT_MAIN }}>{member.name}</Text>
+                  <Text style={{ color: TEXT_THIRD, fontSize: 12 }}>{member.phone}</Text>
+                </TouchableOpacity>
+              ))}
+              {staffMembers.length === 0 && <Text style={{ color: TEXT_THIRD, textAlign: 'center', padding: 16 }}>暂无员工，请先添加</Text>}
+            </ScrollView>
+            <TouchableOpacity style={styles.primaryBtn} onPress={createGroup}><Text style={styles.sendTxt}>创建群聊</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -2341,12 +2486,12 @@ const HomePage = () => {
 
   const isEmployee = user?.role === '员工';
   const allMenuList = [
-    { icon: "qr-code-outline", label: "订单核销", key: 'VerifyOrder', tab: 'VerifyTab', screen: 'VerifyOrder' },
-    { icon: "swap-horizontal-outline", label: "出入库", key: 'StockManage', tab: 'StockTab', screen: 'StockManage' },
+    { icon: "qr-code-outline", label: "订单核销", key: 'VerifyOrder', tab: '核销', screen: 'VerifyOrder' },
+    { icon: "swap-horizontal-outline", label: "出入库", key: 'StockManage', tab: '出入库', screen: 'StockManage' },
     { icon: "people-outline", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
-    { icon: "chatbox-outline", label: "顾客客服", key: 'CustomerService', tab: 'CustomerTab', screen: 'CustomerService' },
-    { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: 'InternalTab', screen: 'InternalChat' },
-    { icon: "sparkles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AITab', screen: 'MerchantAssistant' },
+    { icon: "chatbox-outline", label: "顾客客服", key: 'CustomerService', tab: '客服', screen: 'CustomerService' },
+    { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: '内部', screen: 'InternalChat' },
+    { icon: "sparkles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
     { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
   ];
   const menuList = allMenuList.filter(item => {
@@ -2361,7 +2506,7 @@ const HomePage = () => {
       } else {
         const parent = navigation.getParent();
         if (parent) {
-          parent.navigate(item.tab, { screen: item.screen });
+          parent.navigate(item.tab);
         } else {
           navigation.navigate(item.screen);
         }
