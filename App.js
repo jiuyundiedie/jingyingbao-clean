@@ -2,7 +2,8 @@ import React, { createContext, useContext, useReducer, useEffect, useState, useR
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
-  Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView
+  Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
+  PanResponder
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
