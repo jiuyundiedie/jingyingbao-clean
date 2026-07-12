@@ -556,22 +556,55 @@ const LoginScreen = () => {
     if (loading) return;
     setLoading(true);
     try {
-      if (phone.length !== 11) { showToast('请输入11位手机号'); setLoading(false); return; }
-      if (code !== '123456') { showToast('验证码错误'); setLoading(false); return; }
-      if (!shopName.trim()) { showToast('请输入店铺名称'); setLoading(false); return; }
+      console.log('Login started');
+      if (phone.length !== 11) { 
+        showToast('请输入11位手机号'); 
+        setLoading(false); 
+        return; 
+      }
+      if (code !== '123456') { 
+        showToast('验证码错误'); 
+        setLoading(false); 
+        return; 
+      }
+      if (!shopName.trim()) { 
+        showToast('请输入店铺名称'); 
+        setLoading(false); 
+        return; 
+      }
+      console.log('Validation passed');
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       const shopInfo = { shopName, phone, industry: '餐饮类' };
 
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      console.log('Saving to AsyncStorage');
+      try {
+        await AsyncStorage.setItem('user', JSON.stringify(user));
+        console.log('user saved successfully');
+      } catch (storageError) {
+        console.error('Failed to save user:', storageError);
+        throw new Error('保存用户信息失败: ' + storageError.message);
+      }
+      try {
+        await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+        console.log('shopInfo saved successfully');
+      } catch (storageError) {
+        console.error('Failed to save shopInfo:', storageError);
+        throw new Error('保存店铺信息失败: ' + storageError.message);
+      }
+      console.log('Saved to AsyncStorage');
 
+      console.log('Dispatching LOGIN');
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
+      console.log('Dispatched');
 
-      navigation.replace('RootTabs');
+      console.log('Navigating to RootTabs');
       setLoading(false);
+      navigation.replace('RootTabs');
+      console.log('Navigation complete');
     } catch (error) {
+      console.error('Login error:', error);
       Alert.alert('登录失败', `错误: ${error.message || String(error)}`);
       setLoading(false);
     }
@@ -591,7 +624,7 @@ const LoginScreen = () => {
   };
 
   return (
-    <View style={styles.loginContainer}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }} style={{ backgroundColor: '#F5F7FA' }}>
       <Text style={styles.loginTitle}>经营宝</Text>
       <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
       <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
@@ -632,7 +665,7 @@ const LoginScreen = () => {
       <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
         <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 // ===== 第一段结束 =====// ================== 设置抽屉（含推送时间，图标已美化） ==================
@@ -3517,9 +3550,17 @@ export default function App() {
         const userStr = await AsyncStorage.getItem('user');
         const shopStr = await AsyncStorage.getItem('shopInfo');
         if (userStr && shopStr) {
-          const user = JSON.parse(userStr);
-          const shopInfo = JSON.parse(shopStr);
-          dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+          try {
+            const user = JSON.parse(userStr);
+            const shopInfo = JSON.parse(shopStr);
+            if (user && shopInfo && user.phone && shopInfo.shopName) {
+              dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+            }
+          } catch (parseError) {
+            console.warn('数据解析失败', parseError);
+            await AsyncStorage.removeItem('user');
+            await AsyncStorage.removeItem('shopInfo');
+          }
         }
       } catch (error) {
         console.warn('加载失败', error);
