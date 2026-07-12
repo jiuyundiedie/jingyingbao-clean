@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
+const navigationRef = React.createRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -134,8 +135,13 @@ async function fetchZhipuImage(prompt, signal) {
     } else if (imageData?.url) {
       try {
         const imageRes = await fetch(imageData.url, { signal });
-        const base64 = await imageRes.text();
-        return `data:image/png;base64,${base64}`;
+        const blob = await imageRes.blob();
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        return base64;
       } catch (e) {
         console.error('Failed to fetch image URL:', e);
         return null;
@@ -749,12 +755,9 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-      const rootNav = navigation.getParent();
-      if (rootNav) {
-        rootNav.replace('Login');
-      } else {
-        navigation.replace('Login');
-      }
+      setTimeout(() => {
+        navigationRef.current?.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }, 100);
     } catch (error) {
       showToast('退出失败');
     }
@@ -768,12 +771,9 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-      const rootNav = navigation.getParent();
-      if (rootNav) {
-        rootNav.replace('Login');
-      } else {
-        navigation.replace('Login');
-      }
+      setTimeout(() => {
+        navigationRef.current?.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }, 100);
     } catch (error) {
       showToast('切换失败');
     }
@@ -1093,8 +1093,21 @@ const StockManage = () => {
   const [loadingPlatform, setLoadingPlatform] = useState(null);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
   const [voiceText, setVoiceText] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
+  
+  const sortedGoods = [...(state.goodsList || [])].sort((a, b) => {
+    if (sortBy === 'name') {
+      return sortOrder === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+    } else if (sortBy === 'stock') {
+      return sortOrder === 'asc' ? a.stock - b.stock : b.stock - a.stock;
+    } else if (sortBy === 'platform') {
+      return sortOrder === 'asc' ? a.platform.localeCompare(b.platform) : b.platform.localeCompare(a.platform);
+    }
+    return 0;
+  });
 
   const voiceInput = () => {
     setVoiceModalVisible(true);
@@ -1348,22 +1361,76 @@ const StockManage = () => {
         {!selectedGoodsId && <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>⚠️ 请先在下方选择一个商品</Text>}
       </View>
       <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>库存列表</Text>
-        {(state.goodsList || []).map(g => (
-          <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
-            <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 16, fontWeight: '500' }}>{g.name}</Text>
-                <Text style={{ fontSize: 16, color: g.stock < 5 ? DANGER_COLOR : PRIMARY_COLOR }}>库存: {g.stock}</Text>
-              </View>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-              <TouchableOpacity style={styles.miniBlueBtn} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}><Text style={styles.sendTxt}>入库</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}><Text style={styles.sendTxt}>出库</Text></TouchableOpacity>
-            </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600' }}>📦 库存列表</Text>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {[{ key: 'name', label: '名称' }, { key: 'stock', label: '库存' }, { key: 'platform', label: '平台' }].map(s => (
+              <TouchableOpacity 
+                key={s.key} 
+                style={[styles.miniBlueBtn, { paddingHorizontal: 12, paddingVertical: 4, backgroundColor: sortBy === s.key ? PRIMARY_COLOR : LIGHT_PRIMARY }]}
+                onPress={() => {
+                  setSortBy(s.key);
+                  setSortOrder(sortBy === s.key && sortOrder === 'asc' ? 'desc' : 'asc');
+                }}
+              >
+                <Text style={{ fontSize: 12, color: sortBy === s.key ? '#fff' : PRIMARY_COLOR }}>
+                  {s.label} {sortBy === s.key ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        ))}
-        {(state.goodsList || []).length === 0 && <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 20 }}>暂无商品，请先添加商品</Text>}
+        </View>
+        {sortedGoods.map(g => {
+          const getPlatformIcon = (platform) => {
+            switch(platform) {
+              case '美团': return 'shopping-cart-outline';
+              case '抖音': return 'music-video-outline';
+              case '大众点评': return 'star-outline';
+              default: return 'storefront-outline';
+            }
+          };
+          const getPlatformColor = (platform) => {
+            switch(platform) {
+              case '美团': return '#FFD100';
+              case '抖音': return '#000000';
+              case '大众点评': return '#FF6B00';
+              default: return PRIMARY_COLOR;
+            }
+          };
+          return (
+            <View key={g.id} style={[styles.listItem, { borderWidth: selectedGoodsId === g.id ? 2 : 0, borderColor: PRIMARY_COLOR }]}>
+              <TouchableOpacity onPress={() => setSelectedGoodsId(g.id)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="package-outline" size={20} color={PRIMARY_COLOR} />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 16, fontWeight: '500' }}>{g.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <Ionicons name={getPlatformIcon(g.platform)} size={12} color={getPlatformColor(g.platform)} />
+                        <Text style={{ fontSize: 12, color: TEXT_SECOND }}>{g.platform}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: g.stock < 5 ? DANGER_COLOR : PRIMARY_COLOR }}>{g.stock}</Text>
+                    <Text style={{ fontSize: 10, color: TEXT_THIRD }}>库存</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}>
+                  <Text style={styles.sendTxt}>📥 入库</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}>
+                  <Text style={styles.sendTxt}>📤 出库</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
+        {sortedGoods.length === 0 && <Text style={{ color: TEXT_THIRD, textAlign: 'center', marginTop: 20 }}>暂无商品，请先添加商品</Text>}
       </View>
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
@@ -2949,24 +3016,31 @@ const HomePage = () => {
           </ScrollView>
 
           {chatStaffList.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>{isEmployee ? '联系商家' : '员工私聊'}</Text>
-              {chatStaffList.map(staff => (
-                <TouchableOpacity
-                  key={staff.id}
-                  style={styles.staffChatItem}
-                  onPress={() => goToPrivateChat(staff)}
-                >
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} />
-                  </View>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{staff.phone}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} />
-                </TouchableOpacity>
-              ))}
+            <View style={{ marginTop: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 {isEmployee ? '联系商家' : '员工私聊'}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
+              </View>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
+                {chatStaffList.map(staff => (
+                  <TouchableOpacity
+                    key={staff.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
+                    onPress={() => goToPrivateChat(staff)}
+                  >
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="person-outline" size={24} color={PRIMARY_COLOR} />
+                    </View>
+                    <View style={{ marginLeft: 14, flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{staff.phone}</Text>
+                    </View>
+                    <View style={{ padding: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 20 }}>
+                      <Ionicons name="message-circle-outline" size={20} color={PRIMARY_COLOR} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           )}
 
@@ -3720,7 +3794,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppContext.Provider value={{ state, dispatch }}>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <MainStack />
         </NavigationContainer>
       </AppContext.Provider>
