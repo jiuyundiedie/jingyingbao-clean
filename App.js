@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert,
+  View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView
 } from 'react-native';
@@ -105,6 +105,45 @@ async function fetchZhipuChat(msgList, prompt, signal) {
   } catch (err) {
     if (err.name === 'AbortError') return '已取消';
     return "网络异常，获取回复失败";
+  }
+}
+
+async function fetchZhipuImage(prompt, signal) {
+  try {
+    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
+      body: JSON.stringify({
+        model: "cogview-3-plus",
+        prompt: prompt,
+        image_size: "1024x1024",
+        num_images: 1
+      }),
+      signal: signal,
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      console.error('Image generation failed:', json);
+      return null;
+    }
+    const imageData = json.data?.[0];
+    if (imageData?.b64_json) {
+      return `data:image/png;base64,${imageData.b64_json}`;
+    } else if (imageData?.url) {
+      try {
+        const imageRes = await fetch(imageData.url, { signal });
+        const base64 = await imageRes.text();
+        return `data:image/png;base64,${base64}`;
+      } catch (e) {
+        console.error('Failed to fetch image URL:', e);
+        return null;
+      }
+    }
+    return null;
+  } catch (err) {
+    if (err.name === 'AbortError') return 'aborted';
+    console.error('Image generation error:', err);
+    return null;
   }
 }
 
@@ -2378,35 +2417,24 @@ const MerchantAssistant = () => {
       if (showImageGen) {
         try {
           const fullPrompt = `${text}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
-          const res = await fetch('https://image-api.my-image-api.workers.dev', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer my_secure_key_123', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: fullPrompt, width: 1024, height: 1024, num_steps: 20 }),
-            signal: abortControllerRef.current.signal,
-          });
-          if (!abortControllerRef.current.signal.aborted && res.ok) {
-            const blob = await res.blob();
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              if (!abortControllerRef.current?.signal.aborted) {
-                const aiMsg = {
-                  id: (Date.now()+1).toString(),
-                  text: '图片已生成',
-                  image: reader.result,
-                  from: 'ai',
-                  time: new Date().toISOString(),
-                };
-                setMessages(prev => [...prev, aiMsg]);
-              }
+          const imageResult = await fetchZhipuImage(fullPrompt, abortControllerRef.current.signal);
+          if (!abortControllerRef.current.signal.aborted && imageResult) {
+            if (imageResult === 'aborted') {
               setLoading(false);
               abortControllerRef.current = null;
+              return;
+            }
+            const aiMsg = {
+              id: (Date.now()+1).toString(),
+              text: '图片已生成',
+              image: imageResult,
+              from: 'ai',
+              time: new Date().toISOString(),
             };
-            reader.onerror = () => {
-              setLoading(false);
-              abortControllerRef.current = null;
-              showToast('生成失败');
-            };
-            reader.readAsDataURL(blob);
+            setMessages(prev => [...prev, aiMsg]);
+            setLoading(false);
+            abortControllerRef.current = null;
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
             return;
           } else {
             reply = '生成失败，请重试';
