@@ -253,6 +253,34 @@ function appReducer(state, action) {
       return { ...state, goodsList: action.payload || [] };
     case 'SET_STAFF_LIST':
       return { ...state, staffMemberList: action.payload || [] };
+    case 'APPROVE_STAFF_APPLICATION': {
+      const list = state.staffMemberList || [];
+      const index = list.findIndex(item => item.phone === action.payload.phone);
+      if (index === -1) return state;
+      const newList = [...list];
+      newList[index] = { ...newList[index], status: 'approved' };
+      return { ...state, staffMemberList: newList };
+    }
+    case 'REJECT_STAFF_APPLICATION': {
+      const list = state.staffMemberList || [];
+      return { ...state, staffMemberList: list.filter(item => item.phone !== action.payload.phone) };
+    }
+    case 'ADD_STAFF_MEMBER': {
+      const exists = (state.staffMemberList || []).find(item => item.phone === action.payload.phone);
+      if (exists) return state;
+      return { ...state, staffMemberList: [...(state.staffMemberList || []), { ...action.payload, status: 'approved', id: Date.now().toString() }] };
+    }
+    case 'REMOVE_STAFF_MEMBER': {
+      return { ...state, staffMemberList: (state.staffMemberList || []).filter(item => item.phone !== action.payload) };
+    }
+    case 'UPDATE_STAFF_STATUS': {
+      const list = state.staffMemberList || [];
+      const index = list.findIndex(item => item.phone === action.payload.phone);
+      if (index === -1) return state;
+      const newList = [...list];
+      newList[index] = { ...newList[index], status: action.payload.status };
+      return { ...state, staffMemberList: newList };
+    }
     case 'SET_BAD_REVIEW_COUNT':
       return { ...state, badReviewCount: action.payload };
     case 'ADD_BAD_REVIEW': {
@@ -426,20 +454,20 @@ const styles = StyleSheet.create({
     ...SHADOW,
   },
   inputBox: { flex: 1, height: 44, paddingHorizontal: 16, paddingVertical: 10, borderWidth: 0, borderRadius: 24, fontSize: 15, backgroundColor: '#F2F4F8', color: TEXT_MAIN },
-  sendBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 24, marginLeft: 8 },
+  sendBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 24, marginLeft: 8, ...SHADOW },
   sendTxt: { color: '#fff', fontSize: 14, fontWeight: '500' },
   label: { fontSize: 14, color: TEXT_SECOND, marginTop: 12, marginBottom: 6, fontWeight: '500' },
-  formInput: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, backgroundColor: BG_CARD, color: TEXT_MAIN },
+  formInput: { height: 44, paddingHorizontal: 14, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, backgroundColor: BG_CARD, color: TEXT_MAIN },
   primaryBtn: { marginTop: 16, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
-  miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 },
+  miniBlueBtn: { paddingHorizontal: 14, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, ...SHADOW },
   loginContainer: { flex: 1, backgroundColor: '#F5F7FA', paddingHorizontal: 24, justifyContent: 'center' },
   loginTitle: { fontSize: 32, fontWeight: '700', color: TEXT_MAIN, marginBottom: 8 },
   loginSubtitle: { fontSize: 16, color: TEXT_SECOND, marginBottom: 32 },
   roleSelector: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
-  roleBtn: { flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_COLOR, alignItems: 'center' },
+  roleBtn: { flex: 1, paddingVertical: 12, marginHorizontal: 6, borderRadius: 12, borderWidth: 2, borderColor: BORDER_COLOR, alignItems: 'center' },
   roleBtnActive: { borderColor: PRIMARY_COLOR, backgroundColor: LIGHT_PRIMARY },
   roleText: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
-  loginBtn: { height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 16 },
+  loginBtn: { height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 16, ...SHADOW },
   loginBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
   codeRow: { flexDirection: 'row', alignItems: 'center' },
   codeInput: { flex: 1 },
@@ -447,56 +475,58 @@ const styles = StyleSheet.create({
   getCodeText: { color: PRIMARY_COLOR, fontSize: 14 },
   tagNormal: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 20, backgroundColor: 'transparent' },
   tagActive: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: PRIMARY_COLOR, borderRadius: 20 },
-  cardBox: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW },
-  listItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
+  cardBox: { backgroundColor: BG_CARD, padding: 16, borderRadius: 16, ...SHADOW },
+  listItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, ...SHADOW },
   emojiRow: { height: 44, backgroundColor: BG_CARD, paddingHorizontal: 10, borderTopWidth: 1, borderColor: BORDER_COLOR },
   quickReplyContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR },
   quickReplyBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 20, marginRight: 8, marginBottom: 6 },
   quickReplyText: { color: PRIMARY_COLOR, fontSize: 13 },
-  settingGroup: { marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW },
+  settingGroup: { marginTop: 16, backgroundColor: BG_CARD, borderRadius: 16, overflow: 'hidden', ...SHADOW },
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   settingItemLast: { borderBottomWidth: 0 },
   switchAccountContainer: { flex: 1, backgroundColor: BG_PAGE, paddingHorizontal: 16, paddingTop: 20 },
-  accountItem: { backgroundColor: BG_CARD, padding: 16, borderRadius: 12, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
+  accountItem: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
   accountInfo: { flex: 1 },
   accountPhone: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
   accountDetail: { fontSize: 14, color: TEXT_SECOND, marginTop: 2 },
   registerBtn: { marginTop: 20, height: 48, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center', ...SHADOW },
   registerBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  badReviewItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, ...SHADOW },
+  badReviewItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, ...SHADOW },
   badReviewContent: { fontSize: 14, color: TEXT_MAIN },
   badReviewMeta: { fontSize: 12, color: TEXT_THIRD, marginTop: 4 },
   badReviewHandled: { fontSize: 12, color: SUCCESS_COLOR, marginTop: 4, fontWeight: '500' },
-  badReviewHandledBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: SUCCESS_COLOR, borderRadius: 6, marginLeft: 8 },
+  badReviewHandledBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: SUCCESS_COLOR, borderRadius: 8, marginLeft: 8 },
   badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
   badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
   imageMessage: { width: 150, height: 150, borderRadius: 12, marginTop: 4 },
-  productItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
+  productItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
   productName: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
   productStock: { fontSize: 14, color: TEXT_SECOND },
   productPlatform: { fontSize: 12, color: TEXT_THIRD },
   editBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 },
   editBtnText: { color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' },
   modalMask: { position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 20, padding: 24, ...SHADOW },
+  modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 24, padding: 24, ...SHADOW },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
   closeTxt: { fontSize: 24, color: TEXT_THIRD },
   scannerContainer: { flex: 1 },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
   cancelText: { color: '#fff', fontSize: 16 },
-  reportCard: { backgroundColor: BG_CARD, padding: 16, borderRadius: 14, marginTop: 16, ...SHADOW },
+  reportCard: { backgroundColor: BG_CARD, padding: 16, borderRadius: 16, marginTop: 16, ...SHADOW },
   reportTitle: { fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 },
   reportRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   reportLabel: { fontSize: 14, color: TEXT_SECOND },
   reportValue: { fontSize: 14, color: TEXT_MAIN, fontWeight: '500' },
-  exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start' },
+  exportBtn: { marginTop: 8, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignSelf: 'flex-start', ...SHADOW },
   exportBtnText: { color: '#fff', fontSize: 14, fontWeight: '500' },
   chatSettingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   chatSettingText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
   chatSettingDesc: { fontSize: 14, color: TEXT_THIRD, marginLeft: 'auto' },
-  voiceModal: { width: '80%', backgroundColor: BG_CARD, borderRadius: 20, padding: 24, alignItems: 'center' },
-  voiceTextInput: { width: '100%', height: 120, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 10, padding: 12, fontSize: 16, textAlignVertical: 'top' },
+  voiceModal: { width: '80%', backgroundColor: BG_CARD, borderRadius: 24, padding: 24, alignItems: 'center' },
+  voiceTextInput: { width: '100%', height: 120, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, padding: 12, fontSize: 16, textAlignVertical: 'top' },
+  menuItem: { width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 16, alignItems: 'center', ...SHADOW },
+  staffChatItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, flexDirection: 'row', alignItems: 'center', ...SHADOW },
 });
 
 // ================== 登录页面 ==================
@@ -510,13 +540,17 @@ const LoginScreen = () => {
   const [employeeName, setEmployeeName] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const previousAccounts = state.previousAccounts || [];
 
   useEffect(() => {
-    if (state.user) {
-      navigation.replace('RootTabs');
+    if (!initialized) {
+      setInitialized(true);
+      if (state.user) {
+        navigation.replace('RootTabs');
+      }
     }
-  }, [state.user]);
+  }, [state.user, initialized]);
 
   const handleLogin = async () => {
     if (loading) return;
@@ -1705,9 +1739,47 @@ const InternalChat = () => {
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [callType, setCallType] = useState('voice');
+  const [callStatus, setCallStatus] = useState('idle');
+  const [callDuration, setCallDuration] = useState(0);
+  const [callingName, setCallingName] = useState('');
+  let callTimer = null;
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
+
+  const startCall = (type) => {
+    setCallType(type);
+    setCallStatus('calling');
+    setCallDuration(0);
+    setCallingName('正在呼叫...');
+    setShowMediaOptions(false);
+    setTimeout(() => {
+      setCallStatus('connected');
+      setCallingName('内部沟通群');
+      callTimer = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    }, 2000);
+  };
+
+  const endCall = () => {
+    if (callTimer) {
+      clearInterval(callTimer);
+      callTimer = null;
+    }
+    setCallStatus('ended');
+    setTimeout(() => {
+      setCallStatus('idle');
+      setCallDuration(0);
+    }, 2000);
+  };
+
+  const formatDuration = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
   const sendGroupMessage = async (type = 'text') => {
     try {
@@ -1822,6 +1894,14 @@ const InternalChat = () => {
               <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
               <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
+              <Ionicons name="call-outline" size={24} color={SUCCESS_COLOR} />
+              <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>语音通话</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
+              <Ionicons name="videocam-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>视频通话</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
               <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
               <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
@@ -1836,6 +1916,32 @@ const InternalChat = () => {
         </View>
         <View style={{ height: 56 }} />
       </View>
+      {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a1a1a', zIndex: 1000, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: BG_CARD, justifyContent: 'center', alignItems: 'center', marginBottom: 24 }}>
+            {callType === 'video' ? (
+              <Ionicons name="videocam-outline" size={48} color={PRIMARY_COLOR} />
+            ) : (
+              <Ionicons name="person-outline" size={48} color={PRIMARY_COLOR} />
+            )}
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 8 }}>{callingName}</Text>
+          <Text style={{ fontSize: 16, color: '#aaa', marginBottom: 48 }}>
+            {callStatus === 'calling' ? '正在呼叫...' : callStatus === 'connected' ? formatDuration(callDuration) : '通话已结束'}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 32 }}>
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已静音')}>
+              <Ionicons name="mic-off-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换扬声器')}>
+              <Ionicons name="volume-high-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }} onPress={endCall}>
+              <Ionicons name="call-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -2670,7 +2776,7 @@ const HomePage = () => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
               {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
-                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={{ width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 12, alignItems: 'center', ...SHADOW }}>
+                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={styles.menuItem}>
                   <Ionicons name={item.icon} size={28} color={PRIMARY_COLOR} />
                   <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
                 </TouchableOpacity>
@@ -2684,7 +2790,7 @@ const HomePage = () => {
               {chatStaffList.map(staff => (
                 <TouchableOpacity
                   key={staff.id}
-                  style={{ backgroundColor: BG_CARD, padding: 14, borderRadius: 12, marginVertical: 6, flexDirection: 'row', alignItems: 'center', ...SHADOW }}
+                  style={styles.staffChatItem}
                   onPress={() => goToPrivateChat(staff)}
                 >
                   <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
@@ -2717,11 +2823,71 @@ const HomePage = () => {
         </ScrollView>
 
       {!isEmployee && (
-        <TouchableOpacity style={{ position: 'absolute', bottom: 80, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW, zIndex: 999 }} onPress={() => navigation.navigate('MerchantAssistant')}>
-          <Ionicons name="sparkles" size={28} color="#fff" />
-        </TouchableOpacity>
+        <DraggableFloatingButton onPress={() => navigation.navigate('MerchantAssistant')} />
       )}
     </View>
+  );
+};
+
+const DraggableFloatingButton = ({ onPress }) => {
+  const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [startTouch, setStartTouch] = useState({ x: 0, y: 0 });
+
+  const handlePanStart = (e) => {
+    const touch = e.nativeEvent.touches[0];
+    setIsDragging(true);
+    setStartPos({ x: position.x, y: position.y });
+    setStartTouch({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handlePanMove = (e) => {
+    if (!isDragging) return;
+    const touch = e.nativeEvent.touches[0];
+    const deltaX = touch.clientX - startTouch.x;
+    const deltaY = touch.clientY - startTouch.y;
+    let newX = startPos.x + deltaX;
+    let newY = startPos.y + deltaY;
+    newX = Math.max(0, Math.min(width - 56, newX));
+    newY = Math.max(0, Math.min(height - 100, newY));
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePanEnd = () => {
+    setIsDragging(false);
+  };
+
+  return (
+    <TouchableWithoutFeedback
+      onTouchStart={handlePanStart}
+      onTouchMove={handlePanMove}
+      onTouchEnd={handlePanEnd}
+      onPress={() => !isDragging && onPress()}
+    >
+      <View
+        style={{
+          position: 'absolute',
+          left: position.x,
+          top: position.y,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: PRIMARY_COLOR,
+          justifyContent: 'center',
+          alignItems: 'center',
+          ...SHADOW,
+          zIndex: 999,
+          transform: [{ scale: isDragging ? 1.1 : 1 }],
+          transition: 'transform 0.2s ease',
+        }}
+      >
+        <Ionicons name="sparkles" size={28} color="#fff" />
+        <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
+        </View>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 // ===== 第二段结束 =====// ================== 订单核销 ==================
@@ -2861,6 +3027,419 @@ const VerifyOrder = () => {
   );
 };
 
+// ================== 私聊页面 ==================
+const PrivateChat = ({ route, navigation }) => {
+  const { phone, name } = route.params || {};
+  const { state, dispatch } = useApp();
+  const [inputText, setInputText] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceText, setVoiceText] = useState('');
+  const scrollViewRef = useRef(null);
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+
+  useEffect(() => {
+    const savedMessages = state.privateChatMessages[phone] || [];
+    setMessages(savedMessages);
+  }, [phone]);
+
+  const sendMessage = async (type = 'text') => {
+    try {
+      let text = inputText.trim();
+      let images = [];
+      if (type === 'image') {
+        if (selectedImages.length === 0) { showToast('请先选择图片'); return; }
+        for (let uri of selectedImages) {
+          const compressed = await compressImage(uri);
+          const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+          images.push(`data:image/jpeg;base64,${base64}`);
+        }
+        const msg = {
+          id: Date.now().toString(),
+          text: text || '图片消息',
+          image: images[0],
+          from: 'staff',
+          platform: 'private',
+          time: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, msg]);
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+        setSelectedImages([]);
+        setInputText('');
+        setShowMediaOptions(false);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        return;
+      }
+      if (!text) return;
+      const msg = {
+        id: Date.now().toString(),
+        text,
+        image: null,
+        from: 'staff',
+        platform: 'private',
+        time: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, msg]);
+      dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+      setInputText('');
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+
+      setTimeout(() => {
+        const replyMsg = {
+          id: (Date.now() + 1).toString(),
+          text: `收到，${name || '对方'}正在处理中...`,
+          from: 'customer',
+          platform: 'private',
+          time: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, replyMsg]);
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: replyMsg } });
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }, 1500);
+    } catch (error) {
+      showToast('发送失败');
+    }
+  };
+
+  const confirmVoice = () => {
+    if (voiceText.trim()) {
+      setInputText(voiceText.trim());
+      setShowVoiceModal(false);
+      setVoiceText('');
+    } else {
+      showToast('请输入内容');
+    }
+  };
+
+  const pickImages = async (source) => {
+    try {
+      setShowMediaOptions(false);
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相机权限'); return; }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.7,
+        });
+        if (!result.canceled) {
+          setSelectedImages([...selectedImages, result.assets[0].uri]);
+          showToast('已选1张图片');
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') { showToast('需要相册权限'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.7,
+          selectionLimit: 10,
+        });
+        if (!result.canceled) {
+          const uris = result.assets.map(a => a.uri);
+          setSelectedImages([...selectedImages, ...uris]);
+          showToast(`已选${uris.length}张图片`);
+        }
+      }
+    } catch (error) { showToast('选择图片失败'); }
+  };
+
+  const removeImage = (index) => {
+    const newList = [...selectedImages];
+    newList.splice(index, 1);
+    setSelectedImages(newList);
+  };
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>{name || '私聊'}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+      </SafeAreaView>
+      {selectedImages.length > 0 && (
+        <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+          <ScrollView horizontal>
+            {selectedImages.map((uri, idx) => (
+              <View key={idx} style={{ marginRight: 8, position: 'relative' }}>
+                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                <TouchableOpacity
+                  style={{ position: 'absolute', top: -4, right: -4, backgroundColor: DANGER_COLOR, borderRadius: 12, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}
+                  onPress={() => removeImage(idx)}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.chatScroll}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map(msg => (
+          <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
+            {msg.image ? (
+              <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+            ) : (
+              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+            )}
+            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
+          </View>
+        ))}
+        {messages.length === 0 && (
+          <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>开始与 {name || '对方'} 对话</Text>
+        )}
+      </ScrollView>
+      {showMediaOptions && (
+        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
+            <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
+            <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => { setShowVoiceModal(true); setVoiceText(''); }}>
+            <Ionicons name="mic-outline" size={24} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>语音</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
+            <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
+            <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <View style={styles.inputBar}>
+        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TextInput
+          style={styles.inputBox}
+          placeholder="输入消息..."
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+        />
+        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
+        {selectedImages.length > 0 && (
+          <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}><Text style={styles.sendTxt}>📷 发送</Text></TouchableOpacity>
+        )}
+      </View>
+      <View style={{ height: 56 }} />
+      <Modal visible={showVoiceModal} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.voiceModal}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>🎤 语音输入</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>输入要发送的消息</Text>
+            <TextInput
+              style={styles.voiceTextInput}
+              multiline
+              placeholder="输入消息..."
+              value={voiceText}
+              onChangeText={setVoiceText}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setShowVoiceModal(false); setVoiceText(''); }}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={confirmVoice}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>发送</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 员工管理页面 ==================
+const StaffManage = () => {
+  const navigation = useNavigation();
+  const { state, dispatch } = useApp();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [position, setPosition] = useState('店员');
+  const [showDetail, setShowDetail] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+
+  const staffMemberList = state.staffMemberList || [];
+  const pendingList = staffMemberList.filter(s => s.status === 'pending');
+  const approvedList = staffMemberList.filter(s => s.status === 'approved');
+
+  const handleAddStaff = () => {
+    if (!name.trim()) { showToast('请输入员工姓名'); return; }
+    if (phone.length !== 11) { showToast('请输入11位手机号'); return; }
+    dispatch({ type: 'ADD_STAFF_MEMBER', payload: { name: name.trim(), phone, position } });
+    showToast(`员工 ${name} 已添加`);
+    setModalVisible(false);
+    setName('');
+    setPhone('');
+    setPosition('店员');
+  };
+
+  const handleApprove = (staff) => {
+    dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: staff.phone } });
+    const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
+    showToast(`${staff.name} 已批准入职`);
+  };
+
+  const handleReject = (staff) => {
+    dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: staff.phone });
+    showToast('已拒绝申请');
+  };
+
+  const handleRemove = (staff) => {
+    Alert.alert('确认删除', `确定要删除员工 ${staff.name} 吗？`, [
+      { text: '取消' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        dispatch({ type: 'REMOVE_STAFF_MEMBER', payload: staff.phone });
+        showToast('已删除员工');
+        setShowDetail(false);
+      }}
+    ]);
+  };
+
+  const handleSuspend = (staff) => {
+    dispatch({ type: 'UPDATE_STAFF_STATUS', payload: { phone: staff.phone, status: 'suspended' } });
+    showToast('已暂停该员工权限');
+    setShowDetail(false);
+  };
+
+  const handleResume = (staff) => {
+    dispatch({ type: 'UPDATE_STAFF_STATUS', payload: { phone: staff.phone, status: 'approved' } });
+    showToast('已恢复该员工权限');
+  };
+
+  const goToChat = (staff) => {
+    navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
+    setShowDetail(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <Text style={styles.pageTitle}>员工管理</Text>
+          <TouchableOpacity onPress={() => { setModalVisible(true); }}>
+            <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+      <ScrollView style={{ padding: 16 }}>
+        {pendingList.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>📩 入职申请 ({pendingList.length})</Text>
+            {pendingList.map(staff => (
+              <View key={staff.phone} style={styles.listItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name}</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{staff.phone} | {staff.position || '店员'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => handleApprove(staff)}><Text style={styles.sendTxt}>同意</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleReject(staff)}><Text style={styles.sendTxt}>拒绝</Text></TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>👥 在职员工 ({approvedList.length})</Text>
+          {approvedList.map(staff => (
+            <TouchableOpacity key={staff.phone} style={styles.listItem} onPress={() => { setSelectedStaff(staff); setShowDetail(true); }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{staff.phone} | {staff.position || '店员'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} />
+            </TouchableOpacity>
+          ))}
+          {approvedList.length === 0 && <Text style={{ color: TEXT_THIRD, textAlign: 'center', padding: 20 }}>暂无在职员工，点击右上角添加</Text>}
+        </View>
+      </ScrollView>
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>添加员工</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.label}>员工姓名</Text>
+            <TextInput style={styles.formInput} placeholder="输入姓名" value={name} onChangeText={setName} />
+            <Text style={styles.label}>手机号</Text>
+            <TextInput style={styles.formInput} placeholder="输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+            <Text style={styles.label}>职位</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+              {['店员', '店长', '收银员', '厨师'].map(p => (
+                <TouchableOpacity key={p} style={[styles.tagNormal, position === p && styles.tagActive]} onPress={() => setPosition(p)}>
+                  <Text style={{ color: position === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleAddStaff}><Text style={styles.sendTxt}>添加</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showDetail} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>员工详情</Text>
+              <TouchableOpacity onPress={() => setShowDetail(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            {selectedStaff && (
+              <>
+                <View style={{ alignItems: 'center', marginVertical: 16 }}>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="person-outline" size={40} color={PRIMARY_COLOR} />
+                  </View>
+                  <Text style={{ fontSize: 20, fontWeight: '600', color: TEXT_MAIN, marginTop: 12 }}>{selectedStaff.name}</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{selectedStaff.position || '店员'}</Text>
+                </View>
+                <View style={styles.settingGroup}>
+                  <TouchableOpacity style={styles.settingItem} onPress={() => goToChat(selectedStaff)}>
+                    <Ionicons name="chatbox-outline" size={22} color={PRIMARY_COLOR} />
+                    <Text style={{ flex: 1, color: TEXT_MAIN }}>发消息</Text>
+                    <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.settingItem} onPress={() => { showToast('拨打电话功能开发中'); }}>
+                    <Ionicons name="call-outline" size={22} color={PRIMARY_COLOR} />
+                    <Text style={{ flex: 1, color: TEXT_MAIN }}>拨打电话</Text>
+                    <Ionicons name="chevron-forward" size={20} color={TEXT_THIRD} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.settingItem} onPress={() => handleSuspend(selectedStaff)}>
+                    <Ionicons name="pause-outline" size={22} color="#FF8C00" />
+                    <Text style={{ flex: 1, color: '#FF8C00' }}>暂停权限</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={() => handleRemove(selectedStaff)}>
+                    <Ionicons name="trash-outline" size={22} color={DANGER_COLOR} />
+                    <Text style={{ flex: 1, color: DANGER_COLOR }}>删除员工</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
 // ================== 占位页面 ==================
 const PlaceholderPage = ({ title }) => {
   return (
@@ -2916,8 +3495,8 @@ function MainStack() {
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
-      <Stack.Screen name="StaffManage" component={() => <PlaceholderPage title="员工管理" />} />
-      <Stack.Screen name="PrivateChat" component={() => <PlaceholderPage title="私聊" />} />
+      <Stack.Screen name="StaffManage" component={StaffManage} />
+      <Stack.Screen name="PrivateChat" component={PrivateChat} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} />
     </Stack.Navigator>
   );
