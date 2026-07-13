@@ -20,13 +20,44 @@ import * as Sharing from 'expo-sharing';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
-const showToast = (msg) => {
+let toastHideTimer = null;
+let toastClickHandler = null;
+const showToast = (msg, duration = 2000) => {
   if (Platform.OS === 'android') {
     ToastAndroid.show(msg, ToastAndroid.SHORT);
-  } else {
-    Alert.alert('提示', msg);
+  }
+  if (toastRef.current) {
+    toastRef.current.setMsg(msg);
+    toastRef.current.setVisible(true);
+    if (toastHideTimer) clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(() => {
+      if (toastRef.current) toastRef.current.setVisible(false);
+    }, duration);
   }
 };
+const hideToast = () => {
+  if (toastHideTimer) clearTimeout(toastHideTimer);
+  if (toastRef.current) toastRef.current.setVisible(false);
+};
+
+// 自定义 Toast 组件（点击立即消失）
+const CustomToast = () => {
+  const [visible, setVisible] = useState(false);
+  const [msg, setMsg] = useState('');
+  toastRef.current = { setMsg, setVisible, show: () => setVisible(true) };
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={hideToast}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.05)' }} onPress={hideToast}>
+        <View style={{ position: 'absolute', top: 80, left: 0, right: 0, alignItems: 'center' }}>
+          <View style={{ backgroundColor: 'rgba(50,50,50,0.92)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 12, maxWidth: '80%' }}>
+            <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>{msg}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+const toastRef = { current: null };
 
 const { width, height } = Dimensions.get('window');
 const PRIMARY_COLOR = '#5B6DF0'; // 更高级的紫蓝色
@@ -313,6 +344,18 @@ function appReducer(state, action) {
       if (exists) return state;
       return { ...state, staffMemberList: [...(state.staffMemberList || []), { ...action.payload, status: 'pending', id: Date.now().toString() }] };
     }
+    case 'SET_NIGHT_MODE':
+      return { ...state, nightMode: action.payload };
+    case 'SET_LANGUAGE':
+      return { ...state, language: action.payload };
+    case 'SET_PUSH_CONFIG':
+      return { ...state, pushConfig: action.payload };
+    case 'SET_CUSTOMER_TAG': {
+      const { phone, tag } = action.payload;
+      const tags = (state.customerTags || {})[phone] || [];
+      if (tags.includes(tag)) return state;
+      return { ...state, customerTags: { ...(state.customerTags || {}), [phone]: [...tags, tag] } };
+    }
     case 'ADD_STAFF_MEMBER': {
       const exists = (state.staffMemberList || []).find(item => item.phone === action.payload.phone);
       if (exists) return state;
@@ -494,6 +537,61 @@ const styles = StyleSheet.create({
     backgroundColor: BG_CARD,
     borderBottomWidth: 0,
     ...SHADOW,
+  },
+  // 美化的返回按钮
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(91,109,240,0.1)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  // 设置卡片样式
+  settingsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 8,
+    overflow: 'hidden',
+    ...SHADOW,
+  },
+  settingsGroupTitle: {
+    fontSize: 13, color: TEXT_THIRD, marginTop: 12, marginBottom: 8, marginLeft: 4, fontWeight: '500',
+  },
+  settingsRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14,
+    borderBottomWidth: 0.5, borderColor: '#F0F0F0',
+  },
+  settingsRowLast: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14,
+  },
+  settingsIcon: { width: 28, marginRight: 12 },
+  settingsIconWrap: {
+    width: 30, height: 30, borderRadius: 8,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: 12,
+  },
+  settingsIconText: {
+    fontSize: 16, fontWeight: 'bold', color: '#4FACFE',
+    lineHeight: 18,
+  },
+  settingsRowText: { fontSize: 15, color: TEXT_MAIN, flex: 1 },
+  settingsRight: { fontSize: 13, color: TEXT_THIRD, marginRight: 6 },
+  settingsLogoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#fff', padding: 14, borderRadius: 12, marginTop: 16, marginBottom: 12,
+    ...SHADOW,
+  },
+  // 悬浮窗按钮（美化）
+  fabButton: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: PRIMARY_COLOR,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: PRIMARY_COLOR, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  fabButtonInner: {
+    width: 50, height: 50, borderRadius: 25,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: PRIMARY_COLOR,
   },
   pageTitle: { fontSize: 18, fontWeight: '600', color: TEXT_MAIN },
   homeTitle: { fontSize: 22, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 0.5 },
@@ -714,6 +812,186 @@ const LoginScreen = () => {
   );
 };
 // ===== 第一段结束 =====// ================== 设置抽屉（含推送时间，图标已美化） ==================
+// ================== 个人资料编辑页面 ==================
+const ProfileEditScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const user = state.user || {};
+  const shopInfo = state.shopInfo || {};
+  const [name, setName] = useState(user.name || '');
+  const [phone, setPhone] = useState(user.phone || '');
+  const [gender, setGender] = useState(user.gender || '未设置');
+  const [avatar, setAvatar] = useState(user.avatar || '');
+  const [region, setRegion] = useState(user.region || '');
+  const [signature, setSignature] = useState(user.signature || '');
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+
+  const avatarColors = [
+    { bg: '#FF6B6B', text: '白羊' },
+    { bg: '#4ECDC4', text: '清新' },
+    { bg: '#FFD93D', text: '阳光' },
+    { bg: '#6BCB77', text: '自然' },
+    { bg: '#4D96FF', text: '海洋' },
+    { bg: '#A66CFF', text: '神秘' },
+    { bg: '#FF9F45', text: '温暖' },
+    { bg: '#95A5A6', text: '商务' },
+  ];
+
+  const pickAvatar = () => {
+    Alert.alert('选择头像方式', '', [
+      { text: '从相册选择', onPress: async () => {
+        try {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') { showToast('需要相册权限'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled) {
+            setAvatar(result.assets[0].uri);
+          }
+        } catch (e) { showToast('选择失败'); }
+      }},
+      { text: '拍摄头像', onPress: async () => {
+        try {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') { showToast('需要相机权限'); return; }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled) {
+            setAvatar(result.assets[0].uri);
+          }
+        } catch (e) { showToast('拍摄失败'); }
+      }},
+      { text: '使用预设头像', onPress: () => setShowAvatarPicker(true) },
+      { text: '取消', style: 'cancel' },
+    ]);
+  };
+
+  const saveProfile = async () => {
+    if (!name.trim()) { showToast('请输入姓名'); return; }
+    if (!/^1\d{10}$/.test(phone)) { showToast('请输入有效的手机号'); return; }
+    const newUser = { ...user, name: name.trim(), phone, gender, avatar, region, signature };
+    const newShopInfo = { ...shopInfo, phone };
+    try {
+      await AsyncStorage.setItem('user', JSON.stringify(newUser));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo));
+      dispatch({ type: 'LOGIN', payload: { user: newUser, shopInfo: newShopInfo } });
+      showToast('个人资料已保存');
+      navigation.goBack();
+    } catch (e) { showToast('保存失败'); }
+  };
+
+  const getAvatarText = () => (name || user.name || '?').substring(0, 1);
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY_COLOR }}>
+        <View style={[styles.headerBar, { backgroundColor: PRIMARY_COLOR }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={[styles.pageTitle, { color: '#fff', flex: 1, textAlign: 'center', marginRight: 32 }]}>个人资料</Text>
+        </View>
+      </SafeAreaView>
+      <ScrollView style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+        <View style={{ backgroundColor: PRIMARY_COLOR, paddingBottom: 30, alignItems: 'center' }}>
+          <TouchableOpacity onPress={pickAvatar} style={{ position: 'relative' }}>
+            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 3, borderColor: '#fff' }}>
+              {avatar && (avatar.startsWith('http') || avatar.startsWith('file') || avatar.startsWith('data')) ? (
+                <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} />
+              ) : (
+                <Text style={{ fontSize: 36, color: PRIMARY_COLOR, fontWeight: 'bold' }}>{getAvatarText()}</Text>
+              )}
+            </View>
+            <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 14, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="camera" size={16} color={PRIMARY_COLOR} />
+            </View>
+          </TouchableOpacity>
+          <Text style={{ color: '#fff', marginTop: 10, fontSize: 16, fontWeight: '500' }}>{name || '未设置姓名'}</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 }}>{user.role || '用户'} · {shopInfo.shopName || '未设置门店'}</Text>
+        </View>
+
+        <View style={{ backgroundColor: '#fff', marginTop: -20, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 40 }}>
+          <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 8 }}>基本信息</Text>
+            <View style={{ backgroundColor: '#F5F7FA', borderRadius: 12, padding: 16 }}>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>姓名</Text>
+                <TextInput style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 15, color: TEXT_MAIN }} value={name} onChangeText={setName} placeholder="请输入姓名" />
+              </View>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>手机号</Text>
+                <TextInput style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 15, color: TEXT_MAIN }} value={phone} onChangeText={setPhone} placeholder="请输入手机号" keyboardType="phone-pad" maxLength={11} />
+              </View>
+              <TouchableOpacity style={{ marginBottom: 14 }} onPress={() => setShowGenderPicker(true)}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>性别</Text>
+                <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{gender}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </View>
+              </TouchableOpacity>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>地区</Text>
+                <TextInput style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 15, color: TEXT_MAIN }} value={region} onChangeText={setRegion} placeholder="如：北京市朝阳区" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>个性签名</Text>
+                <TextInput style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, fontSize: 15, color: TEXT_MAIN, minHeight: 60 }} value={signature} onChangeText={setSignature} placeholder="说点什么吧..." multiline />
+              </View>
+            </View>
+          </View>
+
+          <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, marginHorizontal: 16, padding: 14, borderRadius: 25, alignItems: 'center' }} onPress={saveProfile}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>保存修改</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <Modal visible={showGenderPicker} transparent animationType="fade" onRequestClose={() => setShowGenderPicker(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowGenderPicker(false)}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择性别</Text>
+            {['男', '女', '未设置'].map(g => (
+              <TouchableOpacity key={g} style={{ paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => { setGender(g); setShowGenderPicker(false); }}>
+                <Text style={{ fontSize: 16, color: gender === g ? PRIMARY_COLOR : TEXT_MAIN, fontWeight: gender === g ? 'bold' : 'normal' }}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={{ paddingVertical: 14, alignItems: 'center', marginTop: 8 }} onPress={() => setShowGenderPicker(false)}>
+              <Text style={{ fontSize: 16, color: DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showAvatarPicker} transparent animationType="fade" onRequestClose={() => setShowAvatarPicker(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowAvatarPicker(false)}>
+          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 20, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择预设头像</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+              {avatarColors.map((c, idx) => (
+                <TouchableOpacity key={idx} style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setAvatar(c.bg); setShowAvatarPicker(false); }}>
+                  <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold' }}>{(name || '?').substring(0, 1)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setShowAvatarPicker(false)}>
+              <Text style={{ color: DANGER_COLOR, fontSize: 15 }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -722,11 +1000,26 @@ const SettingDrawer = ({ visible, onClose }) => {
   const isEmployee = user?.role === '员工';
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
-  const pushConfig = state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" };
+  const [pushConfig, setPushConfig] = useState(state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" });
   const [workH, setWorkH] = useState(pushConfig.workHour);
   const [workM, setWorkM] = useState(pushConfig.workMinute);
   const [offH, setOffH] = useState(pushConfig.offHour);
   const [offM, setOffM] = useState(pushConfig.offMinute);
+  const [theme, setTheme] = useState(state.theme || 'light');
+  const [language, setLanguage] = useState(state.language || '简体中文');
+  const [notifSound, setNotifSound] = useState(state.notifSound !== false);
+  const [notifVibrate, setNotifVibrate] = useState(state.notifVibrate !== false);
+  const [fontSize, setFontSize] = useState(state.fontSize || '标准');
+  const [nightMode, setNightMode] = useState(state.nightMode || false);
+  const [showLanguage, setShowLanguage] = useState(false);
+  const [showFontSize, setShowFontSize] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showVersion, setShowVersion] = useState(false);
+  const [showClearCache, setShowClearCache] = useState(false);
+  const [showShopNameEdit, setShowShopNameEdit] = useState(false);
+  const [editShopName, setEditShopName] = useState(shopName);
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
@@ -741,6 +1034,7 @@ const SettingDrawer = ({ visible, onClose }) => {
     if (isEmployee) return;
     const config = { workHour: workH, workMinute: workM, offHour: offH, offMinute: offM };
     dispatch({ type: 'SET_PUSH_CONFIG', payload: config });
+    setPushConfig(config);
     showToast("推送时间保存成功");
   };
 
@@ -753,106 +1047,383 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-    } catch (error) {
-      showToast('退出失败');
-    }
+    } catch (error) { showToast('退出失败'); }
   };
-  const handleSwitchAccount = async () => {
-    try {
-      if (user) {
-        dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: user.phone, role: user.role, shopName: shopInfo.shopName, name: user.name } });
-      }
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('shopInfo');
-      dispatch({ type: 'LOGOUT' });
-      onClose();
-    } catch (error) {
-      showToast('切换失败');
-    }
+
+  const clearCache = () => {
+    Alert.alert('清除缓存', '确定要清除所有缓存数据吗？这将删除本地存储的临时数据。', [
+      { text: '取消' },
+      { text: '清除', style: 'destructive', onPress: () => {
+        showToast('缓存已清除（演示）');
+        setShowClearCache(false);
+      }}
+    ]);
+  };
+
+  const goToProfile = () => {
+    onClose();
+    setTimeout(() => {
+      if (navigationRef.current) navigationRef.current.navigate('ProfileEdit');
+      else navigation.navigate('ProfileEdit');
+    }, 200);
   };
 
   if (!visible) return null;
   return (
     <View style={{ position: 'absolute', zIndex: 9998, top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
-      <ScrollView style={{ width: width * 0.7, height: '100%', backgroundColor: BG_CARD }}>
-        <View style={styles.safeTop} />
-        <View style={[styles.headerBar, { borderBottomWidth: 0 }]}>
-          <Text style={styles.pageTitle}>系统设置</Text>
-          <TouchableOpacity onPress={onClose}><Text style={{ fontSize: 20, color: TEXT_SECOND }}>✕</Text></TouchableOpacity>
+      <ScrollView style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }} showsVerticalScrollIndicator={false}>
+        <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>系统设置</Text>
+            <TouchableOpacity onPress={onClose} style={{ padding: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 }}>
+              <Ionicons name="close" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity onPress={goToProfile} style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12 }}>
+              {user?.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('file') || user.avatar.startsWith('data')) ? (
+                <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+              ) : (
+                <Text style={{ color: PRIMARY_COLOR, fontSize: 24, fontWeight: 'bold' }}>{(user?.name || '?').substring(0, 1)}</Text>
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{user?.name || '未设置'}</Text>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginLeft: 6 }}>
+                  <Text style={{ color: '#fff', fontSize: 10 }}>{user?.role || '用户'}</Text>
+                </View>
+              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 }} numberOfLines={1}>{user?.signature || '点击设置个人资料 →'}</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', marginTop: 16, gap: 8 }}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.goodsList || []).length}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>商品数</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.globalOrderRecord || []).length}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>总订单</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.staffMemberList || []).filter(s => s.status === 'approved').length}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>员工数</Text>
+            </View>
+          </View>
         </View>
-        <View style={{ padding: 16 }}>
-          <View style={styles.settingGroup}>
-            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>门店名称</Text>
-                {isEmployee ? (
-                  <Text style={[styles.formInput, { backgroundColor: '#F5F5F5', color: TEXT_SECOND, marginTop: 4 }]}>{shopName}</Text>
-                ) : (
-                  <TextInput style={[styles.formInput, { marginTop: 4 }]} value={shopName} onChangeText={setShopName} placeholder="输入门店名称" editable={!isEmployee} />
-                )}
-              </View>
-            </View>
+
+        <View style={{ padding: 12 }}>
+          {/* 账户设置组 */}
+          <Text style={styles.settingsGroupTitle}>账户设置</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={styles.settingsRow} onPress={goToProfile}>
+              <Ionicons name="person-circle-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>个人资料</Text>
+              <Text style={styles.settingsRight}>{user?.name || '未设置'}</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowShopNameEdit(true)}>
+              <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>门店信息</Text>
+              <Text style={styles.settingsRight} numberOfLines={1}>{shopName || '未设置'}</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRowLast} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 200); }}>
+              <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>切换账号</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
           </View>
-          <View style={styles.settingGroup}>
-            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
-              <Ionicons name="call-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>绑定手机号</Text>
-                {isEmployee ? (
-                  <Text style={[styles.formInput, { backgroundColor: '#F5F5F5', color: TEXT_SECOND, marginTop: 4 }]}>{phone}</Text>
-                ) : (
-                  <TextInput style={[styles.formInput, { marginTop: 4 }]} value={phone} onChangeText={setPhone} placeholder="输入手机号" keyboardType="phone-pad" editable={!isEmployee} />
-                )}
-              </View>
+
+          {/* 消息通知组 */}
+          <Text style={styles.settingsGroupTitle}>消息通知</Text>
+          <View style={styles.settingsCard}>
+            <View style={styles.settingsRow}>
+              <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>新消息通知</Text>
+              <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
             </View>
+            <View style={styles.settingsRow}>
+              <Ionicons name="volume-high-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>提示音</Text>
+              <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
+            </View>
+            <View style={styles.settingsRow}>
+              <Ionicons name="phone-portrait-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>震动提醒</Text>
+              <Switch value={notifVibrate} onValueChange={setNotifVibrate} trackColor={{ true: PRIMARY_COLOR }} />
+            </View>
+            {!isEmployee && (
+              <View style={styles.settingsRowLast}>
+                <Ionicons name="time-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+                <Text style={styles.settingsRowText}>推送时间</Text>
+                <Text style={styles.settingsRight}>{workH.padStart(2,'0')}:{workM.padStart(2,'0')} - {offH.padStart(2,'0')}:{offM.padStart(2,'0')}</Text>
+              </View>
+            )}
           </View>
           {!isEmployee && (
-            <TouchableOpacity style={[styles.primaryBtn, { marginTop: 8, height: 40 }]} onPress={saveShop}>
-              <Text style={styles.sendTxt}>保存信息</Text>
-            </TouchableOpacity>
-          )}
-          {!isEmployee && (
-            <View style={styles.settingGroup}>
-              <View style={styles.settingItem}>
-                <Ionicons name="time-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>每周早间周报推送</Text>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={workH} onChangeText={setWorkH} placeholder="小时" />
-                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={workM} onChangeText={setWorkM} placeholder="分钟" />
-                  </View>
-                </View>
-              </View>
-              <View style={[styles.settingItem, styles.settingItemLast]}>
-                <Ionicons name="moon-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>每日下班/月末推送</Text>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={offH} onChangeText={setOffH} placeholder="小时" />
-                    <TextInput style={[styles.formInput, { flex: 1 }]} keyboardType="numeric" maxLength={2} value={offM} onChangeText={setOffM} placeholder="分钟" />
-                  </View>
-                  <TouchableOpacity style={[styles.miniBlueBtn, { marginTop: 8, alignSelf: 'flex-start' }]} onPress={savePush}>
-                    <Text style={styles.sendTxt}>保存时间</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={workH} onChangeText={setWorkH} placeholder="开始时" />
+              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={workM} onChangeText={setWorkM} placeholder="开始分" />
+              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={offH} onChangeText={setOffH} placeholder="结束时" />
+              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={offM} onChangeText={setOffM} placeholder="结束分" />
+              <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }} onPress={savePush}>
+                <Text style={{ color: '#fff', fontSize: 12 }}>保存</Text>
+              </TouchableOpacity>
             </View>
           )}
-          <View style={styles.settingGroup}>
-            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 100); }}>
-              <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-              <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
+
+          {/* 通用设置组 */}
+          <Text style={styles.settingsGroupTitle}>通用设置</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowLanguage(true)}>
+              <Ionicons name="language-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>语言</Text>
+              <Text style={styles.settingsRight}>{language}</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={22} color={DANGER_COLOR} style={{ marginRight: 12 }} />
-              <Text style={{ color: DANGER_COLOR }}>退出登录</Text>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowFontSize(true)}>
+              <Ionicons name="text-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>字体大小</Text>
+              <Text style={styles.settingsRight}>{fontSize}</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
             </TouchableOpacity>
+            <View style={styles.settingsRowLast}>
+              <Ionicons name="moon-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>深色模式</Text>
+              <Switch value={nightMode} onValueChange={(v) => { setNightMode(v); dispatch({ type: 'SET_NIGHT_MODE', payload: v }); }} trackColor={{ true: PRIMARY_COLOR }} />
+            </View>
+          </View>
+
+          {/* 数据与存储组 */}
+          <Text style={styles.settingsGroupTitle}>数据与存储</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={styles.settingsRow}>
+              <Ionicons name="cloud-upload-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>数据备份</Text>
+              <Text style={styles.settingsRight}>已备份</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow}>
+              <Ionicons name="cloud-download-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>数据恢复</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRowLast} onPress={() => setShowClearCache(true)}>
+              <Ionicons name="trash-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>清除缓存</Text>
+              <Text style={styles.settingsRight}>12.4 MB</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+          </View>
+
+          {/* 帮助与关于组 */}
+          <Text style={styles.settingsGroupTitle}>帮助与关于</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowHelp(true)}>
+              <View style={[styles.settingsIconWrap, { backgroundColor: '#4FACFE20' }]}>
+                <Ionicons name="book" size={18} color="#4FACFE" />
+              </View>
+              <Text style={styles.settingsRowText}>使用帮助</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowPrivacy(true)}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <Text style={styles.settingsRowText}>隐私政策</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowAbout(true)}>
+              <View style={[styles.settingsIconWrap, { backgroundColor: '#FF9F4520' }]}>
+                <Ionicons name="business" size={18} color="#FF9F45" />
+              </View>
+              <Text style={styles.settingsRowText}>关于我们</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRowLast} onPress={() => setShowVersion(true)}>
+              <View style={[styles.settingsIconWrap, { backgroundColor: '#5B6DF020' }]}>
+                <Ionicons name="code-slash" size={16} color="#5B6DF0" />
+              </View>
+              <Text style={styles.settingsRowText}>版本信息</Text>
+              <Text style={styles.settingsRight}>v 1.0.0</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+          </View>
+
+          {/* 退出登录 */}
+          <TouchableOpacity style={styles.settingsLogoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} />
+            <Text style={{ color: DANGER_COLOR, fontSize: 16, fontWeight: '600', marginLeft: 8 }}>退出登录</Text>
+          </TouchableOpacity>
+
+          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+            <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v 1.0.0</Text>
+            <Text style={{ color: TEXT_THIRD, fontSize: 11, marginTop: 2 }}>© 2026 智谱AI · Powered by React Native</Text>
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={showLanguage} transparent animationType="fade" onRequestClose={() => setShowLanguage(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowLanguage(false)}>
+          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择语言</Text>
+            {['简体中文', '繁體中文', 'English', '日本語', '한국어'].map(l => (
+              <TouchableOpacity key={l} style={{ paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => { setLanguage(l); dispatch({ type: 'SET_LANGUAGE', payload: l }); setShowLanguage(false); showToast(`已切换到${l}`); }}>
+                <Text style={{ fontSize: 16, color: language === l ? PRIMARY_COLOR : TEXT_MAIN, fontWeight: language === l ? 'bold' : 'normal' }}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showFontSize} transparent animationType="fade" onRequestClose={() => setShowFontSize(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowFontSize(false)}>
+          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>字体大小</Text>
+            {['小', '标准', '大', '特大'].map(s => (
+              <TouchableOpacity key={s} style={{ paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => { setFontSize(s); setShowFontSize(false); showToast(`已设置字体为${s}`); }}>
+                <Text style={{ fontSize: s === '小' ? 14 : s === '标准' ? 16 : s === '大' ? 18 : 20, color: fontSize === s ? PRIMARY_COLOR : TEXT_MAIN, fontWeight: fontSize === s ? 'bold' : 'normal' }}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showAbout} transparent animationType="fade" onRequestClose={() => setShowAbout(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="business" size={48} color="#fff" />
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 4 }}>v 1.0.0</Text>
+            <Text style={{ fontSize: 14, color: TEXT_MAIN, marginTop: 16, lineHeight: 22, textAlign: 'center' }}>经营宝是一款专为中小型门店设计的智能管理工具，集成经营分析、AI助手、订单核销、库存管理、顾客服务于一体。\n\n由智谱AI驱动，让门店管理更轻松。</Text>
+            <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, marginTop: 16 }} onPress={() => setShowAbout(false)}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>我知道了</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showPrivacy} transparent animationType="fade" onRequestClose={() => setShowPrivacy(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ flex: 1, backgroundColor: '#fff', margin: 20, marginTop: 80, borderRadius: 16, padding: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>隐私政策</Text>
+              <TouchableOpacity onPress={() => setShowPrivacy(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
+            </View>
+            <ScrollView>
+              <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22 }}>{`经营宝隐私政策\n\n1. 信息收集\n我们收集您主动提供的店铺信息、订单数据、库存数据用于为您提供管理服务。\n\n2. 信息使用\n您的数据仅用于经营分析、AI助手回复等核心功能，不会用于其他商业目的。\n\n3. 信息存储\n所有数据存储在您的设备本地，您可随时清除。\n\n4. 信息共享\n我们不会与任何第三方共享您的经营数据。\n\n5. 您的权利\n您可以随时查看、修改、删除您的个人信息和经营数据。\n\n6. 联系我们\n如有问题请通过应用内反馈功能联系我们。\n\n更新日期：2026-01-01`}</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ flex: 1, backgroundColor: '#fff', margin: 20, marginTop: 80, borderRadius: 16, padding: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={[styles.settingsIconWrap, { backgroundColor: '#4FACFE20', marginRight: 10 }]}>
+                  <Ionicons name="book" size={18} color="#4FACFE" />
+                </View>
+                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>使用帮助</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowHelp(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[
+                { icon: 'camera', iconColor: '#5B6DF0', iconBg: '#5B6DF020', q: '如何快速拍照识别商品', a: '在出入库页面点击"拍照识别数量"，可多次拍摄商品图片，AI将自动识别数量。' },
+                { icon: 'person-add', iconColor: '#10B981', iconBg: '#10B98120', q: '如何邀请员工加入', a: '员工在自己的手机下载App，注册时选择"员工"角色并填写店名，您的员工管理页面会收到入职申请。' },
+                { icon: 'sparkles', iconColor: '#8B5CF6', iconBg: '#8B5CF620', q: 'AI助手能做什么', a: 'AI助手基于您店铺的真实数据，提供经营分析、日报生成、营销文案、海报设计等服务。' },
+                { icon: 'swap-horizontal', iconColor: '#F59E0B', iconBg: '#F59E0B20', q: '如何切换账号', a: '在设置页面点击"切换账号"，选择已登录的其他账号或添加新账号。' },
+                { icon: 'cloud-upload', iconColor: '#06B6D4', iconBg: '#06B6D420', q: '数据会丢失吗', a: '所有数据保存在本地，建议定期通过"数据备份"功能备份重要数据。' },
+                { icon: 'chatbubbles', iconColor: '#EC4899', iconBg: '#EC489920', q: '遇到问题如何反馈', a: '通过设置页面的"意见反馈"功能提交问题，我们会尽快处理。' },
+              ].map((item, idx) => (
+                <View key={idx} style={{ marginBottom: 14, padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={[styles.settingsIconWrap, { width: 24, height: 24, backgroundColor: item.iconBg, marginRight: 8 }]}>
+                      <Ionicons name={item.icon} size={14} color={item.iconColor} />
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: PRIMARY_COLOR, flex: 1 }}>{item.q}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: TEXT_MAIN, marginTop: 6, lineHeight: 20, paddingLeft: 32 }}>{item.a}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showVersion} transparent animationType="fade" onRequestClose={() => setShowVersion(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="rocket" size={40} color="#fff" />
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝 v 1.0.0</Text>
+            <View style={{ width: '100%', marginTop: 16 }}>
+              {[
+                ['版本号', '1.0.0'],
+                ['构建号', '20260301'],
+                ['更新日期', '2026-03-01'],
+                ['运行平台', Platform.OS],
+                ['开发者', '智谱AI团队'],
+              ].map(([k, v], idx) => (
+                <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < 4 ? 1 : 0, borderColor: BORDER_COLOR }}>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{k}</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '500' }}>{v}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, marginTop: 16 }} onPress={() => setShowVersion(false)}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>检查更新</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showClearCache} transparent animationType="fade" onRequestClose={() => setShowClearCache(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
+            <Ionicons name="trash-outline" size={48} color={DANGER_COLOR} />
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 12, color: TEXT_MAIN }}>清除缓存</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 8, textAlign: 'center' }}>当前缓存大小：12.4 MB{'\n'}清除缓存不会删除您的经营数据</Text>
+            <View style={{ flexDirection: 'row', marginTop: 20, gap: 12 }}>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#F5F7FA', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowClearCache(false)}>
+                <Text style={{ color: TEXT_MAIN, fontSize: 14 }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: DANGER_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={clearCache}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>清除</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showShopNameEdit} transparent animationType="fade" onRequestClose={() => setShowShopNameEdit(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
+          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>编辑门店信息</Text>
+              <TouchableOpacity onPress={() => setShowShopNameEdit(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>门店名称</Text>
+            <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 12 }} value={editShopName} onChangeText={setEditShopName} placeholder="输入门店名称" />
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>绑定手机号</Text>
+            <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 16 }} value={phone} onChangeText={setPhone} placeholder="输入手机号" keyboardType="phone-pad" maxLength={11} />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: '#F5F7FA', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowShopNameEdit(false)}>
+                <Text style={{ color: TEXT_MAIN, fontSize: 14 }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => { setShopName(editShopName); saveShop(); setShowShopNameEdit(false); }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1446,7 +2017,6 @@ const StockManage = () => {
     setAiCountLoading(true);
     try {
       const existingDetails = aiCountResult?.details || [];
-      // 只识别还没识别过的图片
       const startIdx = existingDetails.length;
       const newPhotos = aiCountPhotos.slice(startIdx);
       if (newPhotos.length === 0) {
@@ -1455,24 +2025,36 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      for (let i = 0; i < newPhotos.length; i++) {
+      // 并行识别（更快）
+      const promises = newPhotos.map(async (_, i) => {
         const photoIdx = startIdx + i;
-        const base64 = await FileSystem.readAsStringAsync(newPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
-        const imageData = `data:image/jpeg;base64,${base64}`;
-        const prompt = `请仔细数一下这张图片中可数的独立物品总数（注意只数完整可数的物品，散件或看不清的不算）。只返回一个纯数字（阿拉伯数字），不要包含其他任何文字、单位或标点符号。`;
-        const reply = await fetchZhipuChat([
-          { role: 'user', content: prompt }
-        ], '你是一个精确的物品数量识别助手，只会返回纯数字。');
-        const num = parseInt((reply || '').replace(/[^\d]/g, ''));
-        const count = isNaN(num) ? 0 : num;
-        newDetails.push({ photoIndex: photoIdx + 1, count });
-        // 流式更新识别进度
-        const total = newDetails.reduce((sum, d) => sum + d.count, 0);
-        const goodsOptions = (state.goodsList || []);
-        setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
-      }
+        try {
+          const base64 = await FileSystem.readAsStringAsync(aiCountPhotos[photoIdx], { encoding: FileSystem.EncodingType.Base64 });
+          const prompt = `请精确计算图片中可数物品的总数。规则：
+1. 只数完整、清晰可见的独立物品
+2. 部分被遮挡或模糊的物品不计入
+3. 如果是一堆散件（如螺丝、零件、调料等），尽量数单个个体
+4. 如果是包装好的商品（如整箱、整袋），数可见的包装单位数
+5. 必须返回纯阿拉伯数字，不能有任何其他文字、标点、说明`;
+          const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个物品数量识别专家，只返回纯数字，精确、严谨、零错误。');
+          const num = parseInt((reply || '').replace(/[^\d]/g, ''));
+          return { photoIndex: photoIdx + 1, count: isNaN(num) ? 0 : num, success: true };
+        } catch (e) {
+          return { photoIndex: photoIdx + 1, count: 0, success: false };
+        }
+      });
+      const results = await Promise.all(promises);
+      results.forEach(r => newDetails.push(r));
+      newDetails.sort((a, b) => a.photoIndex - b.photoIndex);
       const total = newDetails.reduce((sum, d) => sum + d.count, 0);
-      showToast(`识别完成，共 ${total} 件商品`);
+      const goodsOptions = (state.goodsList || []);
+      setAiCountResult({ total, details: newDetails, photos: newDetails.length, goodsOptions });
+      const failed = results.filter(r => !r.success || r.count === 0).length;
+      if (failed > 0) {
+        showToast(`识别完成，共 ${total} 件（${failed}张识别失败，可重拍）`);
+      } else {
+        showToast(`识别完成，共 ${total} 件商品`);
+      }
     } catch (e) {
       console.error('AI识别失败:', e);
       showToast('识别失败，请重试');
@@ -2643,8 +3225,8 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isTop, setIsTop] = useState(false);
   const [isSpecialCare, setIsSpecialCare] = useState(false);
-  const [isHidden, setIsHidden] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [searchType, setSearchType] = useState('all'); // all / text / image / video / file / member
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
@@ -2655,10 +3237,18 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [bgColor, setBgColor] = useState('#F2F3F5');
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
 
   const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
   const staffMembers = state.staffMemberList || [];
   const groupMessages = state.groupChatMessages[chatId] || [];
+
+  // 群成员：老板在首位，员工在后面
+  const allMembers = [
+    { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true },
+    ...staffMembers.filter(s => s.status === 'approved').map(s => ({ phone: s.phone, name: s.name, role: '员工', isOwner: false }))
+  ];
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -2675,11 +3265,6 @@ const ChatSettingScreen = ({ route, navigation }) => {
     showToast(isSpecialCare ? '已取消特别关心' : '已开启特别关心');
   };
 
-  const toggleHidden = () => {
-    setIsHidden(!isHidden);
-    showToast(isHidden ? '已取消隐藏会话' : '已隐藏会话');
-  };
-
   const clearMessages = () => {
     Alert.alert('删除聊天记录', '确定要删除所有聊天记录吗？', [
       { text: '取消' },
@@ -2691,19 +3276,28 @@ const ChatSettingScreen = ({ route, navigation }) => {
     ]);
   };
 
-  const reportUser = () => {
-    Alert.alert('举报用户', '确定要举报该用户吗？', [
-      { text: '取消' },
-      { text: '举报', onPress: () => showToast('举报已提交，我们会尽快处理') }
-    ]);
-  };
-
   const searchMessages = () => {
-    if (!searchText.trim()) return;
-    const filtered = groupMessages.filter(msg => msg.text && msg.text.includes(searchText));
-    showToast(filtered.length > 0 ? `找到 ${filtered.length} 条记录` : '未找到匹配记录');
-    setShowSearchModal(false);
-    setSearchText('');
+    if (!searchText.trim()) { showToast('请输入搜索内容'); return; }
+    let filtered = groupMessages;
+    if (searchType === 'text') {
+      filtered = filtered.filter(m => m.text && m.text.includes(searchText));
+    } else if (searchType === 'image') {
+      filtered = filtered.filter(m => m.image);
+    } else if (searchType === 'video') {
+      filtered = filtered.filter(m => m.video);
+    } else if (searchType === 'file') {
+      filtered = filtered.filter(m => m.file);
+    } else if (searchType === 'member') {
+      filtered = filtered.filter(m => (m.fromName || '').includes(searchText) || (m.from || '').includes(searchText));
+    } else {
+      filtered = filtered.filter(m => {
+        if (m.text && m.text.includes(searchText)) return true;
+        if (m.fromName && m.fromName.includes(searchText)) return true;
+        if (m.from && m.from.includes(searchText)) return true;
+        return false;
+      });
+    }
+    setSearchResults(filtered);
   };
 
   const toggleMemberSelect = (member) => {
@@ -2745,10 +3339,30 @@ const ChatSettingScreen = ({ route, navigation }) => {
       </SafeAreaView>
       <ScrollView style={{ paddingHorizontal: 16 }}>
         <View style={{ marginTop: 16 }}>
-          <TouchableOpacity style={styles.chatSettingItem}>
-            <Text style={styles.pageTitle}>内部群聊</Text>
-            <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群成员: {(state.staffMemberList || []).length + 1}人</Text>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowGroupMembers(!showGroupMembers)}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="people" size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pageTitle}>内部群聊</Text>
+              <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群成员: {allMembers.length}人{showGroupMembers ? ' ▼' : ' ▶'}</Text>
+            </View>
           </TouchableOpacity>
+          {showGroupMembers && (
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, marginTop: 8 }}>
+              {allMembers.map((m, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: idx < allMembers.length - 1 ? 1 : 0, borderColor: BORDER_COLOR }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#87CEEB', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>{(m.name || '?').substring(0, 1)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{m.name} {m.isOwner && <Text style={{ color: PRIMARY_COLOR, fontSize: 12 }}>(老板)</Text>}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 2 }}>{m.role} · {m.phone}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
           <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowCreateGroupModal(true)}>
@@ -2770,18 +3384,10 @@ const ChatSettingScreen = ({ route, navigation }) => {
             <Ionicons name="pin-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>{isTop ? '取消置顶' : '设为置顶'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleSpecialCare}>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={toggleSpecialCare}>
             <Ionicons name="heart-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>特别关心</Text>
             {isSpecialCare && <Text style={[styles.chatSettingDesc, { color: SUCCESS_COLOR }]}>已开启</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleHidden}>
-            <Ionicons name="eye-off-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>隐藏会话</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={toggleMute}>
-            <Ionicons name={isMuted ? "notifications-off-outline" : "notifications-outline"} size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>{isMuted ? '取消消息免打扰' : '消息免打扰'}</Text>
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
@@ -2801,23 +3407,44 @@ const ChatSettingScreen = ({ route, navigation }) => {
             <Text style={{ ...styles.chatSettingText, color: DANGER_COLOR }}>删除聊天记录</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={reportUser}>
-            <Ionicons name="alert-circle-outline" size={22} color={DANGER_COLOR} />
-            <Text style={{ ...styles.chatSettingText, color: DANGER_COLOR }}>被骚扰了？举报该用户</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       <Modal visible={showSearchModal} transparent animationType="fade">
         <View style={styles.modalMask}>
-          <View style={styles.modalWrap}>
+          <View style={[styles.modalWrap, { maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>查找聊天记录</Text>
-              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); }}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); setSearchResults([]); }}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
             </View>
-            <TextInput style={styles.formInput} placeholder="输入关键词搜索" value={searchText} onChangeText={setSearchText} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+              {[
+                { key: 'all', label: '全部', icon: 'search' },
+                { key: 'text', label: '文字', icon: 'text' },
+                { key: 'image', label: '图片', icon: 'image' },
+                { key: 'video', label: '视频', icon: 'videocam' },
+                { key: 'file', label: '文件', icon: 'document' },
+                { key: 'member', label: '按成员', icon: 'person' },
+              ].map(t => (
+                <TouchableOpacity key={t.key} onPress={() => setSearchType(t.key)} style={{ paddingHorizontal: 10, paddingVertical: 5, backgroundColor: searchType === t.key ? PRIMARY_COLOR : '#F0F0F0', borderRadius: 14 }}>
+                  <Text style={{ fontSize: 12, color: searchType === t.key ? '#fff' : TEXT_MAIN }}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput style={styles.formInput} placeholder={searchType === 'member' ? '输入成员姓名' : '输入关键词'} value={searchText} onChangeText={setSearchText} />
             <TouchableOpacity style={styles.primaryBtn} onPress={searchMessages}><Text style={styles.sendTxt}>搜索</Text></TouchableOpacity>
+            {searchResults.length > 0 && (
+              <ScrollView style={{ maxHeight: 300, marginTop: 12 }}>
+                {searchResults.map((m, idx) => (
+                  <View key={idx} style={{ padding: 8, backgroundColor: '#F5F7FA', borderRadius: 6, marginBottom: 6 }}>
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{m.fromName || m.from} · {formatTime(m.time)}</Text>
+                    <Text style={{ fontSize: 14, color: TEXT_MAIN, marginTop: 4 }} numberOfLines={3}>{m.text || (m.image ? '🖼️ [图片]' : m.video ? '🎬 [视频]' : m.file ? '📎 [文件]' : '[消息]')}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            {searchResults.length === 0 && searchText && (
+              <Text style={{ textAlign: 'center', color: TEXT_THIRD, padding: 20 }}>未找到匹配记录</Text>
+            )}
           </View>
         </View>
       </Modal>
@@ -3226,6 +3853,8 @@ const MerchantAssistant = () => {
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showQuickReply, setShowQuickReply] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [downloading, setDownloading] = useState(false);
   const abortControllerRef = useRef(null);
 
   const industry = state.shopInfo?.industry || '餐饮类';
@@ -3534,6 +4163,11 @@ ${businessContext}
 
   return (
     <View style={styles.container}>
+      <FullscreenImageViewer
+        visible={!!fullscreenImage}
+        imageUri={fullscreenImage}
+        onClose={() => setFullscreenImage(null)}
+      />
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
@@ -3563,7 +4197,13 @@ ${businessContext}
             {msg.image ? (
               <>
                 <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 4 }}>{msg.text}</Text>
-                <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                  <View style={{ position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4, flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="expand-outline" size={12} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 10, marginLeft: 2 }}>全屏</Text>
+                  </View>
+                </TouchableOpacity>
               </>
             ) : (
               <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
@@ -3634,6 +4274,296 @@ ${businessContext}
   );
 };
 
+// ================== 首页全屏语音助手（覆盖层） ==================
+const HomeVoiceAssistant = ({ visible, onClose }) => {
+  const { state } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
+  const scrollViewRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const speechTimerRef = useRef(null);
+
+  const industry = state.shopInfo?.industry || '餐饮类';
+  const shopName = state.shopInfo?.shopName || '我的门店';
+  const userName = state.user?.name || '老板';
+
+  const collectAllBusinessData = () => {
+    const orders = state.globalOrderRecord || [];
+    const goods = state.goodsList || [];
+    const stockRecords = state.globalStockRecord || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
+    const lowStockItems = goods.filter(g => (g.stock || 0) < 10).map(g => `${g.name}(库存:${g.stock})`);
+    const platformStats = {};
+    orders.forEach(o => {
+      if (o.platform) {
+        if (!platformStats[o.platform]) platformStats[o.platform] = { count: 0, revenue: 0 };
+        platformStats[o.platform].count++;
+        platformStats[o.platform].revenue += o.couponPrice || 0;
+      }
+    });
+    return { todayOrders: todayOrders.length, todayRevenue, totalGoods: goods.length, totalStock, lowStockItems, platformStats };
+  };
+
+  useEffect(() => {
+    if (visible && messages.length === 0) {
+      setMessages([{
+        id: '1',
+        text: `您好 ${userName}！我是您的智能语音助手 🎙️\n\n点击麦克风直接说话，AI会一边语音播报一边显示文字。\n\n点击右上角的"🔊 语音"按钮可切换为仅文字模式。`,
+        from: 'ai',
+        time: new Date().toISOString(),
+      }]);
+    }
+  }, [visible]);
+
+  const startVoice = () => {
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) { showToast('当前环境不支持语音识别'); return; }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalTranscript += transcript;
+          else interimTranscript += transcript;
+        }
+        if (finalTranscript) setInputText(finalTranscript);
+        else if (interimTranscript) setInputText(interimTranscript);
+      };
+      recognition.onerror = (e) => { setRecording(false); showToast('语音识别：' + e.error); };
+      recognition.onend = () => { setRecording(false); };
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) { showToast('启动语音失败'); setRecording(false); }
+  };
+
+  const stopVoice = () => {
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) {} }
+    setRecording(false);
+  };
+
+  const speakText = (text) => {
+    try {
+      if (!voiceMode) return;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
+        // 按标点分句，更自然
+        const sentences = text.split(/(?<=[。！？!?；;])/g).filter(s => s.trim());
+        if (sentences.length === 0) sentences.push(text);
+        let idx = 0;
+        setSpeaking(true);
+        const speakNext = () => {
+          if (idx >= sentences.length) { setSpeaking(false); return; }
+          const utter = new SpeechSynthesisUtterance(sentences[idx].trim());
+          utter.lang = 'zh-CN';
+          utter.rate = 1.05;
+          utter.onend = () => { idx++; speechTimerRef.current = setTimeout(speakNext, 100); };
+          utter.onerror = () => setSpeaking(false);
+          window.speechSynthesis.speak(utter);
+        };
+        speakNext();
+      }
+    } catch (e) { setSpeaking(false); }
+  };
+
+  const stopSpeaking = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
+    setSpeaking(false);
+  };
+
+  const toggleVoiceMode = () => {
+    if (voiceMode) {
+      stopSpeaking();
+      setVoiceMode(false);
+      showToast('已切换为仅文字模式');
+    } else {
+      setVoiceMode(true);
+      showToast('已开启语音播报');
+    }
+  };
+
+  const sendMessage = async () => {
+    const text = inputText.trim();
+    if (!text) return;
+    const userMsg = { id: Date.now().toString(), text, from: 'user', time: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    abortControllerRef.current = new AbortController();
+    setLoading(true);
+    try {
+      const allData = collectAllBusinessData();
+      const businessContext = `今日订单：${allData.todayOrders}单，今日营收：¥${allData.todayRevenue}，商品数：${allData.totalGoods}，总库存：${allData.totalStock}，库存不足：${allData.lowStockItems.join('、') || '无'}，平台分布：${Object.entries(allData.platformStats).map(([p, s]) => `${p}${s.count}单`).join('/')}`;
+      const msgList = messages.slice(-6).map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
+      msgList.push({ role: 'user', content: text });
+      const systemPrompt = `你是「${shopName}」${industry}店铺的专属智能助手，服务商家${userName}。店铺实时数据：${businessContext}。回答要简洁直接、基于真实数据、用"您"称呼商家。`;
+      const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
+      if (abortControllerRef.current?.signal.aborted) { setLoading(false); return; }
+      const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
+      setMessages(prev => [...prev, aiMsg]);
+      speakText(reply);
+      setLoading(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (e) { if (e.name !== 'AbortError') showToast('发送失败'); setLoading(false); }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: '#F5F7FA' }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY_COLOR }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, backgroundColor: PRIMARY_COLOR }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 4 }}>
+            <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#fff' }}>🎙️ 语音助手</Text>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+              {voiceMode ? (speaking ? '🔊 正在播报...' : '🔊 语音模式') : '📝 仅文字模式'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={toggleVoiceMode}
+            style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: voiceMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)', borderRadius: 14, flexDirection: 'row', alignItems: 'center' }}
+          >
+            <Ionicons name={voiceMode ? 'volume-high' : 'volume-mute'} size={14} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 11, marginLeft: 4 }}>{voiceMode ? '语音' : '静默'}</Text>
+          </TouchableOpacity>
+          {loading && (
+            <TouchableOpacity onPress={() => { abortControllerRef.current?.abort(); stopSpeaking(); setLoading(false); }} style={{ paddingHorizontal: 8, paddingVertical: 6, marginLeft: 4 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>⏹</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 12, paddingBottom: 200 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map(msg => (
+          <View key={msg.id} style={{
+            backgroundColor: msg.from === 'user' ? PRIMARY_COLOR : '#fff',
+            alignSelf: msg.from === 'user' ? 'flex-end' : 'flex-start',
+            maxWidth: '85%',
+            padding: 12,
+            borderRadius: 12,
+            marginBottom: 10,
+          }}>
+            <Text style={{ fontSize: 15, color: msg.from === 'user' ? '#fff' : TEXT_MAIN, lineHeight: 22 }}>{msg.text}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ fontSize: 10, color: msg.from === 'user' ? 'rgba(255,255,255,0.7)' : TEXT_THIRD }}>{formatTime(msg.time)}</Text>
+              {msg.from === 'ai' && msg.text && (
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {voiceMode && (
+                    <TouchableOpacity onPress={() => speakText(msg.text)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="play-circle-outline" size={14} color={PRIMARY_COLOR} />
+                      <Text style={{ fontSize: 10, color: PRIMARY_COLOR, marginLeft: 2 }}>播放</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => { try { navigator.clipboard?.writeText(msg.text); showToast('已复制'); } catch(e) {} }} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="copy-outline" size={14} color={PRIMARY_COLOR} />
+                    <Text style={{ fontSize: 10, color: PRIMARY_COLOR, marginLeft: 2 }}>复制</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        ))}
+        {loading && (
+          <View style={{ backgroundColor: '#fff', alignSelf: 'flex-start', padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginLeft: 8 }}>正在思考...</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, padding: 12 }}>
+        {recording && (
+          <View style={{ backgroundColor: '#FFE4B5', padding: 8, borderRadius: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: DANGER_COLOR, marginRight: 8 }} />
+            <Text style={{ fontSize: 13, color: '#FF6347', flex: 1 }}>正在聆听...</Text>
+            <TouchableOpacity onPress={stopVoice}><Text style={{ color: DANGER_COLOR, fontSize: 13 }}>停止</Text></TouchableOpacity>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TextInput
+            style={{ flex: 1, backgroundColor: '#F5F7FA', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, maxHeight: 100 }}
+            placeholder="说话或输入问题..."
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <TouchableOpacity
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: recording ? DANGER_COLOR : '#5BC0BE', justifyContent: 'center', alignItems: 'center' }}
+            onPress={recording ? stopVoice : startVoice}
+            disabled={loading}
+          >
+            <Ionicons name={recording ? "mic" : "mic-outline"} size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: inputText.trim() ? PRIMARY_COLOR : '#ccc', justifyContent: 'center', alignItems: 'center' }}
+            onPress={sendMessage}
+            disabled={!inputText.trim() || loading}
+          >
+            <Ionicons name="send" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ height: 56 }} />
+    </View>
+  );
+};
+
+// ================== AI助手图片全屏查看器 ==================
+const FullscreenImageViewer = ({ visible, imageUri, onClose }) => {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+        <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 40, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={onClose}
+        >
+          <Ionicons name="close" size={24} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ position: 'absolute', bottom: 40, right: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
+          onPress={async () => {
+            try {
+              const fileUri = `${FileSystem.documentDirectory}ai_image_${Date.now()}.jpg`;
+              await FileSystem.downloadAsync(imageUri, fileUri);
+              showToast('已下载到本地');
+            } catch (e) {
+              showToast('下载失败');
+            }
+          }}
+        >
+          <Ionicons name="download-outline" size={18} color="#fff" />
+          <Text style={{ color: '#fff', marginLeft: 6, fontSize: 14 }}>下载图片</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
 // ================== 首页（完整功能 + 员工私聊长条按钮 + 顶部适配 + 导航修复） ==================
 const HomePage = () => {
   const navigation = useNavigation();
@@ -3644,6 +4574,7 @@ const HomePage = () => {
   const [exitTimer, setExitTimer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
+  const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
 
   if (!user) {
     return (
@@ -3773,9 +4704,25 @@ const HomePage = () => {
       dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
       const staff = state.staffMemberList.find(s => s.phone === phone);
       if (staff) {
+        // 发送系统群消息
         const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
         dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
-        showToast(`${staff.name} 已批准入职`);
+        // 发送私聊欢迎消息给员工
+        const bossName = state.user?.name || '老板';
+        const shopName = state.shopInfo?.shopName || '门店';
+        const privateWelcome = {
+          id: Date.now().toString(),
+          text: `欢迎 ${staff.name} 加入${shopName}！我是老板${bossName}，以后工作中有任何问题随时找我沟通。`,
+          from: 'staff',
+          fromPhone: state.user?.phone || 'boss',
+          fromName: bossName,
+          toPhone: staff.phone,
+          time: new Date().toISOString(),
+          read: false,
+          type: 'text',
+        };
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: staff.phone, message: privateWelcome } });
+        showToast(`${staff.name} 已批准入职，已发送欢迎消息`);
       }
     } catch (error) { showToast('操作失败'); }
   };
@@ -3819,7 +4766,7 @@ const HomePage = () => {
       </SafeAreaView>
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || '商家'}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || (isEmployee ? '员工' : '老板')}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
@@ -3968,17 +4915,20 @@ const HomePage = () => {
         </ScrollView>
 
       {!isEmployee && (
-        <DraggableFloatingButton onPress={() => navigation.navigate('VoiceAssistant')} />
+        <DraggableFloatingButton onPress={() => setShowVoiceAssistant(true)} />
       )}
+
+      <HomeVoiceAssistant visible={showVoiceAssistant} onClose={() => setShowVoiceAssistant(false)} />
     </View>
   );
 };
 
 const DraggableFloatingButton = ({ onPress }) => {
-  const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
-  const positionRef = useRef({ x: width - 76, y: height - 180 });
+  const [position, setPosition] = useState({ x: width - 76, y: height - 220 });
+  const positionRef = useRef({ x: width - 76, y: height - 220 });
   const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, startTouchX: 0, startTouchY: 0, hasMoved: false });
   const lastTapRef = useRef(0);
+  const [pressIn, setPressIn] = useState(false);
 
   useEffect(() => {
     positionRef.current = position;
@@ -3992,6 +4942,7 @@ const DraggableFloatingButton = ({ onPress }) => {
     dragRef.current.startTouchY = touch.pageY;
     dragRef.current.isDragging = true;
     dragRef.current.hasMoved = false;
+    setPressIn(true);
   };
 
   const onTouchMove = (e) => {
@@ -4005,8 +4956,8 @@ const DraggableFloatingButton = ({ onPress }) => {
     if (dragRef.current.hasMoved) {
       let newX = dragRef.current.startX + dx;
       let newY = dragRef.current.startY + dy;
-      newX = Math.max(0, Math.min(width - 56, newX));
-      newY = Math.max(0, Math.min(height - 100, newY));
+      newX = Math.max(0, Math.min(width - 60, newX));
+      newY = Math.max(0, Math.min(height - 120, newY));
       setPosition({ x: newX, y: newY });
     }
   };
@@ -4015,6 +4966,7 @@ const DraggableFloatingButton = ({ onPress }) => {
     const wasDragging = dragRef.current.hasMoved;
     dragRef.current.isDragging = false;
     dragRef.current.hasMoved = false;
+    setPressIn(false);
     if (!wasDragging) {
       const now = Date.now();
       if (now - lastTapRef.current < 300) return;
@@ -4036,20 +4988,42 @@ const DraggableFloatingButton = ({ onPress }) => {
           position: 'absolute',
           left: position.x,
           top: position.y,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: PRIMARY_COLOR,
-          justifyContent: 'center',
-          alignItems: 'center',
-          ...SHADOW,
-          elevation: 8,
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          shadowColor: '#5B6DF0',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 10,
+          elevation: 10,
+          transform: [{ scale: pressIn ? 0.92 : 1 }],
         }}
       >
-        <Ionicons name="sparkles" size={28} color="#fff" />
-        <View style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>AI</Text>
+        <View style={{
+          width: 60, height: 60, borderRadius: 30,
+          backgroundColor: '#5B6DF0',
+          justifyContent: 'center', alignItems: 'center',
+          borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)',
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: '#7B8DF0',
+            opacity: 0.5,
+            borderRadius: 30,
+            transform: [{ translateX: -10 }, { translateY: -10 }, { rotate: '45deg' }],
+            width: 30, height: 60,
+          }} />
+          <Ionicons name="mic" size={26} color="#fff" />
+          <View style={{ position: 'absolute', bottom: 6, right: 6, backgroundColor: '#FFD93D', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#fff' }}>
+            <Text style={{ color: '#5B6DF0', fontSize: 8, fontWeight: 'bold' }}>AI</Text>
+          </View>
         </View>
+        <View style={{
+          position: 'absolute', top: -4, right: -4,
+          width: 16, height: 16, borderRadius: 8,
+          backgroundColor: '#FF4757', borderWidth: 2, borderColor: '#fff',
+        }} />
       </View>
     </View>
   );
@@ -4667,7 +5641,14 @@ function AuthStack() {
 
 function AppStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        animationDuration: 300,
+        gestureEnabled: true,
+      }}
+    >
       <Stack.Screen name="RootTabs" component={RootTabs} />
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
@@ -4675,7 +5656,7 @@ function AppStack() {
       <Stack.Screen name="StaffManage" component={StaffManage} />
       <Stack.Screen name="PrivateChat" component={PrivateChat} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} />
-      <Stack.Screen name="VoiceAssistant" component={VoiceAssistant} />
+      <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
     </Stack.Navigator>
   );
 }
@@ -4736,6 +5717,7 @@ export default function App() {
         <NavigationContainer ref={navigationRef}>
           {state.user ? <AppStack /> : <AuthStack />}
         </NavigationContainer>
+        <CustomToast />
       </AppContext.Provider>
     </SafeAreaProvider>
   );
