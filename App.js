@@ -308,6 +308,11 @@ function appReducer(state, action) {
       const list = state.staffMemberList || [];
       return { ...state, staffMemberList: list.filter(item => item.phone !== action.payload.phone) };
     }
+    case 'ADD_STAFF_APPLICATION': {
+      const exists = (state.staffMemberList || []).find(item => item.phone === action.payload.phone);
+      if (exists) return state;
+      return { ...state, staffMemberList: [...(state.staffMemberList || []), { ...action.payload, status: 'pending', id: Date.now().toString() }] };
+    }
     case 'ADD_STAFF_MEMBER': {
       const exists = (state.staffMemberList || []).find(item => item.phone === action.payload.phone);
       if (exists) return state;
@@ -630,7 +635,7 @@ const LoginScreen = () => {
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
 
       if (role === '员工') {
-        dispatch({ type: 'ADD_STAFF_MEMBER', payload: {
+        dispatch({ type: 'ADD_STAFF_APPLICATION', payload: {
           id: Date.now().toString(),
           phone,
           name: employeeName.trim(),
@@ -638,6 +643,7 @@ const LoginScreen = () => {
           status: 'pending',
           role: '员工',
         }});
+        showToast('入职申请已发送，请等待商家审核');
       }
 
       setLoading(false);
@@ -666,18 +672,6 @@ const LoginScreen = () => {
     <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }} style={{ backgroundColor: '#F5F7FA' }}>
       <Text style={styles.loginTitle}>经营宝</Text>
       <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
-      <TouchableOpacity onPress={() => setShowHistory(!showHistory)}>
-        <Text style={{ color: PRIMARY_COLOR, marginBottom: 12 }}>历史账号</Text>
-      </TouchableOpacity>
-      {showHistory && previousAccounts.length > 0 && (
-        <View style={{ marginBottom: 12 }}>
-          {previousAccounts.map((acc, idx) => (
-            <TouchableOpacity key={idx} style={{ paddingVertical: 8, borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => handleHistorySelect(acc)}>
-              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{acc.phone} - {acc.shopName} ({acc.role})</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
       <Text style={styles.label}>选择角色</Text>
       <View style={styles.roleSelector}>
         {['商家', '员工'].map(r => (
@@ -835,7 +829,7 @@ const SettingDrawer = ({ visible, onClose }) => {
             </View>
           )}
           <View style={styles.settingGroup}>
-            <TouchableOpacity style={styles.settingItem} onPress={handleSwitchAccount}>
+            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); navigation.navigate('SwitchAccount'); }}>
               <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
             </TouchableOpacity>
@@ -1069,6 +1063,7 @@ const ProductOverview = () => {
 const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const isEmployee = state.user?.role === '员工';
   const [modalVisible, setModalVisible] = useState(false);
   const [type, setType] = useState('入库');
   const [quantity, setQuantity] = useState('');
@@ -1308,7 +1303,14 @@ const StockManage = () => {
         if (!result.canceled) {
           const compressed = await compressImage(result.assets[0].uri);
           setPhotoUris([compressed]);
-          if (!modalVisible) setModalVisible(true);
+          if (type === '入库') {
+            setShowManualInput(true);
+            setModalVisible(true);
+            setManualProductName('');
+            setQuantity('');
+          } else {
+            if (!modalVisible) setModalVisible(true);
+          }
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1322,7 +1324,14 @@ const StockManage = () => {
         if (!result.canceled) {
           const compressedUris = await Promise.all(result.assets.map(a => compressImage(a.uri)));
           setPhotoUris(compressedUris);
-          if (!modalVisible) setModalVisible(true);
+          if (type === '入库') {
+            setShowManualInput(true);
+            setModalVisible(true);
+            setManualProductName('');
+            setQuantity('');
+          } else {
+            if (!modalVisible) setModalVisible(true);
+          }
         }
       }
     } catch (error) { showToast('选择图片失败'); }
@@ -1399,15 +1408,16 @@ const StockManage = () => {
           <Ionicons name="images-outline" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>相册入库</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhotos('camera'); }}>
+          <Ionicons name="camera-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照出库</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: SUCCESS_COLOR }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}>
           <Ionicons name="keyboard-outline" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#FF8C00' }]} onPress={voiceInput}>
-          <Ionicons name="mic-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>语音录入</Text>
-        </TouchableOpacity>
       </View>
+      {!isEmployee && (
       <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
         <Text style={{ fontWeight: '600', marginBottom: 6 }}>📤 上架平台</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -1431,6 +1441,7 @@ const StockManage = () => {
         </View>
         {!selectedGoodsId && <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>⚠️ 请先在下方选择一个商品</Text>}
       </View>
+      )}
       <View style={{ padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={{ fontSize: 16, fontWeight: '600' }}>📦 库存列表</Text>
@@ -3010,6 +3021,13 @@ const HomePage = () => {
                   <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: (state.badReviewCount || 0) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
                     {state.badReviewCount || 0}
                     {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }} onPress={() => navigation.navigate('StaffManage')}>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>入职申请</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: ((state.staffMemberList || []).filter(s => s.status === 'pending').length) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
+                    {(state.staffMemberList || []).filter(s => s.status === 'pending').length}
+                    {((state.staffMemberList || []).filter(s => s.status === 'pending').length) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
                   </Text>
                 </TouchableOpacity>
                 <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
