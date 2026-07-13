@@ -623,32 +623,25 @@ const LoginScreen = () => {
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       const shopInfo = { shopName, phone, industry: '待识别' };
 
-      console.log('Saving to AsyncStorage');
-      try {
-        await AsyncStorage.setItem('user', JSON.stringify(user));
-        console.log('user saved successfully');
-      } catch (storageError) {
-        console.error('Failed to save user:', storageError);
-        throw new Error('保存用户信息失败: ' + storageError.message);
-      }
-      try {
-        await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-        console.log('shopInfo saved successfully');
-      } catch (storageError) {
-        console.error('Failed to save shopInfo:', storageError);
-        throw new Error('保存店铺信息失败: ' + storageError.message);
-      }
-      console.log('Saved to AsyncStorage');
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
 
-      console.log('Dispatching LOGIN');
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
-      console.log('Dispatched');
 
-      console.log('Navigating to RootTabs');
+      if (role === '员工') {
+        dispatch({ type: 'ADD_STAFF_MEMBER', payload: {
+          id: Date.now().toString(),
+          phone,
+          name: employeeName.trim(),
+          shopName: shopInfo.shopName,
+          status: 'pending',
+          role: '员工',
+        }});
+      }
+
       setLoading(false);
       navigation.replace('RootTabs');
-      console.log('Navigation complete');
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert('登录失败', `错误: ${error.message || String(error)}`);
@@ -877,7 +870,10 @@ const SwitchAccountScreen = () => {
     }
   };
 
-  const handleRegister = async () => {
+  const handleLoginOther = async () => {
+    if (currentUser) {
+      dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: currentUser.phone, role: currentUser.role, shopName: currentUser.shopName, name: currentUser.name } });
+    }
     await AsyncStorage.removeItem('user');
     await AsyncStorage.removeItem('shopInfo');
     dispatch({ type: 'LOGOUT' });
@@ -902,8 +898,8 @@ const SwitchAccountScreen = () => {
           {!acc.isCurrent && <Ionicons name="chevron-forward" size={24} color={TEXT_THIRD} />}
         </TouchableOpacity>
       ))}
-      <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
-        <Text style={styles.registerBtnText}>注册新账号</Text>
+      <TouchableOpacity style={styles.registerBtn} onPress={handleLoginOther}>
+        <Text style={styles.registerBtnText}>+ 添加其他账号</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1311,90 +1307,8 @@ const StockManage = () => {
         });
         if (!result.canceled) {
           const compressed = await compressImage(result.assets[0].uri);
-          if (type === '入库') {
-            showToast('AI识别中...');
-            const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-            const imageData = `data:image/jpeg;base64,${base64}`;
-            try {
-              const reply = await fetchZhipuChat([{ role: 'user', content: `请识别这张图片中的商品名称，只返回商品名称，不要包含其他文字。` }], '你是一个商品识别助手。');
-              const productName = reply.trim();
-              if (!productName) {
-                showToast('无法识别商品');
-                return;
-              }
-              const existingGoods = (state.goodsList || []).find(g => g.name.includes(productName) || productName.includes(g.name));
-              if (existingGoods) {
-                Alert.alert(
-                  '确认入库',
-                  `识别到商品：${existingGoods.name}\n当前库存：${existingGoods.stock}\n请输入入库数量`,
-                  [
-                    { text: '取消' },
-                    { text: '确认入库', onPress: () => {
-                      const qty = 1;
-                      const newStock = existingGoods.stock + qty;
-                      const updatedGoods = (state.goodsList || []).map(g =>
-                        g.id === existingGoods.id ? { ...g, stock: newStock } : g
-                      );
-                      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-                      const record = {
-                        id: Date.now().toString(),
-                        type: '入库',
-                        productName: existingGoods.name,
-                        quantity: qty,
-                        reason: '拍照入库',
-                        time: new Date().toISOString(),
-                        photo: imageData,
-                      };
-                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-                      showToast(`入库成功: ${existingGoods.name} ×${qty}`);
-                    }}
-                  ]
-                );
-              } else {
-                Alert.alert(
-                  '添加新商品',
-                  `识别到新商品：${productName}\n是否添加到库存？`,
-                  [
-                    { text: '取消' },
-                    { text: '添加', onPress: () => {
-                      const newGoods = {
-                        id: Date.now().toString(),
-                        name: productName,
-                        stock: 1,
-                        code: `SKU${Date.now()}`,
-                        platform: '默认',
-                        price: 0,
-                        costPrice: 0,
-                        unit: '个',
-                        image: imageData,
-                      };
-                      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newGoods] });
-                      const record = {
-                        id: Date.now().toString(),
-                        type: '入库',
-                        productName: productName,
-                        quantity: 1,
-                        reason: '拍照入库(新商品)',
-                        time: new Date().toISOString(),
-                        photo: imageData,
-                      };
-                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-                      showToast(`入库成功: ${productName} ×1`);
-                    }}
-                  ]
-                );
-              }
-            } catch (e) {
-              console.error('AI识别失败:', e);
-              showToast('识别失败，请手动录入');
-              setPhotoUris([compressed]);
-              setShowManualInput(true);
-              setModalVisible(true);
-            }
-          } else {
-            setPhotoUris([compressed]);
-            if (!modalVisible) setModalVisible(true);
-          }
+          setPhotoUris([compressed]);
+          if (!modalVisible) setModalVisible(true);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1407,90 +1321,8 @@ const StockManage = () => {
         });
         if (!result.canceled) {
           const compressedUris = await Promise.all(result.assets.map(a => compressImage(a.uri)));
-          if (type === '入库' && compressedUris.length > 0) {
-            showToast('AI识别中...');
-            const base64 = await FileSystem.readAsStringAsync(compressedUris[0], { encoding: FileSystem.EncodingType.Base64 });
-            const imageData = `data:image/jpeg;base64,${base64}`;
-            try {
-              const reply = await fetchZhipuChat([{ role: 'user', content: `请识别这张图片中的商品名称，只返回商品名称，不要包含其他文字。` }], '你是一个商品识别助手。');
-              const productName = reply.trim();
-              if (!productName) {
-                showToast('无法识别商品');
-                return;
-              }
-              const existingGoods = (state.goodsList || []).find(g => g.name.includes(productName) || productName.includes(g.name));
-              if (existingGoods) {
-                Alert.alert(
-                  '确认入库',
-                  `识别到商品：${existingGoods.name}\n当前库存：${existingGoods.stock}\n请输入入库数量`,
-                  [
-                    { text: '取消' },
-                    { text: '确认入库', onPress: () => {
-                      const qty = 1;
-                      const newStock = existingGoods.stock + qty;
-                      const updatedGoods = (state.goodsList || []).map(g =>
-                        g.id === existingGoods.id ? { ...g, stock: newStock } : g
-                      );
-                      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-                      const record = {
-                        id: Date.now().toString(),
-                        type: '入库',
-                        productName: existingGoods.name,
-                        quantity: qty,
-                        reason: '相册入库',
-                        time: new Date().toISOString(),
-                        photo: imageData,
-                      };
-                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-                      showToast(`入库成功: ${existingGoods.name} ×${qty}`);
-                    }}
-                  ]
-                );
-              } else {
-                Alert.alert(
-                  '添加新商品',
-                  `识别到新商品：${productName}\n是否添加到库存？`,
-                  [
-                    { text: '取消' },
-                    { text: '添加', onPress: () => {
-                      const newGoods = {
-                        id: Date.now().toString(),
-                        name: productName,
-                        stock: 1,
-                        code: `SKU${Date.now()}`,
-                        platform: '默认',
-                        price: 0,
-                        costPrice: 0,
-                        unit: '个',
-                        image: imageData,
-                      };
-                      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newGoods] });
-                      const record = {
-                        id: Date.now().toString(),
-                        type: '入库',
-                        productName: productName,
-                        quantity: 1,
-                        reason: '相册入库(新商品)',
-                        time: new Date().toISOString(),
-                        photo: imageData,
-                      };
-                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-                      showToast(`入库成功: ${productName} ×1`);
-                    }}
-                  ]
-                );
-              }
-            } catch (e) {
-              console.error('AI识别失败:', e);
-              showToast('识别失败，请手动录入');
-              setPhotoUris(compressedUris);
-              setShowManualInput(true);
-              setModalVisible(true);
-            }
-          } else {
-            setPhotoUris(compressedUris);
-            if (!modalVisible) setModalVisible(true);
-          }
+          setPhotoUris(compressedUris);
+          if (!modalVisible) setModalVisible(true);
         }
       }
     } catch (error) { showToast('选择图片失败'); }
@@ -1835,40 +1667,6 @@ const CustomerService = () => {
       setShowQuickReply(false);
       setAiPaused(true);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-
-      if (aiMode && !aiPaused && text) {
-        try {
-          const sentiment = await fetchZhipuChat(
-            [{ role: 'user', content: text }],
-            '请判断这条消息是否是差评或投诉，只需回复"是"或"否"，不要包含其他内容。'
-          );
-          if (sentiment.includes('是')) {
-            dispatch({ type: 'INCREASE_BAD_REVIEW_COUNT', payload: 1 });
-            dispatch({ type: 'ADD_BAD_REVIEW', payload: {
-              id: Date.now().toString(),
-              platform: currentPlatform,
-              content: text,
-              time: new Date().toISOString(),
-              handled: false,
-            }});
-            showToast('⚠️ 已识别到差评，已上报');
-          }
-
-          const reply = await fetchZhipuChat(
-            [{ role: 'user', content: text }],
-            `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
-          );
-          const aiMsg = {
-            id: Date.now().toString(),
-            text: reply,
-            from: 'ai',
-            platform: currentPlatform,
-            time: new Date().toISOString(),
-          };
-          setMessages(prev => [...prev, aiMsg]);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
-        } catch (e) {}
-      }
     } catch (error) {
       showToast('发送失败');
     }
@@ -3342,51 +3140,52 @@ const HomePage = () => {
 const DraggableFloatingButton = ({ onPress }) => {
   const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
   const [isDragging, setIsDragging] = useState(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const startTouchX = useRef(0);
-  const startTouchY = useRef(0);
+  const positionRef = useRef({ x: width - 76, y: height - 180 });
+  const startPosRef = useRef({ x: 0, y: 0 });
   const hasMovedRef = useRef(false);
 
-  const onTouchStart = (e) => {
-    setIsDragging(true);
-    hasMovedRef.current = false;
-    const touch = e.touches[0];
-    startX.current = position.x;
-    startY.current = position.y;
-    startTouchX.current = touch.clientX;
-    startTouchY.current = touch.clientY;
-  };
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
 
-  const onTouchMove = (e) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - startTouchX.current;
-    const deltaY = touch.clientY - startTouchY.current;
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-      hasMovedRef.current = true;
-    }
-    let newX = startX.current + deltaX;
-    let newY = startY.current + deltaY;
-    newX = Math.max(0, Math.min(width - 56, newX));
-    newY = Math.max(0, Math.min(height - 100, newY));
-    setPosition({ x: newX, y: newY });
-  };
-
-  const onTouchEnd = () => {
-    setIsDragging(false);
-    if (!hasMovedRef.current) {
-      onPress();
-    }
-  };
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
+    onPanResponderGrant: () => {
+      setIsDragging(true);
+      hasMovedRef.current = false;
+      startPosRef.current = { x: positionRef.current.x, y: positionRef.current.y };
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5) {
+        hasMovedRef.current = true;
+      }
+      let newX = startPosRef.current.x + gestureState.dx;
+      let newY = startPosRef.current.y + gestureState.dy;
+      newX = Math.max(0, Math.min(width - 56, newX));
+      newY = Math.max(0, Math.min(height - 100, newY));
+      setPosition({ x: newX, y: newY });
+    },
+    onPanResponderRelease: () => {
+      setIsDragging(false);
+      if (!hasMovedRef.current) {
+        onPress();
+      }
+    },
+    onPanResponderTerminate: () => {
+      setIsDragging(false);
+    },
+  });
 
   return (
-    <TouchableWithoutFeedback
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
     >
       <View
+        {...panResponder.panHandlers}
         style={{
           position: 'absolute',
           left: position.x,
@@ -3398,9 +3197,7 @@ const DraggableFloatingButton = ({ onPress }) => {
           justifyContent: 'center',
           alignItems: 'center',
           ...SHADOW,
-          zIndex: 999,
           transform: [{ scale: isDragging ? 1.1 : 1 }],
-          transition: 'transform 0.1s ease-out',
         }}
       >
         <Ionicons name="sparkles" size={28} color="#fff" />
@@ -3408,7 +3205,7 @@ const DraggableFloatingButton = ({ onPress }) => {
           <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
         </View>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 };
 // ===== 第二段结束 =====// ================== 订单核销 ==================
@@ -3468,9 +3265,28 @@ const VerifyOrder = () => {
     }
   };
 
-  const handleBarCodeScanned = ({ data }) => {
+  const handleBarCodeScanned = async ({ data }) => {
     setScanning(false);
     setOrderCode(data);
+    showToast('AI识别商品中...');
+    try {
+      const reply = await fetchZhipuChat(
+        [{ role: 'user', content: `核销码是：${data}。请告诉我这个核销码对应的是什么商品类型（如：奶茶、咖啡、火锅套餐等），只返回商品类型名称，不要包含其他文字。` }],
+        '你是一个商品识别助手。'
+      );
+      const productType = reply.trim();
+      const matched = (state.goodsList || []).find(g =>
+        g.name.includes(productType) || productType.includes(g.name)
+      );
+      if (matched) {
+        setSelectedGoodsId(matched.id);
+        showToast(`识别到商品：${matched.name}`);
+      } else {
+        showToast(`未匹配到库存商品，可手动选择`);
+      }
+    } catch (e) {
+      console.error('AI识别失败:', e);
+    }
   };
 
   if (scanning) {
@@ -3605,19 +3421,6 @@ const PrivateChat = ({ route, navigation }) => {
       dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
       setInputText('');
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-
-      setTimeout(() => {
-        const replyMsg = {
-          id: (Date.now() + 1).toString(),
-          text: `收到，${name || '对方'}正在处理中...`,
-          from: 'customer',
-          platform: 'private',
-          time: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, replyMsg]);
-        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: replyMsg } });
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      }, 1500);
     } catch (error) {
       showToast('发送失败');
     }
