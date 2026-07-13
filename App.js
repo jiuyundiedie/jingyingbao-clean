@@ -3184,66 +3184,73 @@ const HomePage = () => {
 const DraggableFloatingButton = ({ onPress }) => {
   const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
   const [isDragging, setIsDragging] = useState(false);
-  const positionRef = useRef({ x: width - 76, y: height - 180 });
-  const startTouchRef = useRef({ x: 0, y: 0 });
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const startTouchX = useRef(0);
+  const startTouchY = useRef(0);
   const hasMovedRef = useRef(false);
 
-  useEffect(() => {
-    positionRef.current = position;
-  }, [position]);
+  const onTouchStart = (e) => {
+    setIsDragging(true);
+    hasMovedRef.current = false;
+    const touch = e.touches[0];
+    startX.current = position.x;
+    startY.current = position.y;
+    startTouchX.current = touch.clientX;
+    startTouchY.current = touch.clientY;
+  };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e, gestureState) => {
-        setIsDragging(true);
-        hasMovedRef.current = false;
-        startTouchRef.current = { x: gestureState.x0, y: gestureState.y0 };
-      },
-      onPanResponderMove: (e, gestureState) => {
-        const deltaX = gestureState.moveX - startTouchRef.current.x;
-        const deltaY = gestureState.moveY - startTouchRef.current.y;
-        if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-          hasMovedRef.current = true;
-        }
-        let newX = positionRef.current.x + deltaX;
-        let newY = positionRef.current.y + deltaY;
-        newX = Math.max(0, Math.min(width - 56, newX));
-        newY = Math.max(0, Math.min(height - 100, newY));
-        setPosition({ x: newX, y: newY });
-      },
-      onPanResponderRelease: () => {
-        setIsDragging(false);
-        if (!hasMovedRef.current) {
-          onPress();
-        }
-      },
-    })
-  ).current;
+  const onTouchMove = (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startTouchX.current;
+    const deltaY = touch.clientY - startTouchY.current;
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasMovedRef.current = true;
+    }
+    let newX = startX.current + deltaX;
+    let newY = startY.current + deltaY;
+    newX = Math.max(0, Math.min(width - 56, newX));
+    newY = Math.max(0, Math.min(height - 100, newY));
+    setPosition({ x: newX, y: newY });
+  };
+
+  const onTouchEnd = () => {
+    setIsDragging(false);
+    if (!hasMovedRef.current) {
+      onPress();
+    }
+  };
 
   return (
-    <View
-      {...panResponder.panHandlers}
-      style={{
-        position: 'absolute',
-        left: position.x,
-        top: position.y,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: PRIMARY_COLOR,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...SHADOW,
-        zIndex: 999,
-        transform: [{ scale: isDragging ? 1.1 : 1 }],
-      }}
+    <TouchableWithoutFeedback
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
-      <Ionicons name="sparkles" size={28} color="#fff" />
-      <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
+      <View
+        style={{
+          position: 'absolute',
+          left: position.x,
+          top: position.y,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: PRIMARY_COLOR,
+          justifyContent: 'center',
+          alignItems: 'center',
+          ...SHADOW,
+          zIndex: 999,
+          transform: [{ scale: isDragging ? 1.1 : 1 }],
+          transition: 'transform 0.1s ease-out',
+        }}
+      >
+        <Ionicons name="sparkles" size={28} color="#fff" />
+        <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
+        </View>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 // ===== 第二段结束 =====// ================== 订单核销 ==================
@@ -3843,12 +3850,19 @@ function RootTabs() {
 
 // ================== 主栈导航 ==================
 const Stack = createNativeStackNavigator();
-function MainStack() {
+function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="RootTabs" component={RootTabs} />
       <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AppStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="RootTabs" component={RootTabs} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
       <Stack.Screen name="StaffManage" component={StaffManage} />
@@ -3912,7 +3926,7 @@ export default function App() {
     <SafeAreaProvider>
       <AppContext.Provider value={{ state, dispatch }}>
         <NavigationContainer ref={navigationRef}>
-          <MainStack />
+          {state.user ? <AppStack /> : <AuthStack />}
         </NavigationContainer>
       </AppContext.Provider>
     </SafeAreaProvider>
