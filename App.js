@@ -6,8 +6,8 @@ import {
   PanResponder
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
-const navigationRef = React.createRef();
+import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
+const navigationRef = createNavigationContainerRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -134,14 +134,10 @@ async function fetchZhipuImage(prompt, signal) {
       return `data:image/png;base64,${imageData.b64_json}`;
     } else if (imageData?.url) {
       try {
-        const imageRes = await fetch(imageData.url, { signal });
-        const blob = await imageRes.blob();
-        const base64 = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-        return base64;
+        const fileName = `temp_img_${Date.now()}.png`;
+        const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
+        const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
+        return `data:image/png;base64,${base64}`;
       } catch (e) {
         console.error('Failed to fetch image URL:', e);
         return null;
@@ -330,6 +326,8 @@ function appReducer(state, action) {
     }
     case 'SET_BAD_REVIEW_COUNT':
       return { ...state, badReviewCount: action.payload };
+    case 'INCREASE_BAD_REVIEW_COUNT':
+      return { ...state, badReviewCount: (state.badReviewCount || 0) + action.payload };
     case 'ADD_BAD_REVIEW': {
       const newList = [action.payload, ...(state.badReviewList || [])];
       return { ...state, badReviewList: newList, badReviewCount: newList.length };
@@ -571,6 +569,7 @@ const styles = StyleSheet.create({
   chatSettingText: { fontSize: 16, color: TEXT_MAIN, marginLeft: 12 },
   chatSettingDesc: { fontSize: 14, color: TEXT_THIRD, marginLeft: 'auto' },
   voiceModal: { width: '80%', backgroundColor: BG_CARD, borderRadius: 24, padding: 24, alignItems: 'center' },
+  miniBtnWithIcon: { width: '31%', paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', ...SHADOW },
   voiceTextInput: { width: '100%', height: 120, borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 12, padding: 12, fontSize: 16, textAlignVertical: 'top' },
   menuItem: { width: 110, backgroundColor: BG_CARD, paddingVertical: 16, borderRadius: 16, alignItems: 'center', ...SHADOW },
   staffChatItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, flexDirection: 'row', alignItems: 'center', ...SHADOW },
@@ -1217,6 +1216,39 @@ const StockManage = () => {
     setPhotoUris([]);
   };
 
+  const handleQuickOut = (goods) => {
+    if (goods.stock <= 0) {
+      showToast('库存不足');
+      return;
+    }
+    Alert.alert(
+      '确认出库',
+      `商品：${goods.name}\n当前库存：${goods.stock}\n请输入出库数量`,
+      [
+        { text: '取消' },
+        { text: '确认出库', onPress: () => {
+          const qty = 1;
+          const newStock = goods.stock - qty;
+          const updatedGoods = (state.goodsList || []).map(g =>
+            g.id === goods.id ? { ...g, stock: newStock } : g
+          );
+          dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+          const record = {
+            id: Date.now().toString(),
+            type: '出库',
+            productName: goods.name,
+            quantity: qty,
+            reason: '快速出库',
+            time: new Date().toISOString(),
+            photo: null,
+          };
+          dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+          showToast(`出库成功: ${goods.name} ×${qty}`);
+        }}
+      ]
+    );
+  };
+
   const handleScan = async () => {
     try {
       const { status } = await BarCodeScanner.requestPermissionsAsync();
@@ -1230,7 +1262,40 @@ const StockManage = () => {
     const matched = (state.goodsList || []).find(g => g.code === data);
     if (matched) {
       setSelectedGoodsId(matched.id);
-      showToast(`扫描到商品：${matched.name}`);
+      if (type === '出库') {
+        if (matched.stock <= 0) {
+          showToast('库存不足');
+          return;
+        }
+        Alert.alert(
+          '确认出库',
+          `商品：${matched.name}\n当前库存：${matched.stock}\n请输入出库数量`,
+          [
+            { text: '取消' },
+            { text: '确认出库', onPress: () => {
+              const qty = 1;
+              const newStock = matched.stock - qty;
+              const updatedGoods = (state.goodsList || []).map(g =>
+                g.id === matched.id ? { ...g, stock: newStock } : g
+              );
+              dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+              const record = {
+                id: Date.now().toString(),
+                type: '出库',
+                productName: matched.name,
+                quantity: qty,
+                reason: '扫码出库',
+                time: new Date().toISOString(),
+                photo: null,
+              };
+              dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+              showToast(`出库成功: ${matched.name} ×${qty}`);
+            }}
+          ]
+        );
+      } else {
+        showToast(`扫描到商品：${matched.name}`);
+      }
     } else {
       Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择或手动录入`, [
         { text: '手动录入', onPress: () => { setShowManualInput(true); setModalVisible(true); } },
@@ -1327,15 +1392,31 @@ const StockManage = () => {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 6 }}>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); handleScan(); }}><Text style={styles.sendTxt}>扫码入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); handleScan(); }}><Text style={styles.sendTxt}>扫码出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>拍照入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); pickPhotos('camera'); }}><Text style={styles.sendTxt}>拍照出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', paddingVertical: 6 }]} onPress={() => { setType('入库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>相册入库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: DANGER_COLOR, paddingVertical: 6 }]} onPress={() => { setType('出库'); pickPhotos('library'); }}><Text style={styles.sendTxt}>相册出库</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: SUCCESS_COLOR, paddingVertical: 6 }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}><Text style={styles.sendTxt}>手动录入</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBlueBtn, { width: '23%', backgroundColor: '#FF8C00', paddingVertical: 6 }]} onPress={voiceInput}><Text style={styles.sendTxt}>语音录入</Text></TouchableOpacity>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 }}>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: PRIMARY_COLOR }]} onPress={() => { setType('入库'); handleScan(); }}>
+          <Ionicons name="qr-code-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>扫码入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); handleScan(); }}>
+          <Ionicons name="qr-code-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>扫码出库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: PRIMARY_COLOR }]} onPress={() => { setType('入库'); pickPhotos('camera'); }}>
+          <Ionicons name="camera-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: PRIMARY_COLOR }]} onPress={() => { setType('入库'); pickPhotos('library'); }}>
+          <Ionicons name="images-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>相册入库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: SUCCESS_COLOR }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}>
+          <Ionicons name="keyboard-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#FF8C00' }]} onPress={voiceInput}>
+          <Ionicons name="mic-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>语音录入</Text>
+        </TouchableOpacity>
       </View>
       <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
         <Text style={{ fontWeight: '600', marginBottom: 6 }}>📤 上架平台</Text>
@@ -1423,7 +1504,7 @@ const StockManage = () => {
                 <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}>
                   <Text style={styles.sendTxt}>📥 入库</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}>
+                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => handleQuickOut(g)}>
                   <Text style={styles.sendTxt}>📤 出库</Text>
                 </TouchableOpacity>
               </View>
@@ -1599,6 +1680,22 @@ const CustomerService = () => {
 
       if (aiMode && !aiPaused && text) {
         try {
+          const sentiment = await fetchZhipuChat(
+            [{ role: 'user', content: text }],
+            '请判断这条消息是否是差评或投诉，只需回复"是"或"否"，不要包含其他内容。'
+          );
+          if (sentiment.includes('是')) {
+            dispatch({ type: 'INCREASE_BAD_REVIEW_COUNT', payload: 1 });
+            dispatch({ type: 'ADD_BAD_REVIEW', payload: {
+              id: Date.now().toString(),
+              platform: currentPlatform,
+              content: text,
+              time: new Date().toISOString(),
+              handled: false,
+            }});
+            showToast('⚠️ 已识别到差评，已上报');
+          }
+
           const reply = await fetchZhipuChat(
             [{ role: 'user', content: text }],
             `你是一个${currentPlatform}平台的客服，请礼貌、简洁地回复顾客。`
@@ -2452,6 +2549,7 @@ const MerchantAssistant = () => {
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showQuickReply, setShowQuickReply] = useState(false);
   const abortControllerRef = useRef(null);
 
   const industry = state.shopInfo?.industry || '餐饮类';
@@ -2578,6 +2676,21 @@ const MerchantAssistant = () => {
       abortControllerRef.current = new AbortController();
       setLoading(true);
 
+      const orders = state.globalOrderRecord || [];
+      const goods = state.goodsList || [];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
+      const totalOrders = orders.length;
+      const totalRevenue = orders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+      const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+      const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
+      const lowStockItems = goods.filter(g => (g.stock || 0) < 10).map(g => `${g.name}(库存:${g.stock})`).join(',');
+      
+      const businessContext = `【店铺信息】名称：${shopName}，类型：${industry}
+【经营数据】总订单数：${totalOrders}，总营收：¥${totalRevenue}，今日订单：${todayOrders.length}，今日营收：¥${todayRevenue}
+【库存数据】商品总数：${goods.length}，总库存：${totalStock}，库存不足商品：${lowStockItems || '无'}
+【订单列表】${orders.slice(-5).map(o => `${o.platform}：${o.productName || '商品'} ¥${o.couponPrice || 0} ${formatDate(o.time)}`).join('；')}`;
+
       const msgList = messages.filter(m => m.from !== 'system').map(m => ({
         role: m.from === 'user' ? 'user' : 'assistant',
         content: m.text,
@@ -2618,7 +2731,7 @@ const MerchantAssistant = () => {
           reply = '生成失败，请重试';
         }
       } else {
-        reply = await fetchZhipuChat(msgList, `你是一个经营宝AI助手，帮助${industry}商家解决经营问题。回答要简洁、实用。`, abortControllerRef.current.signal);
+        reply = await fetchZhipuChat(msgList, `你是一个经营宝AI助手，帮助${industry}商家解决经营问题。以下是当前店铺的经营数据，基于这些数据回答用户问题：\n\n${businessContext}\n\n回答要简洁、实用，基于上述数据进行分析。`, abortControllerRef.current.signal);
       }
       if (abortControllerRef.current?.signal.aborted) {
         setLoading(false);
@@ -2686,20 +2799,6 @@ const MerchantAssistant = () => {
           </View>
         </View>
       </SafeAreaView>
-      <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {['文案', '海报', '广告语'].map(label => (
-          <TouchableOpacity key={label} style={{ marginRight: 10, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
-            <Text style={{ color: PRIMARY_COLOR }}>📣 {label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {quickReplies.map((text, idx) => (
-          <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
-            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
       <ScrollView
         ref={scrollViewRef}
         style={styles.chatScroll}
@@ -2748,9 +2847,24 @@ const MerchantAssistant = () => {
           </TouchableOpacity>
         </View>
       )}
+      {showQuickReply && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          {['文案', '海报', '广告语'].map(label => (
+            <TouchableOpacity key={label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
+              <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>📣 {label}</Text>
+            </TouchableOpacity>
+          ))}
+          {quickReplies.map((text, idx) => (
+            <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
+              <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="sparkles-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={[styles.inputBox, { flex: 1 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -3070,9 +3184,13 @@ const HomePage = () => {
 const DraggableFloatingButton = ({ onPress }) => {
   const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
   const [isDragging, setIsDragging] = useState(false);
-  const startPosRef = useRef({ x: 0, y: 0 });
+  const positionRef = useRef({ x: width - 76, y: height - 180 });
   const startTouchRef = useRef({ x: 0, y: 0 });
   const hasMovedRef = useRef(false);
+
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -3080,17 +3198,16 @@ const DraggableFloatingButton = ({ onPress }) => {
       onPanResponderGrant: (e, gestureState) => {
         setIsDragging(true);
         hasMovedRef.current = false;
-        startPosRef.current = { x: position.x, y: position.y };
         startTouchRef.current = { x: gestureState.x0, y: gestureState.y0 };
       },
       onPanResponderMove: (e, gestureState) => {
-        const deltaX = gestureState.x0 - startTouchRef.current.x;
-        const deltaY = gestureState.y0 - startTouchRef.current.y;
+        const deltaX = gestureState.moveX - startTouchRef.current.x;
+        const deltaY = gestureState.moveY - startTouchRef.current.y;
         if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
           hasMovedRef.current = true;
         }
-        let newX = startPosRef.current.x + (gestureState.x0 - startTouchRef.current.x);
-        let newY = startPosRef.current.y + (gestureState.y0 - startTouchRef.current.y);
+        let newX = positionRef.current.x + deltaX;
+        let newY = positionRef.current.y + deltaY;
         newX = Math.max(0, Math.min(width - 56, newX));
         newY = Math.max(0, Math.min(height - 100, newY));
         setPosition({ x: newX, y: newY });
