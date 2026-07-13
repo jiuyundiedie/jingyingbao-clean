@@ -376,6 +376,15 @@ function appReducer(state, action) {
       return { ...state, costCache: action.payload || { purchaseCost: "", fixedCost: "" } };
     case 'SET_SHOP_CONFIG':
       return { ...state, shopConfig: action.payload || { shopName: "我的门店", industry: "餐饮类" } };
+    case 'SET_PRIVATE_CHAT_MESSAGES': {
+      const { phone, messages } = action.payload;
+      return { ...state, privateChatMessages: { ...(state.privateChatMessages || {}), [phone]: messages } };
+    }
+    case 'ADD_BOSS_NOTIFICATION':
+      return { ...state, bossNotifications: [...(state.bossNotifications || []), action.payload] };
+    case 'CLEAR_BOSS_NOTIFICATION': {
+      return { ...state, bossNotifications: (state.bossNotifications || []).filter(n => n.id !== action.payload.id) };
+    }
     case 'SET_LAST_BUSINESS_INPUT':
       return { ...state, lastBusinessInput: action.payload || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" } };
     case 'SET_LATEST_DAILY_REPORT':
@@ -1436,26 +1445,34 @@ const StockManage = () => {
     if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
     setAiCountLoading(true);
     try {
-      let total = 0;
-      const details = [];
-      for (let i = 0; i < aiCountPhotos.length; i++) {
-        const base64 = await FileSystem.readAsStringAsync(aiCountPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
+      const existingDetails = aiCountResult?.details || [];
+      // 只识别还没识别过的图片
+      const startIdx = existingDetails.length;
+      const newPhotos = aiCountPhotos.slice(startIdx);
+      if (newPhotos.length === 0) {
+        showToast('所有照片已识别完成');
+        setAiCountLoading(false);
+        return;
+      }
+      const newDetails = [...existingDetails];
+      for (let i = 0; i < newPhotos.length; i++) {
+        const photoIdx = startIdx + i;
+        const base64 = await FileSystem.readAsStringAsync(newPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
         const imageData = `data:image/jpeg;base64,${base64}`;
+        const prompt = `请仔细数一下这张图片中可数的独立物品总数（注意只数完整可数的物品，散件或看不清的不算）。只返回一个纯数字（阿拉伯数字），不要包含其他任何文字、单位或标点符号。`;
         const reply = await fetchZhipuChat([
-          { role: 'user', content: `请仔细数一下这张图片中的商品总数（不管是什么商品，只要数清楚有多少个/件）。只返回一个纯数字，不要包含其他文字、单位或标点符号。` }
-        ], '你是一个商品数量识别助手，只需要返回图片中商品的数量，纯数字。');
-        const num = parseInt(reply.replace(/[^\d]/g, ''));
+          { role: 'user', content: prompt }
+        ], '你是一个精确的物品数量识别助手，只会返回纯数字。');
+        const num = parseInt((reply || '').replace(/[^\d]/g, ''));
         const count = isNaN(num) ? 0 : num;
-        total += count;
-        details.push({ photoIndex: i + 1, count });
+        newDetails.push({ photoIndex: photoIdx + 1, count });
+        // 流式更新识别进度
+        const total = newDetails.reduce((sum, d) => sum + d.count, 0);
+        const goodsOptions = (state.goodsList || []);
+        setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
       }
-      const goodsOptions = (state.goodsList || []);
-      setAiCountResult({ total, details, photos: aiCountPhotos.length, goodsOptions });
-      if (total === 0) {
-        showToast('未识别到商品数量，请重新拍照');
-      } else {
-        showToast(`共识别到 ${total} 件商品`);
-      }
+      const total = newDetails.reduce((sum, d) => sum + d.count, 0);
+      showToast(`识别完成，共 ${total} 件商品`);
     } catch (e) {
       console.error('AI识别失败:', e);
       showToast('识别失败，请重试');
@@ -1800,7 +1817,23 @@ const StockManage = () => {
             <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>可以拍多张照片，AI会自动识别并累加总数</Text>
             <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 100 }}>
               {aiCountPhotos.map((uri, idx) => (
-                <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
+                <View key={idx} style={{ position: 'relative', marginRight: 8 }}>
+                  <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }}
+                    onPress={() => {
+                      setAiCountPhotos(prev => prev.filter((_, i) => i !== idx));
+                      // 删除对应识别结果
+                      if (aiCountResult && aiCountResult.details) {
+                        const newDetails = aiCountResult.details.filter((_, i) => i !== idx);
+                        const newTotal = newDetails.reduce((sum, d) => sum + d.count, 0);
+                        setAiCountResult({ ...aiCountResult, total: newTotal, details: newDetails, photos: newDetails.length });
+                      }
+                    }}
+                  >
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
               ))}
               {aiCountPhotos.length === 0 && <Text style={{ color: TEXT_THIRD, lineHeight: 80 }}>还没有照片，点击下方按钮开始拍照</Text>}
             </ScrollView>
@@ -1897,13 +1930,66 @@ const CustomerService = () => {
   const [tagInput, setTagInput] = useState('');
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [aiPaused, setAiPaused] = useState(false);
+  const [escalateToBoss, setEscalateToBoss] = useState(false);
 
-  const customerList = Object.keys(state.privateChatMessages || {}).map(phone => ({
-    phone,
-    lastMsg: state.privateChatMessages[phone]?.[0]?.text || '',
-  }));
+  // 收集所有顾客（按手机号）
+  const allCustomers = Object.keys(state.privateChatMessages || {});
 
-  const currentMessages = messages.filter(m => m.platform === currentPlatform);
+  // 按平台分组的顾客列表
+  const customerByPlatform = (platform) => {
+    const result = [];
+    allCustomers.forEach(phone => {
+      const msgs = state.privateChatMessages[phone] || [];
+      const lastMsg = msgs[msgs.length - 1];
+      if (!lastMsg) return;
+      // 筛选当前平台的消息
+      const platformMsgs = msgs.filter(m => (m.platform || '其他') === platform);
+      if (platformMsgs.length === 0 && msgs.length > 0) return;
+      const lastPlatformMsg = platformMsgs[platformMsgs.length - 1] || lastMsg;
+      result.push({
+        phone,
+        platform,
+        lastMsg: lastPlatformMsg,
+        unread: platformMsgs.filter(m => m.from !== 'staff' && m.from !== state.user?.phone && !m.read).length,
+      });
+    });
+    return result;
+  };
+
+  const currentCustomers = customerByPlatform(currentPlatform);
+  const currentMessages = messages.filter(m => m.platform === currentPlatform && m.phone === selectedPhone);
+
+  // 同步消息
+  useEffect(() => {
+    if (selectedPhone) {
+      const msgs = (state.privateChatMessages[selectedPhone] || []).filter(m => (m.platform || '其他') === currentPlatform);
+      setMessages(msgs);
+    }
+  }, [selectedPhone, currentPlatform, state.privateChatMessages]);
+
+  // 客服权限范围 - 基础咨询、退款申请、订单查询
+  const STAFF_PERMISSION_KEYWORDS = ['价格', '菜单', '营业时间', '地址', '电话', '位置', '几点', '怎么去', '有货吗', '有吗', '能', '可以', '退换', '发票', '小票'];
+  const BOSS_ONLY_KEYWORDS = ['投诉', '差评', '退款', '赔偿', '举报', '诉讼', '起诉', '曝光', '黑心', '欺诈', '食品安全', '吃坏', '中毒', '侮辱', '谩骂'];
+
+  // 检测是否超出客服权限
+  const isEscalationNeeded = (text) => {
+    return BOSS_ONLY_KEYWORDS.some(k => text.includes(k));
+  };
+
+  const escalateToMerchant = () => {
+    // 通知商家（在state中记录待处理事项）
+    const note = {
+      id: Date.now().toString(),
+      type: 'escalation',
+      fromPhone: selectedPhone,
+      platform: currentPlatform,
+      message: inputText || '顾客咨询超出客服权限',
+      time: new Date().toISOString(),
+      handled: false,
+    };
+    dispatch({ type: 'ADD_BOSS_NOTIFICATION', payload: note });
+    showToast('⚠️ 已通知商家介入处理');
+  };
 
   const sendMessage = async (type = 'text') => {
     try {
@@ -1922,8 +2008,13 @@ const CustomerService = () => {
           image: images[0],
           from: 'staff',
           platform: currentPlatform,
+          phone: selectedPhone,
           time: new Date().toISOString(),
+          read: true,
         };
+        // 保存到全局消息
+        const allMsgs = (state.privateChatMessages[selectedPhone] || []).concat([msg]);
+        dispatch({ type: 'SET_PRIVATE_CHAT_MESSAGES', payload: { phone: selectedPhone, messages: allMsgs } });
         setMessages(prev => [...prev, msg]);
         setSelectedImages([]);
         setInputText('');
@@ -1933,14 +2024,24 @@ const CustomerService = () => {
         return;
       }
       if (!text && selectedImages.length === 0) { showToast('请输入内容或选择图片'); return; }
+      // 检测是否需要转商家
+      if (isEscalationNeeded(text)) {
+        escalateToMerchant();
+        return;
+      }
       const msg = {
         id: Date.now().toString(),
         text: text || '',
         image: null,
         from: 'staff',
         platform: currentPlatform,
+        phone: selectedPhone,
         time: new Date().toISOString(),
+        read: true,
       };
+      // 保存到全局消息
+      const allMsgs = (state.privateChatMessages[selectedPhone] || []).concat([msg]);
+      dispatch({ type: 'SET_PRIVATE_CHAT_MESSAGES', payload: { phone: selectedPhone, messages: allMsgs } });
       setMessages(prev => [...prev, msg]);
       setInputText('');
       setShowEmoji(false);
@@ -2002,7 +2103,8 @@ const CustomerService = () => {
     '稍等，我帮您查询一下',
     '感谢您的反馈，我们会尽快处理',
     '欢迎下次光临！',
-    '请问您需要什么帮助？'
+    '请问您需要什么帮助？',
+    '请问您贵姓，方便称呼吗？',
   ];
 
   const addTag = () => {
@@ -2044,31 +2146,66 @@ const CustomerService = () => {
         </View>
       </SafeAreaView>
 
-      {customerList.length > 0 && (
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+        {['美团', '抖音', '大众点评'].map(p => {
+          const platformCustomers = customerByPlatform(p);
+          const platformUnread = platformCustomers.reduce((s, c) => s + c.unread, 0);
+          return (
+            <TouchableOpacity key={p} onPress={() => { setCurrentPlatform(p); setSelectedPhone(''); }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: currentPlatform === p ? '700' : '400',
+                  color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND
+                }}>{p}</Text>
+                {platformUnread > 0 && (
+                  <View style={{ backgroundColor: DANGER_COLOR, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, marginTop: 2 }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{platformUnread > 99 ? '99+' : platformUnread}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {currentCustomers.length > 0 ? (
         <View style={{ padding: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+          <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 6 }}>💬 {currentPlatform}平台咨询顾客 ({currentCustomers.length})</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {customerList.map(c => (
+            {currentCustomers.map(c => (
               <TouchableOpacity
                 key={c.phone}
                 style={{
                   paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : LIGHT_PRIMARY,
-                  borderRadius: 16,
-                  marginRight: 8
+                  paddingVertical: 8,
+                  backgroundColor: selectedPhone === c.phone ? PRIMARY_COLOR : '#fff',
+                  borderRadius: 12,
+                  marginRight: 8,
+                  minWidth: 100,
+                  borderWidth: 1,
+                  borderColor: selectedPhone === c.phone ? PRIMARY_COLOR : BORDER_COLOR,
                 }}
                 onPress={() => setSelectedPhone(c.phone)}
               >
-                <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN }}>{c.phone}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_MAIN, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{c.phone}</Text>
+                  {c.unread > 0 && (
+                    <View style={{ backgroundColor: DANGER_COLOR, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, marginLeft: 4 }}>
+                      <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>{c.unread}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={{ color: selectedPhone === c.phone ? '#fff' : TEXT_SECOND, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.lastMsg?.text || '...'}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
           {selectedPhone && (
-            <View style={{ marginTop: 6 }}>
+            <View style={{ marginTop: 8, padding: 8, backgroundColor: '#fff', borderRadius: 8 }}>
               <Text style={{ fontSize: 12, color: TEXT_SECOND }}>
-                累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}
+                📊 累计消费：¥{getCustomerStats(selectedPhone).total} ｜ 订单数：{getCustomerStats(selectedPhone).count} ｜ 上次到店：{getCustomerStats(selectedPhone).lastOrder}
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                 <TextInput
                   style={[styles.formInput, { flex: 1, height: 32, fontSize: 12 }]}
                   placeholder="添加标签"
@@ -2080,7 +2217,7 @@ const CustomerService = () => {
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
-                {(state.customerTags[selectedPhone] || []).map((tag, idx) => (
+                {(state.customerTags?.[selectedPhone] || []).map((tag, idx) => (
                   <View key={idx} style={{ backgroundColor: LIGHT_PRIMARY, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginRight: 4, marginBottom: 4 }}>
                     <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>#{tag}</Text>
                   </View>
@@ -2089,19 +2226,12 @@ const CustomerService = () => {
             </View>
           )}
         </View>
+      ) : (
+        <View style={{ padding: 30, alignItems: 'center', backgroundColor: BG_CARD }}>
+          <Ionicons name="chatbubbles-outline" size={48} color={TEXT_THIRD} />
+          <Text style={{ color: TEXT_THIRD, marginTop: 8 }}>{currentPlatform}平台暂无咨询</Text>
+        </View>
       )}
-
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {['美团', '抖音', '大众点评'].map(p => (
-          <TouchableOpacity key={p} onPress={() => setCurrentPlatform(p)}>
-            <Text style={{
-              fontSize: 16,
-              fontWeight: currentPlatform === p ? '700' : '400',
-              color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND
-            }}>{p}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {selectedImages.length > 0 && (
         <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
@@ -2194,10 +2324,11 @@ const CustomerService = () => {
         </TouchableOpacity>
         <TextInput
           style={styles.inputBox}
-          placeholder="回复顾客..."
+          placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
           value={inputText}
           onChangeText={setInputText}
           multiline
+          editable={!!selectedPhone}
         />
         <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
           <Text style={styles.sendTxt}>发送</Text>
@@ -2775,6 +2906,313 @@ const ChatSettingScreen = ({ route, navigation }) => {
   );
 };
 
+// ================== 语音助手（独立页面，支持语音输入、网络搜索、商家数据） ==================
+const VoiceAssistant = () => {
+  const navigation = useNavigation();
+  const { state } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
+  const scrollViewRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  const industry = state.shopInfo?.industry || '餐饮类';
+  const shopName = state.shopInfo?.shopName || '我的门店';
+  const userName = state.user?.name || '老板';
+
+  // 收集软件全局所有数据
+  const collectAllBusinessData = () => {
+    const orders = state.globalOrderRecord || [];
+    const goods = state.goodsList || [];
+    const stockRecords = state.globalStockRecord || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const thisMonth = todayStr.substring(0, 7);
+    const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
+    const monthOrders = orders.filter(o => o.time?.startsWith(thisMonth));
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const monthRevenue = monthOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
+    const lowStockItems = goods.filter(g => (g.stock || 0) < 10).map(g => `${g.name}(库存:${g.stock})`);
+    const todayIn = stockRecords.filter(r => r.type === '入库' && r.time?.startsWith(todayStr)).reduce((s, r) => s + (r.quantity || 0), 0);
+    const todayOut = stockRecords.filter(r => r.type === '出库' && r.time?.startsWith(todayStr)).reduce((s, r) => s + (r.quantity || 0), 0);
+    const platformStats = {};
+    orders.forEach(o => {
+      if (o.platform) {
+        if (!platformStats[o.platform]) platformStats[o.platform] = { count: 0, revenue: 0 };
+        platformStats[o.platform].count++;
+        platformStats[o.platform].revenue += o.couponPrice || 0;
+      }
+    });
+    return {
+      shopName, industry, userName,
+      todayOrders: todayOrders.length, todayRevenue, monthOrders: monthOrders.length, monthRevenue, totalOrders: orders.length, totalRevenue,
+      totalGoods: goods.length, totalStock, lowStockItems,
+      todayIn, todayOut,
+      platformStats,
+      badReviewCount: state.badReviewCount || 0,
+      staffCount: (state.staffMemberList || []).filter(s => s.status === 'approved').length,
+    };
+  };
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([{
+        id: '1',
+        text: `您好 ${userName}！我是您的智能语音助手 🎙️\n\n我可以：\n🎙️ 直接语音对话（点击下方麦克风按钮）\n🔍 联网搜索最新行业信息\n📊 分析您店铺的真实经营数据\n💡 提供针对性的经营建议\n\n请直接说话或输入问题！`,
+        from: 'ai',
+        time: new Date().toISOString(),
+      }]);
+    }
+  }, []);
+
+  // 语音识别（Web Speech API）
+  const startVoice = () => {
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showToast('当前环境不支持语音识别');
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.onstart = () => {
+        setRecording(true);
+        setRecognizing(true);
+        showToast('正在聆听...请说话');
+      };
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        if (finalTranscript) {
+          setInputText(prev => prev + finalTranscript);
+        } else if (interimTranscript) {
+          setInputText(interimTranscript);
+        }
+      };
+      recognition.onerror = (event) => {
+        console.error('语音识别错误:', event.error);
+        if (event.error === 'no-speech') showToast('未检测到语音');
+        else if (event.error === 'not-allowed') showToast('请允许使用麦克风');
+        else showToast('语音识别出错');
+        setRecording(false);
+        setRecognizing(false);
+      };
+      recognition.onend = () => {
+        setRecording(false);
+        setRecognizing(false);
+      };
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      console.error('启动语音识别失败:', error);
+      showToast('启动语音识别失败');
+      setRecording(false);
+      setRecognizing(false);
+    }
+  };
+
+  const stopVoice = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+    setRecording(false);
+    setRecognizing(false);
+  };
+
+  // 语音播报回复
+  const speakText = (text) => {
+    try {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text.substring(0, 200));
+        utter.lang = 'zh-CN';
+        utter.rate = 1.0;
+        window.speechSynthesis.speak(utter);
+      }
+    } catch (error) {
+      console.error('语音播报失败:', error);
+    }
+  };
+
+  const sendMessage = async () => {
+    const text = inputText.trim();
+    if (!text) return;
+    const userMsg = {
+      id: Date.now().toString(),
+      text,
+      from: 'user',
+      time: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    abortControllerRef.current = new AbortController();
+    setLoading(true);
+
+    try {
+      const allData = collectAllBusinessData();
+      const businessContext = `【店铺信息】名称：${allData.shopName}，类型：${allData.industry}
+【核心数据】今日订单：${allData.todayOrders}单，今日营收：¥${allData.todayRevenue}，本月订单：${allData.monthOrders}单，本月营收：¥${allData.monthRevenue}，总营收：¥${allData.totalRevenue}
+【库存】商品总数：${allData.totalGoods}，总库存：${allData.totalStock}，今日入库：${allData.todayIn}，今日出库：${allData.todayOut}，库存不足：${allData.lowStockItems.join('、') || '无'}
+【平台分布】${Object.entries(allData.platformStats).map(([p, s]) => `${p}：${s.count}单 ¥${s.revenue}`).join('，') || '暂无'}
+【其他】差评数：${allData.badReviewCount}，在职员工：${allData.staffCount}人`;
+
+      const msgList = messages.slice(-10).map(m => ({
+        role: m.from === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+      msgList.push({ role: 'user', content: text });
+
+      const systemPrompt = `你是「${allData.shopName}」${industry}店铺的专属智能语音助手，服务商家${userName}。
+
+【店铺实时数据】
+${businessContext}
+
+【你的能力】
+1. 直接通过语音与商家对话，回答简洁有力
+2. 可以联网搜集行业最新信息（同款爆款、行业趋势、竞品动态、营销方法）
+3. 基于店铺真实数据进行分析，绝对不编造数据
+4. 提供可执行的具体建议
+
+【回答风格】
+- 简洁、口语化（因为是语音对话）
+- 数据准确引用真实数据
+- 给出具体步骤
+- 用"您"称呼商家
+- 重点突出，不啰嗦`;
+
+      const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
+      if (abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+      const aiMsg = {
+        id: (Date.now()+1).toString(),
+        text: reply,
+        from: 'ai',
+        time: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      // 自动语音播报
+      speakText(reply);
+      setLoading(false);
+      abortControllerRef.current = null;
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      if (error.name === 'AbortError') {}
+      else { showToast('发送失败'); }
+      setLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    setLoading(false);
+    showToast('已停止');
+  };
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY_COLOR }}>
+        <View style={[styles.headerBar, { backgroundColor: PRIMARY_COLOR }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={[styles.pageTitle, { color: '#fff' }]}>🎙️ 智能语音助手</Text>
+          {loading ? (
+            <TouchableOpacity onPress={stopGeneration}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>⏹ 停止</Text>
+            </TouchableOpacity>
+          ) : <View style={{ width: 30 }} />}
+        </View>
+      </SafeAreaView>
+
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.chatScroll}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: 200 }}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
+        {messages.map(msg => (
+          <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
+            {msg.from === 'ai' && <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Ionicons name="sparkles" size={14} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 11, color: PRIMARY_COLOR, marginLeft: 4 }}>AI助手</Text>
+            </View>}
+            <Text style={{ fontSize: 15, color: TEXT_MAIN, lineHeight: 22 }}>{msg.text}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{formatTime(msg.time)}</Text>
+              {msg.from === 'ai' && (
+                <TouchableOpacity onPress={() => speakText(msg.text)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="volume-high-outline" size={14} color={PRIMARY_COLOR} />
+                  <Text style={{ fontSize: 10, color: PRIMARY_COLOR, marginLeft: 2 }}>朗读</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ))}
+        {loading && <View style={[styles.bubbleLeft, { padding: 12 }]}>
+          <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+          <Text style={{ fontSize: 12, color: TEXT_SECOND, marginLeft: 8 }}>正在思考...</Text>
+        </View>}
+      </ScrollView>
+
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR, padding: 12 }}>
+        {recording && (
+          <View style={{ backgroundColor: '#FFE4B5', padding: 8, borderRadius: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: DANGER_COLOR, marginRight: 8 }} />
+            <Text style={{ fontSize: 13, color: '#FF6347', flex: 1 }}>正在聆听...{recognizing ? '已识别文字' : ''}</Text>
+            <TouchableOpacity onPress={stopVoice}><Text style={{ color: DANGER_COLOR, fontSize: 13 }}>停止</Text></TouchableOpacity>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TextInput
+            style={[styles.inputBox, { flex: 1 }]}
+            placeholder="输入问题或长按麦克风说话..."
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+          />
+          <TouchableOpacity
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: recording ? DANGER_COLOR : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}
+            onPress={recording ? stopVoice : startVoice}
+            disabled={loading}
+          >
+            <Ionicons name={recording ? "mic" : "mic-outline"} size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: inputText.trim() ? PRIMARY_COLOR : '#ccc', justifyContent: 'center', alignItems: 'center' }}
+            onPress={sendMessage}
+            disabled={!inputText.trim() || loading}
+          >
+            <Ionicons name="send" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ height: 56 }} />
+    </View>
+  );
+};
+
 // ================== AI助手（快捷话术 + 停止 + 行业识别） ==================
 const MerchantAssistant = () => {
   const navigation = useNavigation();
@@ -2792,40 +3230,79 @@ const MerchantAssistant = () => {
 
   const industry = state.shopInfo?.industry || '餐饮类';
   const shopName = state.shopInfo?.shopName || '我的门店';
+  const userName = state.user?.name || '老板';
+
+  // 收集软件全局所有数据
+  const collectAllBusinessData = () => {
+    const orders = state.globalOrderRecord || [];
+    const goods = state.goodsList || [];
+    const stockRecords = state.globalStockRecord || [];
+    const badReviews = state.badReviewList || [];
+    const staffList = state.staffMemberList || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const thisMonth = todayStr.substring(0, 7);
+    const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
+    const monthOrders = orders.filter(o => o.time?.startsWith(thisMonth));
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const monthRevenue = monthOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
+    const lowStockItems = goods.filter(g => (g.stock || 0) < 10).map(g => `${g.name}(库存:${g.stock})`);
+    const todayIn = stockRecords.filter(r => r.type === '入库' && r.time?.startsWith(todayStr)).reduce((s, r) => s + (r.quantity || 0), 0);
+    const todayOut = stockRecords.filter(r => r.type === '出库' && r.time?.startsWith(todayStr)).reduce((s, r) => s + (r.quantity || 0), 0);
+    const platformStats = {};
+    orders.forEach(o => {
+      if (o.platform) {
+        if (!platformStats[o.platform]) platformStats[o.platform] = { count: 0, revenue: 0 };
+        platformStats[o.platform].count++;
+        platformStats[o.platform].revenue += o.couponPrice || 0;
+      }
+    });
+    const recentOrders = orders.slice(-10).map(o => `${o.platform}：${o.productName || '商品'} ¥${o.couponPrice || 0} ${(o.time || '').substring(11, 16)}`).join('；');
+    return {
+      shopName, industry, userName,
+      todayOrders: todayOrders.length, todayRevenue, monthOrders: monthOrders.length, monthRevenue, totalOrders: orders.length, totalRevenue,
+      totalGoods: goods.length, totalStock, lowStockItems,
+      todayIn, todayOut,
+      platformStats,
+      recentOrders,
+      badReviewCount: state.badReviewCount || 0,
+      staffCount: staffList.filter(s => s.status === 'approved').length,
+    };
+  };
 
   const getQuickReplies = () => {
     if (industry === '餐饮类') {
       return [
-        '今日推荐菜品有哪些？',
-        '顾客投诉菜品不新鲜怎么处理？',
-        '本周食材采购成本是多少？',
-        '帮我生成一份促销活动文案',
-        '今日客单价是多少？'
+        '今天生意怎么样？',
+        '今日总营收是多少？',
+        '哪些菜卖得最好？',
+        '怎么提高翻台率？',
+        '帮我写一份招牌菜推荐文案',
+        '本周食材采购建议',
+        '差评预警情况',
+        '生成一份爆款海报',
       ];
     } else if (industry === '服务类') {
       return [
         '今日服务订单量是多少？',
+        '怎么提升客户满意度？',
         '员工排班表怎么安排？',
-        '顾客满意度如何提升？',
+        '本月服务收入目标',
         '帮我生成服务推广话术',
-        '本月服务收入目标是多少？'
+        '客户复购率分析',
       ];
     } else if (industry === '企业类') {
       return [
         '今日销售业绩如何？',
-        '团队协作效率如何提升？',
-        '请生成项目汇报模板',
+        '团队协作效率提升',
+        '项目汇报模板',
         '员工绩效怎么考核？',
-        '本月招聘计划是什么？'
+        '本月招聘计划',
+        '客户转化率分析',
       ];
     }
-    return [
-      '今天生意怎么样？',
-      '有什么经营建议？',
-      '帮我分析数据',
-      '生成一份报表',
-      '怎么提高利润？'
-    ];
+    return ['今天生意怎么样？', '有什么经营建议？', '帮我分析数据', '生成一份报表', '怎么提高利润？'];
   };
 
   const quickReplies = getQuickReplies();
@@ -2840,34 +3317,40 @@ const MerchantAssistant = () => {
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
-            dispatch({ type: 'SET_SHOP_INFO', payload: { ...shopInfo, industry: detectedIndustry } });
+            dispatch({ type: 'SET_SHOP_INFO', payload: { ...state.shopInfo, industry: detectedIndustry } });
             setMessages([
-              { id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${detectedIndustry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }
+              { id: '1', text: `您好 ${userName}！我是经营宝AI助手，已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据（营收、订单、库存）\n💡 提升利润建议\n📝 生成营销文案、海报、广告\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n🛍️ 推荐爆款海报/广告\n\n请直接输入您的问题，我会基于您的真实数据回答！`, from: 'ai', time: new Date().toISOString() }
             ]);
           })
           .catch(() => {
-            setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+            setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，已识别您的店铺「${shopName}」。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
           });
       } else {
-        setMessages([{ id: '1', text: `您好！我是经营宝AI助手，已识别您的店铺为「${shopName}」(${industry})，可以帮您解答经营问题、生成营销文案、分析数据等。您也可以描述图片需求，我帮您生成创意图片。`, from: 'ai', time: new Date().toISOString() }]);
+        setMessages([
+          { id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的${industry}店铺「${shopName}」的智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n🛍️ 推荐同款爆款海报\n\n请直接输入您的问题，我会基于您的真实数据回答！`, from: 'ai', time: new Date().toISOString() }
+        ]);
       }
     }
   }, []);
 
   const handleMarketing = (type) => {
     const prompts = {
-      '文案': '请生成一条吸引人的营销文案',
-      '海报': '请设计一张宣传海报的文字描述',
-      '广告语': '请生成一条简短有力的广告语'
+      '文案': `帮我写一条关于${shopName}的${industry}爆款营销文案，要求有吸引力、适合社交平台传播`,
+      '海报': `帮我设计一张${shopName}${industry}店铺的宣传海报文字描述，要求突出卖点`,
+      '广告语': `帮我写3条${shopName}${industry}店铺的简短有力广告语`,
+      '日报': `根据我的经营数据生成今日日报`,
+      '周报': `根据我的经营数据生成本周周报`,
+      '月报': `根据我的经营数据生成本月月报`,
     };
     setInputText(prompts[type] || '');
+    if (type === '海报' || type === '广告语') setShowImageGen(true);
   };
 
   const toggleImageGen = () => {
     setShowImageGen(!showImageGen);
     const hint = {
       id: Date.now().toString(),
-      text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启，输入您想要的画面描述即可生成图片。',
+      text: showImageGen ? '已切换回问答模式' : '🖼️ 图片生成模式已开启，输入您想要的画面描述即可生成图片。我会参考当前${industry}行业的爆款设计风格为您生成。'.replace('${industry}', industry),
       from: 'ai',
       time: new Date().toISOString(),
     };
@@ -2882,6 +3365,22 @@ const MerchantAssistant = () => {
       setLoading(false);
       showToast('已停止生成');
     }
+  };
+
+  // 检测是否是数据查询/分析类问题
+  const isDataQuery = (text) => {
+    const keywords = ['生意', '营收', '订单', '库存', '卖', '数据', '差评', '报告', '统计', '多少', '怎样', '如何', '怎么', '建议', '提升', '增长', '利润'];
+    return keywords.some(k => text.includes(k));
+  };
+
+  // 检测是否是生成图片类
+  const isImageGenRequest = (text) => {
+    return /海报|图片|设计|封面|宣传|画|生成图/.test(text);
+  };
+
+  // 检测是否是日报/周报/月报
+  const isReportRequest = (text) => {
+    return /日报|周报|月报|报告/.test(text);
   };
 
   const sendMessage = async (type = 'text') => {
@@ -2914,40 +3413,35 @@ const MerchantAssistant = () => {
       abortControllerRef.current = new AbortController();
       setLoading(true);
 
-      const orders = state.globalOrderRecord || [];
-      const goods = state.goodsList || [];
-      const todayStr = new Date().toISOString().split('T')[0];
-      const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
-      const totalOrders = orders.length;
-      const totalRevenue = orders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
-      const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
-      const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
-      const lowStockItems = goods.filter(g => (g.stock || 0) < 10).map(g => `${g.name}(库存:${g.stock})`).join(',');
-      
-      const businessContext = `【店铺信息】名称：${shopName}，类型：${industry}
-【经营数据】总订单数：${totalOrders}，总营收：¥${totalRevenue}，今日订单：${todayOrders.length}，今日营收：¥${todayRevenue}
-【库存数据】商品总数：${goods.length}，总库存：${totalStock}，库存不足商品：${lowStockItems || '无'}
-【订单列表】${orders.slice(-5).map(o => `${o.platform}：${o.productName || '商品'} ¥${o.couponPrice || 0} ${formatDate(o.time)}`).join('；')}`;
+      // 收集所有真实数据
+      const allData = collectAllBusinessData();
+      const businessContext = `【店铺信息】名称：${allData.shopName}，类型：${allData.industry}
+【核心数据】今日订单：${allData.todayOrders}单，今日营收：¥${allData.todayRevenue}，本月订单：${allData.monthOrders}单，本月营收：¥${allData.monthRevenue}，总营收：¥${allData.totalRevenue}
+【库存情况】商品总数：${allData.totalGoods}，总库存：${allData.totalStock}，今日入库：${allData.todayIn}，今日出库：${allData.todayOut}，库存不足：${allData.lowStockItems.join('、') || '无'}
+【平台分布】${Object.entries(allData.platformStats).map(([p, s]) => `${p}：${s.count}单 ¥${s.revenue}`).join('，') || '暂无'}
+【最近10条订单】${allData.recentOrders || '暂无'}
+【其他】差评数：${allData.badReviewCount}，在职员工：${allData.staffCount}人`;
 
-      const msgList = messages.filter(m => m.from !== 'system').map(m => ({
+      const msgList = messages.filter(m => m.from !== 'system').slice(-10).map(m => ({
         role: m.from === 'user' ? 'user' : 'assistant',
         content: m.text,
       }));
       msgList.push({ role: 'user', content: text });
+
+      // 判断是否需要生成图片
+      const shouldGenImage = showImageGen || isImageGenRequest(text);
+      // 判断是否是报告请求
+      const isReport = isReportRequest(text);
       let reply = '';
-      if (showImageGen) {
+
+      if (shouldGenImage) {
         try {
-          const fullPrompt = `${text}，适用于${industry}店铺「${shopName}」的宣传，风格时尚吸引人。`;
+          const fullPrompt = `${text}，适用于${industry}店铺「${shopName}」的宣传，参考当前${industry}行业爆款海报的设计风格：构图简洁、色彩鲜明、突出卖点、吸引眼球，风格时尚高端。`;
           const imageResult = await fetchZhipuImage(fullPrompt, abortControllerRef.current.signal);
-          if (!abortControllerRef.current.signal.aborted && imageResult) {
-            if (imageResult === 'aborted') {
-              setLoading(false);
-              abortControllerRef.current = null;
-              return;
-            }
+          if (!abortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
               id: (Date.now()+1).toString(),
-              text: '图片已生成',
+              text: '🎨 已为您生成图片，结合了' + industry + '行业当前流行的爆款设计风格：',
               image: imageResult,
               from: 'ai',
               time: new Date().toISOString(),
@@ -2958,7 +3452,7 @@ const MerchantAssistant = () => {
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
             return;
           } else {
-            reply = '生成失败，请重试';
+            reply = '图片生成失败，请稍后重试';
           }
         } catch (e) {
           if (e.name === 'AbortError') {
@@ -2966,10 +3460,31 @@ const MerchantAssistant = () => {
             abortControllerRef.current = null;
             return;
           }
-          reply = '生成失败，请重试';
+          reply = '图片生成失败，请稍后重试';
         }
       } else {
-        reply = await fetchZhipuChat(msgList, `你是一个经营宝AI助手，帮助${industry}商家解决经营问题。以下是当前店铺的经营数据，基于这些数据回答用户问题：\n\n${businessContext}\n\n回答要简洁、实用，基于上述数据进行分析。`, abortControllerRef.current.signal);
+        // 文案/对话
+        const systemPrompt = `你是「${allData.shopName}」${industry}店铺的专属AI助手，服务对象是商家${userName}。
+
+【店铺全量实时数据】
+${businessContext}
+
+【你的核心职责】
+1. 基于上述真实数据回答商家问题，绝对不能编造数据
+2. 经营分析：分析营收、订单、库存、利润等数据，提供可执行的提升方案
+3. 报告生成：日报/周报/月报都要用真实数据计算和总结
+4. 营销支持：根据${industry}行业特点生成爆款文案、海报描述、广告语
+5. 问题诊断：差评预警、库存预警、营收下滑等问题诊断
+6. 顾问建议：如何提高利润、翻台率、客单价、复购率等
+
+【回答风格】
+- 直接、实用、可执行
+- 数据要准确引用上面提供的真实数据
+- 给出具体可操作的建议步骤
+- 用"您"称呼商家
+- 重点突出，分段清晰
+- 必要时用数字和百分比说话`;
+        reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
       }
       if (abortControllerRef.current?.signal.aborted) {
         setLoading(false);
@@ -3087,9 +3602,9 @@ const MerchantAssistant = () => {
       )}
       {showQuickReply && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          {['文案', '海报', '广告语'].map(label => (
-            <TouchableOpacity key={label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
-              <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>📣 {label}</Text>
+          {['文案', '海报', '广告语', '日报', '周报', '月报'].map(label => (
+            <TouchableOpacity key={label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: label === '海报' || label === '广告语' ? '#FFE4B5' : LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
+              <Text style={{ fontSize: 13, color: label === '海报' || label === '广告语' ? '#FF8C00' : PRIMARY_COLOR }}>📣 {label}</Text>
             </TouchableOpacity>
           ))}
           {quickReplies.map((text, idx) => (
@@ -3187,11 +3702,14 @@ const HomePage = () => {
   const calcMenuUnread = (key) => {
     if (!user) return 0;
     if (key === 'CustomerService') {
-      // 客服消息：所有未读顾客消息数
+      // 客服消息：未读顾客消息 + 待商家处理的通知
       let count = 0;
       Object.values(state.privateChatMessages || {}).forEach(msgs => {
         msgs.forEach(m => { if (m && m.fromPhone !== user.phone && !m.read) count++; });
       });
+      if (!isEmployee) {
+        count += (state.bossNotifications || []).filter(n => !n.handled).length;
+      }
       return count;
     }
     if (key === 'InternalChat') {
@@ -3450,7 +3968,7 @@ const HomePage = () => {
         </ScrollView>
 
       {!isEmployee && (
-        <DraggableFloatingButton onPress={() => navigation.navigate('MerchantAssistant')} />
+        <DraggableFloatingButton onPress={() => navigation.navigate('VoiceAssistant')} />
       )}
     </View>
   );
@@ -4143,7 +4661,6 @@ function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
     </Stack.Navigator>
   );
 }
@@ -4152,11 +4669,13 @@ function AppStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="RootTabs" component={RootTabs} />
+      <Stack.Screen name="SwitchAccount" component={SwitchAccountScreen} />
       <Stack.Screen name="BadReviewList" component={BadReviewListPage} />
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
       <Stack.Screen name="StaffManage" component={StaffManage} />
       <Stack.Screen name="PrivateChat" component={PrivateChat} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} />
+      <Stack.Screen name="VoiceAssistant" component={VoiceAssistant} />
     </Stack.Navigator>
   );
 }
