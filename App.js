@@ -391,6 +391,9 @@ function appReducer(state, action) {
       if (exists) return state;
       return { ...state, previousAccounts: [...(state.previousAccounts || []), action.payload] };
     }
+    case 'SET_PREVIOUS_ACCOUNTS': {
+      return { ...state, previousAccounts: action.payload || [] };
+    }
     case 'CLEAR_PREVIOUS_ACCOUNTS':
       return { ...state, previousAccounts: [] };
     case 'RESTORE_ALL_DATA': {
@@ -715,6 +718,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [workM, setWorkM] = useState(pushConfig.workMinute);
   const [offH, setOffH] = useState(pushConfig.offHour);
   const [offM, setOffM] = useState(pushConfig.offMinute);
+  const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
@@ -829,9 +833,10 @@ const SettingDrawer = ({ visible, onClose }) => {
             </View>
           )}
           <View style={styles.settingGroup}>
-            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 100); }}>
+            <TouchableOpacity style={styles.settingItem} onPress={() => { setShowSwitchAccountModal(true); }}>
               <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
+              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.settingItem, styles.settingItemLast]} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={22} color={DANGER_COLOR} style={{ marginRight: 12 }} />
@@ -840,6 +845,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </ScrollView>
+      <SwitchAccountModal visible={showSwitchAccountModal} onClose={() => { setShowSwitchAccountModal(false); onClose(); }} />
     </View>
   );
 };
@@ -896,6 +902,111 @@ const SwitchAccountScreen = () => {
         <Text style={styles.registerBtnText}>+ 添加其他账号</Text>
       </TouchableOpacity>
     </View>
+  );
+};
+
+// ================== 切换账号弹窗（独立 Modal 组件，可在设置中直接弹出） ==================
+const SwitchAccountModal = ({ visible, onClose }) => {
+  const { state, dispatch } = useApp();
+  const currentUser = state.user;
+  const previousAccounts = state.previousAccounts || [];
+
+  const handleSelect = async (account) => {
+    try {
+      const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      onClose();
+      showToast(`已切换到 ${account.phone}`);
+    } catch (error) {
+      showToast('切换失败');
+    }
+  };
+
+  const handleLoginOther = async () => {
+    try {
+      if (currentUser) {
+        dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: currentUser.phone, role: currentUser.role, shopName: currentUser.shopName, name: currentUser.name } });
+      }
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('shopInfo');
+      dispatch({ type: 'LOGOUT' });
+      onClose();
+      if (navigationRef.current) {
+        navigationRef.current.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
+    } catch (error) {
+      showToast('操作失败');
+    }
+  };
+
+  const handleDeleteAccount = (phone) => {
+    Alert.alert('删除账号', `确定要删除账号 ${phone} 吗？`, [
+      { text: '取消' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        const newList = previousAccounts.filter(a => a.phone !== phone);
+        dispatch({ type: 'SET_PREVIOUS_ACCOUNTS', payload: newList });
+        showToast('已删除');
+      }}
+    ]);
+  };
+
+  const allAccounts = [];
+  if (currentUser) allAccounts.push({ phone: currentUser.phone, role: currentUser.role, shopName: currentUser.shopName, name: currentUser.name, isCurrent: true });
+  previousAccounts.forEach(acc => {
+    if (!allAccounts.find(a => a.phone === acc.phone)) allAccounts.push({ ...acc, isCurrent: false });
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
+        <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>👤 切换账号</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={TEXT_THIRD} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {allAccounts.length === 0 ? (
+              <Text style={{ color: TEXT_THIRD, textAlign: 'center', padding: 30 }}>暂无账号</Text>
+            ) : (
+              allAccounts.map((acc, idx) => (
+                <View key={idx} style={{ backgroundColor: acc.isCurrent ? LIGHT_PRIMARY : '#F5F7FA', borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Ionicons name="person" size={24} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{acc.phone}{acc.isCurrent ? ' (当前)' : ''}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 2 }}>{acc.shopName} · {acc.role}</Text>
+                  </View>
+                  {acc.isCurrent ? (
+                    <View style={{ backgroundColor: SUCCESS_COLOR, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ color: '#fff', fontSize: 12 }}>使用中</Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} onPress={() => handleSelect(acc)}>
+                        <Text style={{ color: '#fff', fontSize: 12 }}>切换</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ backgroundColor: '#F0F0F0', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12 }} onPress={() => handleDeleteAccount(acc.phone)}>
+                        <Ionicons name="trash-outline" size={16} color={DANGER_COLOR} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+          </ScrollView>
+          <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, padding: 14, borderRadius: 12, marginTop: 12, alignItems: 'center' }} onPress={handleLoginOther}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>+ 添加新账号 / 登录其他账号</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -1374,32 +1485,24 @@ const StockManage = () => {
     setAiCountLoading(true);
     try {
       let total = 0;
-      const matched = [];
+      const details = [];
       for (let i = 0; i < aiCountPhotos.length; i++) {
         const base64 = await FileSystem.readAsStringAsync(aiCountPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
         const imageData = `data:image/jpeg;base64,${base64}`;
         const reply = await fetchZhipuChat([
-          { role: 'user', content: `请识别这张图片中的商品名称和数量。返回JSON格式：{"name":"商品名称","count":数量数字}。只返回JSON，不要其他文字。` }
-        ], '你是一个商品识别助手，能识别图片中的商品和数量。');
-        try {
-          const jsonMatch = reply.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const obj = JSON.parse(jsonMatch[0]);
-            const name = obj.name || '';
-            const count = parseInt(obj.count) || 0;
-            total += count;
-            const matchedGoods = (state.goodsList || []).find(g => g.name.includes(name) || name.includes(g.name));
-            if (matchedGoods) {
-              matched.push({ id: matchedGoods.id, name: matchedGoods.name, count, stock: matchedGoods.stock });
-            }
-          }
-        } catch (parseErr) { console.error('解析失败:', parseErr); }
+          { role: 'user', content: `请仔细数一下这张图片中的商品总数（不管是什么商品，只要数清楚有多少个/件）。只返回一个纯数字，不要包含其他文字、单位或标点符号。` }
+        ], '你是一个商品数量识别助手，只需要返回图片中商品的数量，纯数字。');
+        const num = parseInt(reply.replace(/[^\d]/g, ''));
+        const count = isNaN(num) ? 0 : num;
+        total += count;
+        details.push({ photoIndex: i + 1, count });
       }
-      setAiCountResult({ total, matched, photos: aiCountPhotos.length });
-      if (matched.length === 0) {
-        showToast('未匹配到库存商品，请手动选择');
+      const goodsOptions = (state.goodsList || []);
+      setAiCountResult({ total, details, photos: aiCountPhotos.length, goodsOptions });
+      if (total === 0) {
+        showToast('未识别到商品数量，请重新拍照');
       } else {
-        showToast(`识别完成，共 ${matched.length} 种商品`);
+        showToast(`共识别到 ${total} 件商品`);
       }
     } catch (e) {
       console.error('AI识别失败:', e);
@@ -1409,30 +1512,34 @@ const StockManage = () => {
     }
   };
 
+  const [aiCountSelectedGoodsId, setAiCountSelectedGoodsId] = useState(null);
+
   const aiCountSubmit = () => {
-    if (!aiCountResult || aiCountResult.matched.length === 0) { showToast('无可用结果'); return; }
-    aiCountResult.matched.forEach(item => {
-      if (item.count > item.stock) {
-        showToast(`${item.name} 数量超过库存，已跳过`);
-        return;
-      }
-      const newStock = item.stock - item.count;
-      const updatedGoods = (state.goodsList || []).map(g => g.id === item.id ? { ...g, stock: newStock } : g);
-      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-      dispatch({ type: 'ADD_STOCK_RECORD', payload: {
-        id: Date.now().toString() + '_' + item.id,
-        type: '出库',
-        productName: item.name,
-        quantity: item.count,
-        reason: 'AI拍照识别出库',
-        time: new Date().toISOString(),
-        photo: null,
-      }});
-    });
-    showToast(`已自动出库 ${aiCountResult.matched.length} 个商品`);
+    if (!aiCountResult || aiCountResult.total === 0) { showToast('请先拍照识别数量'); return; }
+    if (!aiCountSelectedGoodsId) { showToast('请选择出库的商品'); return; }
+    const goods = (state.goodsList || []).find(g => g.id === aiCountSelectedGoodsId);
+    if (!goods) { showToast('商品不存在'); return; }
+    if (aiCountResult.total > goods.stock) {
+      showToast(`识别数量 ${aiCountResult.total} 超过库存 ${goods.stock}，请先入库`);
+      return;
+    }
+    const newStock = goods.stock - aiCountResult.total;
+    const updatedGoods = (state.goodsList || []).map(g => g.id === goods.id ? { ...g, stock: newStock } : g);
+    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+    dispatch({ type: 'ADD_STOCK_RECORD', payload: {
+      id: Date.now().toString(),
+      type: '出库',
+      productName: goods.name,
+      quantity: aiCountResult.total,
+      reason: 'AI拍照识别数量出库',
+      time: new Date().toISOString(),
+      photo: null,
+    }});
+    showToast(`已出库: ${goods.name} ×${aiCountResult.total}`);
     setAiCountModalVisible(false);
     setAiCountPhotos([]);
     setAiCountResult(null);
+    setAiCountSelectedGoodsId(null);
   };
 
   const handleShelf = async (platform, goodsId) => {
@@ -1736,45 +1843,83 @@ const StockManage = () => {
       {/* AI识别数量弹窗 */}
       <Modal visible={aiCountModalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
-          <View style={[styles.voiceModal, { maxHeight: '85%' }]}>
+          <View style={[styles.voiceModal, { maxHeight: '90%', width: '92%' }]}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>📷 AI拍照识别数量</Text>
-            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>可以拍多张照片，AI会自动识别并累加数量</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>可以拍多张照片，AI会自动识别并累加总数</Text>
             <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 100 }}>
               {aiCountPhotos.map((uri, idx) => (
                 <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
               ))}
-              {aiCountPhotos.length === 0 && <Text style={{ color: TEXT_THIRD, lineHeight: 80 }}>还没有照片</Text>}
+              {aiCountPhotos.length === 0 && <Text style={{ color: TEXT_THIRD, lineHeight: 80 }}>还没有照片，点击下方按钮开始拍照</Text>}
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={aiCountAddPhoto}>
-                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 继续拍照</Text>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 拍照</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiCountLoading ? '#999' : SUCCESS_COLOR, borderRadius: 8 }} onPress={aiCountRecognize} disabled={aiCountLoading}>
                 <Text style={{ textAlign: 'center', color: '#fff' }}>{aiCountLoading ? '识别中...' : '🤖 开始识别'}</Text>
               </TouchableOpacity>
             </View>
-            {aiCountResult && (
-              <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12, maxHeight: 200 }}>
-                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>📊 识别结果 (共 {aiCountResult.photos} 张照片):</Text>
-                <Text style={{ fontSize: 13, color: TEXT_MAIN, marginBottom: 8 }}>总数量: {aiCountResult.total}</Text>
-                {aiCountResult.matched.length === 0 ? (
-                  <Text style={{ fontSize: 12, color: DANGER_COLOR }}>未匹配到库存商品</Text>
-                ) : (
-                  aiCountResult.matched.map((item, idx) => (
-                    <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 13, color: TEXT_MAIN }}>{item.name}</Text>
-                      <Text style={{ fontSize: 13, color: PRIMARY_COLOR, fontWeight: '600' }}>×{item.count} (库存: {item.stock})</Text>
-                    </View>
-                  ))
-                )}
+            {aiCountResult && aiCountResult.total > 0 && (
+              <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>📊 识别结果</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, color: TEXT_MAIN }}>拍照数: {aiCountResult.photos} 张</Text>
+                  <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: 'bold' }}>总数量: {aiCountResult.total} 件</Text>
+                </View>
+                {aiCountResult.details.map((d, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND }}>第 {d.photoIndex} 张</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_MAIN }}>识别到 {d.count} 件</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {aiCountResult && aiCountResult.total > 0 && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 8 }}>📦 选择出库商品（数量已自动匹配）</Text>
+                <ScrollView style={{ maxHeight: 200 }}>
+                  {aiCountResult.goodsOptions.length === 0 ? (
+                    <Text style={{ color: DANGER_COLOR, fontSize: 12, textAlign: 'center', padding: 12 }}>暂无库存商品，请先入库</Text>
+                  ) : (
+                    aiCountResult.goodsOptions.map(item => {
+                      const isSelected = aiCountSelectedGoodsId === item.id;
+                      const insufficient = aiCountResult.total > item.stock;
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            padding: 10,
+                            borderRadius: 8,
+                            marginBottom: 6,
+                            backgroundColor: isSelected ? LIGHT_PRIMARY : '#F5F7FA',
+                            borderWidth: isSelected ? 1.5 : 0,
+                            borderColor: PRIMARY_COLOR,
+                            opacity: insufficient ? 0.5 : 1,
+                          }}
+                          onPress={() => { if (!insufficient) setAiCountSelectedGoodsId(item.id); }}
+                          disabled={insufficient}
+                        >
+                          <Ionicons name={isSelected ? "radio-button-on" : "radio-button-off"} size={20} color={isSelected ? PRIMARY_COLOR : TEXT_THIRD} />
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: isSelected ? '600' : '400' }}>{item.name}</Text>
+                            <Text style={{ fontSize: 11, color: TEXT_SECOND, marginTop: 2 }}>当前库存: {item.stock} {insufficient ? '⚠️ 不足' : ''}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </ScrollView>
               </View>
             )}
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); setAiCountSelectedGoodsId(null); }}>
                 <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiCountResult?.matched.length > 0 ? DANGER_COLOR : '#ccc', borderRadius: 8 }} onPress={aiCountSubmit} disabled={!aiCountResult?.matched.length}>
-                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库</Text>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: (aiCountResult?.total > 0 && aiCountSelectedGoodsId) ? DANGER_COLOR : '#ccc', borderRadius: 8 }} onPress={aiCountSubmit} disabled={!(aiCountResult?.total > 0 && aiCountSelectedGoodsId)}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库{aiCountResult ? ` ×${aiCountResult.total}` : ''}</Text>
               </TouchableOpacity>
             </View>
           </View>
