@@ -718,7 +718,6 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [workM, setWorkM] = useState(pushConfig.workMinute);
   const [offH, setOffH] = useState(pushConfig.offHour);
   const [offM, setOffM] = useState(pushConfig.offMinute);
-  const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
@@ -833,7 +832,7 @@ const SettingDrawer = ({ visible, onClose }) => {
             </View>
           )}
           <View style={styles.settingGroup}>
-            <TouchableOpacity style={styles.settingItem} onPress={() => { setShowSwitchAccountModal(true); }}>
+            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 100); }}>
               <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
               <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} style={{ marginLeft: 'auto' }} />
@@ -845,68 +844,19 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </ScrollView>
-      <SwitchAccountModal visible={showSwitchAccountModal} onClose={() => { setShowSwitchAccountModal(false); onClose(); }} />
     </View>
   );
 };
 
-// ================== 切换账号页面 ==================
-const SwitchAccountScreen = () => {
-  const navigation = useNavigation();
-  const { state, dispatch } = useApp();
-  const currentUser = state.user;
-  const previousAccounts = state.previousAccounts || [];
-
-  const handleSelect = async (account) => {
-    try {
-      const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
-      dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      navigation.replace('RootTabs');
-    } catch (error) {
-      showToast('切换失败');
-    }
-  };
-
-  const handleLoginOther = async () => {
-    if (currentUser) {
-      dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone: currentUser.phone, role: currentUser.role, shopName: currentUser.shopName, name: currentUser.name } });
-    }
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('shopInfo');
-    dispatch({ type: 'LOGOUT' });
-    navigation.replace('Login');
-  };
-
-  const allAccounts = [];
-  if (currentUser) allAccounts.push({ phone: currentUser.phone, role: currentUser.role, shopName: currentUser.shopName, name: currentUser.name, isCurrent: true });
-  previousAccounts.forEach(acc => {
-    if (!allAccounts.find(a => a.phone === acc.phone)) allAccounts.push({ ...acc, isCurrent: false });
-  });
-
-  return (
-    <View style={styles.switchAccountContainer}>
-      <Text style={[styles.pageTitle, { marginBottom: 16 }]}>切换账号</Text>
-      {allAccounts.map((acc, idx) => (
-        <TouchableOpacity key={idx} style={styles.accountItem} onPress={() => handleSelect(acc)} disabled={acc.isCurrent}>
-          <View style={styles.accountInfo}>
-            <Text style={styles.accountPhone}>{acc.phone}</Text>
-            <Text style={styles.accountDetail}>{acc.shopName} · {acc.role}{acc.isCurrent ? ' (当前)' : ''}</Text>
-          </View>
-          {!acc.isCurrent && <Ionicons name="chevron-forward" size={24} color={TEXT_THIRD} />}
-        </TouchableOpacity>
-      ))}
-      <TouchableOpacity style={styles.registerBtn} onPress={handleLoginOther}>
-        <Text style={styles.registerBtnText}>+ 添加其他账号</Text>
-      </TouchableOpacity>
-    </View>
-  );
+// ================== 切换账号页面（保留兼容性） ==================
+const SwitchAccountScreen = ({ navigation }) => {
+  return <SwitchAccountPage navigation={navigation} />;
 };
+
 
 // ================== 切换账号弹窗（独立 Modal 组件，可在设置中直接弹出） ==================
-const SwitchAccountModal = ({ visible, onClose }) => {
+// ================== 切换账号页面（全屏） ==================
+const SwitchAccountPage = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const currentUser = state.user;
   const previousAccounts = state.previousAccounts || [];
@@ -918,8 +868,8 @@ const SwitchAccountModal = ({ visible, onClose }) => {
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      onClose();
       showToast(`已切换到 ${account.phone}`);
+      navigation.goBack();
     } catch (error) {
       showToast('切换失败');
     }
@@ -933,10 +883,12 @@ const SwitchAccountModal = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
-      onClose();
-      if (navigationRef.current) {
-        navigationRef.current.reset({ index: 0, routes: [{ name: 'Login' }] });
-      }
+      navigation.goBack();
+      setTimeout(() => {
+        if (navigationRef.current) {
+          navigationRef.current.reset({ index: 0, routes: [{ name: 'Login' }] });
+        }
+      }, 100);
     } catch (error) {
       showToast('操作失败');
     }
@@ -960,53 +912,53 @@ const SwitchAccountModal = ({ visible, onClose }) => {
   });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={1} />
-        <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>👤 切换账号</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={TEXT_THIRD} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ maxHeight: 400 }}>
-            {allAccounts.length === 0 ? (
-              <Text style={{ color: TEXT_THIRD, textAlign: 'center', padding: 30 }}>暂无账号</Text>
-            ) : (
-              allAccounts.map((acc, idx) => (
-                <View key={idx} style={{ backgroundColor: acc.isCurrent ? LIGHT_PRIMARY : '#F5F7FA', borderRadius: 12, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Ionicons name="person" size={24} color="#fff" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{acc.phone}{acc.isCurrent ? ' (当前)' : ''}</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 2 }}>{acc.shopName} · {acc.role}</Text>
-                  </View>
-                  {acc.isCurrent ? (
-                    <View style={{ backgroundColor: SUCCESS_COLOR, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                      <Text style={{ color: '#fff', fontSize: 12 }}>使用中</Text>
-                    </View>
-                  ) : (
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} onPress={() => handleSelect(acc)}>
-                        <Text style={{ color: '#fff', fontSize: 12 }}>切换</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={{ backgroundColor: '#F0F0F0', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12 }} onPress={() => handleDeleteAccount(acc.phone)}>
-                        <Ionicons name="trash-outline" size={16} color={DANGER_COLOR} />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))
-            )}
-          </ScrollView>
-          <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, padding: 14, borderRadius: 12, marginTop: 12, alignItems: 'center' }} onPress={handleLoginOther}>
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>+ 添加新账号 / 登录其他账号</Text>
-          </TouchableOpacity>
-        </View>
+    <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+      <View style={[styles.headerBar, { backgroundColor: PRIMARY_COLOR }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }}>
+          <Ionicons name="chevron-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', flex: 1, textAlign: 'center', marginRight: 32 }}>切换账号</Text>
       </View>
-    </Modal>
+      <ScrollView style={{ flex: 1, padding: 16 }}>
+        {allAccounts.length === 0 ? (
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 40, alignItems: 'center', marginTop: 40 }}>
+            <Ionicons name="person-outline" size={48} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无账号</Text>
+          </View>
+        ) : (
+          allAccounts.map((acc, idx) => (
+            <View key={idx} style={{ backgroundColor: acc.isCurrent ? LIGHT_PRIMARY : '#fff', borderRadius: 12, padding: 14, marginBottom: 12, flexDirection: 'row', alignItems: 'center', borderWidth: acc.isCurrent ? 1 : 0, borderColor: PRIMARY_COLOR }}>
+              <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 14 }}>
+                <Ionicons name="person" size={28} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{acc.phone}{acc.isCurrent ? ' (当前)' : ''}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 4 }}>{acc.shopName} · {acc.role}</Text>
+              </View>
+              {acc.isCurrent ? (
+                <View style={{ backgroundColor: SUCCESS_COLOR, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>使用中</Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14 }} onPress={() => handleSelect(acc)}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>切换</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ backgroundColor: '#F0F0F0', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14 }} onPress={() => handleDeleteAccount(acc.phone)}>
+                    <Ionicons name="trash-outline" size={16} color={DANGER_COLOR} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ))
+        )}
+      </ScrollView>
+      <View style={{ padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+        <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, padding: 14, borderRadius: 12, alignItems: 'center' }} onPress={handleLoginOther}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>+ 添加新账号 / 登录其他账号</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
@@ -2283,8 +2235,10 @@ const InternalChat = () => {
   let chatStaffList = [];
   const user = state.user;
   if (user?.role === '员工') {
+    // 员工端：只有被商家批准的员工才显示老板私聊入口
+    const myApplication = (state.staffMemberList || []).find(s => s.phone === user?.phone && s.status === 'approved');
     const bossPhone = state.shopInfo?.phone;
-    if (bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
+    if (myApplication && bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
@@ -3229,10 +3183,36 @@ const HomePage = () => {
     { icon: "sparkles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
     { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
   ];
+  // 计算每个功能的消息数（按消息数从大到小排序）
+  const calcMenuUnread = (key) => {
+    if (!user) return 0;
+    if (key === 'CustomerService') {
+      // 客服消息：所有未读顾客消息数
+      let count = 0;
+      Object.values(state.privateChatMessages || {}).forEach(msgs => {
+        msgs.forEach(m => { if (m && m.fromPhone !== user.phone && !m.read) count++; });
+      });
+      return count;
+    }
+    if (key === 'InternalChat') {
+      // 内部沟通：未读的群消息
+      const internalMsgs = state.groupChatMessages?.internal || [];
+      return internalMsgs.filter(m => m && m.fromPhone !== user.phone && !m.read).length;
+    }
+    if (key === 'StaffManage' && !isEmployee) {
+      // 员工管理（商家）：待审核的入职申请
+      return (state.staffMemberList || []).filter(s => s.status === 'pending').length;
+    }
+    if (key === 'MerchantAssistant' && (state.badReviewCount || 0) > 0) {
+      return state.badReviewCount;
+    }
+    return 0;
+  };
   const menuList = allMenuList.filter(item => {
     if (isEmployee) return ['VerifyOrder', 'StockManage', 'InternalChat'].includes(item.key);
     return true;
-  });
+  }).map(item => ({ ...item, unread: calcMenuUnread(item.key) }))
+    .sort((a, b) => b.unread - a.unread);
 
   const handleMenuPress = (item) => {
     try {
@@ -3254,8 +3234,12 @@ const HomePage = () => {
 
   let chatStaffList = [];
   if (isEmployee) {
+    // 员工端：只有被商家批准的员工才显示老板私聊入口
+    const myApplication = (state.staffMemberList || []).find(s => s.phone === user?.phone && s.status === 'approved');
     const bossPhone = state.shopInfo?.phone || '';
-    if (bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
+    if (myApplication && bossPhone) {
+      chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
+    }
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
@@ -3340,13 +3324,6 @@ const HomePage = () => {
                     {(state.badReviewCount || 0) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }} onPress={() => navigation.navigate('StaffManage')}>
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>入职申请</Text>
-                  <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: ((state.staffMemberList || []).filter(s => s.status === 'pending').length) > 0 ? DANGER_COLOR : TEXT_MAIN }}>
-                    {(state.staffMemberList || []).filter(s => s.status === 'pending').length}
-                    {((state.staffMemberList || []).filter(s => s.status === 'pending').length) > 0 && <Text style={{ fontSize: 14, color: PRIMARY_COLOR, marginLeft: 8 }}>点击查看 →</Text>}
-                  </Text>
-                </TouchableOpacity>
                 <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
                   <Text style={{ fontSize: 13, color: TEXT_SECOND }}>总商品数</Text>
                   <Text style={{ fontSize: 22, fontWeight: '700', marginTop: 8, color: TEXT_MAIN }}>{(state.goodsList || []).length}</Text>
@@ -3411,10 +3388,17 @@ const HomePage = () => {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
-              {menuList.filter(item => menuVisibility[item.key] !== false).map((item, idx) => (
-                <TouchableOpacity key={idx} onPress={() => handleMenuPress(item)} style={styles.menuItem}>
-                  <Ionicons name={item.icon} size={28} color={PRIMARY_COLOR} />
-                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN }}>{item.label}</Text>
+              {menuList.map((item, idx) => (
+                <TouchableOpacity key={item.key} onPress={() => handleMenuPress(item)} style={styles.menuItem}>
+                  <View style={{ position: 'relative' }}>
+                    <Ionicons name={item.icon} size={28} color={PRIMARY_COLOR} />
+                    {item.unread > 0 && (
+                      <View style={{ position: 'absolute', top: -6, right: -10, backgroundColor: DANGER_COLOR, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{item.unread > 99 ? '99+' : item.unread}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ fontSize: 13, marginTop: 6, color: TEXT_MAIN, fontWeight: item.unread > 0 ? '600' : '400' }}>{item.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -3474,53 +3458,62 @@ const HomePage = () => {
 
 const DraggableFloatingButton = ({ onPress }) => {
   const [position, setPosition] = useState({ x: width - 76, y: height - 180 });
-  const [isDragging, setIsDragging] = useState(false);
   const positionRef = useRef({ x: width - 76, y: height - 180 });
-  const startPosRef = useRef({ x: 0, y: 0 });
-  const hasMovedRef = useRef(false);
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, startTouchX: 0, startTouchY: 0, hasMoved: false });
+  const lastTapRef = useRef(0);
 
   useEffect(() => {
     positionRef.current = position;
   }, [position]);
 
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponderCapture: () => true,
-    onPanResponderGrant: () => {
-      setIsDragging(true);
-      hasMovedRef.current = false;
-      startPosRef.current = { x: positionRef.current.x, y: positionRef.current.y };
-    },
-    onPanResponderMove: (_, gestureState) => {
-      if (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5) {
-        hasMovedRef.current = true;
-      }
-      let newX = startPosRef.current.x + gestureState.dx;
-      let newY = startPosRef.current.y + gestureState.dy;
+  const onTouchStart = (e) => {
+    const touch = e.nativeEvent.touches[0];
+    dragRef.current.startX = positionRef.current.x;
+    dragRef.current.startY = positionRef.current.y;
+    dragRef.current.startTouchX = touch.pageX;
+    dragRef.current.startTouchY = touch.pageY;
+    dragRef.current.isDragging = true;
+    dragRef.current.hasMoved = false;
+  };
+
+  const onTouchMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const touch = e.nativeEvent.touches[0];
+    const dx = touch.pageX - dragRef.current.startTouchX;
+    const dy = touch.pageY - dragRef.current.startTouchY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragRef.current.hasMoved = true;
+    }
+    if (dragRef.current.hasMoved) {
+      let newX = dragRef.current.startX + dx;
+      let newY = dragRef.current.startY + dy;
       newX = Math.max(0, Math.min(width - 56, newX));
       newY = Math.max(0, Math.min(height - 100, newY));
       setPosition({ x: newX, y: newY });
-    },
-    onPanResponderRelease: () => {
-      setIsDragging(false);
-      if (!hasMovedRef.current) {
-        onPress();
-      }
-    },
-    onPanResponderTerminate: () => {
-      setIsDragging(false);
-    },
-  });
+    }
+  };
+
+  const onTouchEnd = () => {
+    const wasDragging = dragRef.current.hasMoved;
+    dragRef.current.isDragging = false;
+    dragRef.current.hasMoved = false;
+    if (!wasDragging) {
+      const now = Date.now();
+      if (now - lastTapRef.current < 300) return;
+      lastTapRef.current = now;
+      onPress();
+    }
+  };
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
-    >
+    <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}>
       <View
-        {...panResponder.panHandlers}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderTerminationRequest={() => false}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         style={{
           position: 'absolute',
           left: position.x,
@@ -3532,12 +3525,12 @@ const DraggableFloatingButton = ({ onPress }) => {
           justifyContent: 'center',
           alignItems: 'center',
           ...SHADOW,
-          transform: [{ scale: isDragging ? 1.1 : 1 }],
+          elevation: 8,
         }}
       >
         <Ionicons name="sparkles" size={28} color="#fff" />
-        <View style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 10 }}>AI</Text>
+        <View style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: SUCCESS_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>AI</Text>
         </View>
       </View>
     </View>
