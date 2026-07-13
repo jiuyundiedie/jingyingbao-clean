@@ -829,7 +829,7 @@ const SettingDrawer = ({ visible, onClose }) => {
             </View>
           )}
           <View style={styles.settingGroup}>
-            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); navigation.navigate('SwitchAccount'); }}>
+            <TouchableOpacity style={styles.settingItem} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 100); }}>
               <Ionicons name="person-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
               <Text style={{ color: TEXT_MAIN }}>切换账号</Text>
             </TouchableOpacity>
@@ -1079,6 +1079,10 @@ const StockManage = () => {
   const [voiceText, setVoiceText] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [aiCountModalVisible, setAiCountModalVisible] = useState(false);
+  const [aiCountPhotos, setAiCountPhotos] = useState([]);
+  const [aiCountResult, setAiCountResult] = useState(null);
+  const [aiCountLoading, setAiCountLoading] = useState(false);
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
   
@@ -1201,37 +1205,47 @@ const StockManage = () => {
     setPhotoUris([]);
   };
 
+  const [outQuantity, setOutQuantity] = useState('');
+  const [outModalGoods, setOutModalGoods] = useState(null);
+
   const handleQuickOut = (goods) => {
     if (goods.stock <= 0) {
       showToast('库存不足');
       return;
     }
-    Alert.alert(
-      '确认出库',
-      `商品：${goods.name}\n当前库存：${goods.stock}\n请输入出库数量`,
-      [
-        { text: '取消' },
-        { text: '确认出库', onPress: () => {
-          const qty = 1;
-          const newStock = goods.stock - qty;
-          const updatedGoods = (state.goodsList || []).map(g =>
-            g.id === goods.id ? { ...g, stock: newStock } : g
-          );
-          dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-          const record = {
-            id: Date.now().toString(),
-            type: '出库',
-            productName: goods.name,
-            quantity: qty,
-            reason: '快速出库',
-            time: new Date().toISOString(),
-            photo: null,
-          };
-          dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-          showToast(`出库成功: ${goods.name} ×${qty}`);
-        }}
-      ]
+    setOutQuantity('1');
+    setOutModalGoods(goods);
+  };
+
+  const confirmQuickOut = () => {
+    if (!outModalGoods) return;
+    const qty = parseInt(outQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      showToast('请输入有效数量');
+      return;
+    }
+    if (qty > outModalGoods.stock) {
+      showToast('出库数量超过库存');
+      return;
+    }
+    const newStock = outModalGoods.stock - qty;
+    const updatedGoods = (state.goodsList || []).map(g =>
+      g.id === outModalGoods.id ? { ...g, stock: newStock } : g
     );
+    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+    const record = {
+      id: Date.now().toString(),
+      type: '出库',
+      productName: outModalGoods.name,
+      quantity: qty,
+      reason: '快速出库',
+      time: new Date().toISOString(),
+      photo: null,
+    };
+    dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+    showToast(`出库成功: ${outModalGoods.name} ×${qty}`);
+    setOutModalGoods(null);
+    setOutQuantity('');
   };
 
   const handleScan = async () => {
@@ -1337,6 +1351,90 @@ const StockManage = () => {
     } catch (error) { showToast('选择图片失败'); }
   };
 
+  const handleAICount = async () => {
+    setAiCountPhotos([]);
+    setAiCountResult(null);
+    setAiCountModalVisible(true);
+  };
+
+  const aiCountAddPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      if (!result.canceled) {
+        const compressed = await compressImage(result.assets[0].uri);
+        setAiCountPhotos(prev => [...prev, compressed]);
+      }
+    } catch (e) { showToast('拍照失败'); }
+  };
+
+  const aiCountRecognize = async () => {
+    if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
+    setAiCountLoading(true);
+    try {
+      let total = 0;
+      const matched = [];
+      for (let i = 0; i < aiCountPhotos.length; i++) {
+        const base64 = await FileSystem.readAsStringAsync(aiCountPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
+        const imageData = `data:image/jpeg;base64,${base64}`;
+        const reply = await fetchZhipuChat([
+          { role: 'user', content: `请识别这张图片中的商品名称和数量。返回JSON格式：{"name":"商品名称","count":数量数字}。只返回JSON，不要其他文字。` }
+        ], '你是一个商品识别助手，能识别图片中的商品和数量。');
+        try {
+          const jsonMatch = reply.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const obj = JSON.parse(jsonMatch[0]);
+            const name = obj.name || '';
+            const count = parseInt(obj.count) || 0;
+            total += count;
+            const matchedGoods = (state.goodsList || []).find(g => g.name.includes(name) || name.includes(g.name));
+            if (matchedGoods) {
+              matched.push({ id: matchedGoods.id, name: matchedGoods.name, count, stock: matchedGoods.stock });
+            }
+          }
+        } catch (parseErr) { console.error('解析失败:', parseErr); }
+      }
+      setAiCountResult({ total, matched, photos: aiCountPhotos.length });
+      if (matched.length === 0) {
+        showToast('未匹配到库存商品，请手动选择');
+      } else {
+        showToast(`识别完成，共 ${matched.length} 种商品`);
+      }
+    } catch (e) {
+      console.error('AI识别失败:', e);
+      showToast('识别失败，请重试');
+    } finally {
+      setAiCountLoading(false);
+    }
+  };
+
+  const aiCountSubmit = () => {
+    if (!aiCountResult || aiCountResult.matched.length === 0) { showToast('无可用结果'); return; }
+    aiCountResult.matched.forEach(item => {
+      if (item.count > item.stock) {
+        showToast(`${item.name} 数量超过库存，已跳过`);
+        return;
+      }
+      const newStock = item.stock - item.count;
+      const updatedGoods = (state.goodsList || []).map(g => g.id === item.id ? { ...g, stock: newStock } : g);
+      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+      dispatch({ type: 'ADD_STOCK_RECORD', payload: {
+        id: Date.now().toString() + '_' + item.id,
+        type: '出库',
+        productName: item.name,
+        quantity: item.count,
+        reason: 'AI拍照识别出库',
+        time: new Date().toISOString(),
+        photo: null,
+      }});
+    });
+    showToast(`已自动出库 ${aiCountResult.matched.length} 个商品`);
+    setAiCountModalVisible(false);
+    setAiCountPhotos([]);
+    setAiCountResult(null);
+  };
+
   const handleShelf = async (platform, goodsId) => {
     try {
       if (!goodsId) { showToast('请先选择商品'); return; }
@@ -1408,9 +1506,9 @@ const StockManage = () => {
           <Ionicons name="images-outline" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>相册入库</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); pickPhotos('camera'); }}>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); handleAICount(); }}>
           <Ionicons name="camera-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照出库</Text>
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照识别数量</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: SUCCESS_COLOR }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}>
           <Ionicons name="keyboard-outline" size={20} color="#fff" />
@@ -1603,6 +1701,80 @@ const StockManage = () => {
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={confirmVoice}>
                 <Text style={{ textAlign: 'center', color: '#fff' }}>确认</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* 出库数量选择弹窗 */}
+      <Modal visible={!!outModalGoods} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.voiceModal}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>📤 出库数量</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>
+              {outModalGoods ? `${outModalGoods.name} (库存：${outModalGoods.stock})` : ''}
+            </Text>
+            <TextInput
+              style={[styles.voiceTextInput, { textAlign: 'center', fontSize: 24, fontWeight: 'bold' }]}
+              value={outQuantity}
+              onChangeText={setOutQuantity}
+              keyboardType="numeric"
+              maxLength={4}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', marginTop: 16, gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setOutModalGoods(null); setOutQuantity(''); }}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: DANGER_COLOR, borderRadius: 8 }} onPress={confirmQuickOut}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* AI识别数量弹窗 */}
+      <Modal visible={aiCountModalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={[styles.voiceModal, { maxHeight: '85%' }]}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>📷 AI拍照识别数量</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>可以拍多张照片，AI会自动识别并累加数量</Text>
+            <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 100 }}>
+              {aiCountPhotos.map((uri, idx) => (
+                <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
+              ))}
+              {aiCountPhotos.length === 0 && <Text style={{ color: TEXT_THIRD, lineHeight: 80 }}>还没有照片</Text>}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={aiCountAddPhoto}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 继续拍照</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiCountLoading ? '#999' : SUCCESS_COLOR, borderRadius: 8 }} onPress={aiCountRecognize} disabled={aiCountLoading}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>{aiCountLoading ? '识别中...' : '🤖 开始识别'}</Text>
+              </TouchableOpacity>
+            </View>
+            {aiCountResult && (
+              <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12, maxHeight: 200 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>📊 识别结果 (共 {aiCountResult.photos} 张照片):</Text>
+                <Text style={{ fontSize: 13, color: TEXT_MAIN, marginBottom: 8 }}>总数量: {aiCountResult.total}</Text>
+                {aiCountResult.matched.length === 0 ? (
+                  <Text style={{ fontSize: 12, color: DANGER_COLOR }}>未匹配到库存商品</Text>
+                ) : (
+                  aiCountResult.matched.map((item, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 13, color: TEXT_MAIN }}>{item.name}</Text>
+                      <Text style={{ fontSize: 13, color: PRIMARY_COLOR, fontWeight: '600' }}>×{item.count} (库存: {item.stock})</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiCountResult?.matched.length > 0 ? DANGER_COLOR : '#ccc', borderRadius: 8 }} onPress={aiCountSubmit} disabled={!aiCountResult?.matched.length}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1967,7 +2139,7 @@ const InternalChat = () => {
   const user = state.user;
   if (user?.role === '员工') {
     const bossPhone = state.shopInfo?.phone;
-    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
+    if (bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
@@ -2938,7 +3110,7 @@ const HomePage = () => {
   let chatStaffList = [];
   if (isEmployee) {
     const bossPhone = state.shopInfo?.phone || '';
-    if (bossPhone) chatStaffList = [{ id: 'boss', name: '商家', phone: bossPhone }];
+    if (bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
@@ -3106,7 +3278,7 @@ const HomePage = () => {
           {chatStaffList.length > 0 && (
             <View style={{ marginTop: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 {isEmployee ? '联系商家' : '员工私聊'}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 {isEmployee ? '联系老板' : '员工私聊'}</Text>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
               </View>
               <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
