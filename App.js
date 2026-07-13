@@ -754,9 +754,6 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-      setTimeout(() => {
-        navigationRef.current?.reset({ index: 0, routes: [{ name: 'Login' }] });
-      }, 100);
     } catch (error) {
       showToast('退出失败');
     }
@@ -770,9 +767,6 @@ const SettingDrawer = ({ visible, onClose }) => {
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
       onClose();
-      setTimeout(() => {
-        navigationRef.current?.reset({ index: 0, routes: [{ name: 'Login' }] });
-      }, 100);
     } catch (error) {
       showToast('切换失败');
     }
@@ -1317,8 +1311,90 @@ const StockManage = () => {
         });
         if (!result.canceled) {
           const compressed = await compressImage(result.assets[0].uri);
-          setPhotoUris([compressed]);
-          if (!modalVisible) setModalVisible(true);
+          if (type === '入库') {
+            showToast('AI识别中...');
+            const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
+            const imageData = `data:image/jpeg;base64,${base64}`;
+            try {
+              const reply = await fetchZhipuChat([{ role: 'user', content: `请识别这张图片中的商品名称，只返回商品名称，不要包含其他文字。` }], '你是一个商品识别助手。');
+              const productName = reply.trim();
+              if (!productName) {
+                showToast('无法识别商品');
+                return;
+              }
+              const existingGoods = (state.goodsList || []).find(g => g.name.includes(productName) || productName.includes(g.name));
+              if (existingGoods) {
+                Alert.alert(
+                  '确认入库',
+                  `识别到商品：${existingGoods.name}\n当前库存：${existingGoods.stock}\n请输入入库数量`,
+                  [
+                    { text: '取消' },
+                    { text: '确认入库', onPress: () => {
+                      const qty = 1;
+                      const newStock = existingGoods.stock + qty;
+                      const updatedGoods = (state.goodsList || []).map(g =>
+                        g.id === existingGoods.id ? { ...g, stock: newStock } : g
+                      );
+                      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+                      const record = {
+                        id: Date.now().toString(),
+                        type: '入库',
+                        productName: existingGoods.name,
+                        quantity: qty,
+                        reason: '拍照入库',
+                        time: new Date().toISOString(),
+                        photo: imageData,
+                      };
+                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+                      showToast(`入库成功: ${existingGoods.name} ×${qty}`);
+                    }}
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  '添加新商品',
+                  `识别到新商品：${productName}\n是否添加到库存？`,
+                  [
+                    { text: '取消' },
+                    { text: '添加', onPress: () => {
+                      const newGoods = {
+                        id: Date.now().toString(),
+                        name: productName,
+                        stock: 1,
+                        code: `SKU${Date.now()}`,
+                        platform: '默认',
+                        price: 0,
+                        costPrice: 0,
+                        unit: '个',
+                        image: imageData,
+                      };
+                      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newGoods] });
+                      const record = {
+                        id: Date.now().toString(),
+                        type: '入库',
+                        productName: productName,
+                        quantity: 1,
+                        reason: '拍照入库(新商品)',
+                        time: new Date().toISOString(),
+                        photo: imageData,
+                      };
+                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+                      showToast(`入库成功: ${productName} ×1`);
+                    }}
+                  ]
+                );
+              }
+            } catch (e) {
+              console.error('AI识别失败:', e);
+              showToast('识别失败，请手动录入');
+              setPhotoUris([compressed]);
+              setShowManualInput(true);
+              setModalVisible(true);
+            }
+          } else {
+            setPhotoUris([compressed]);
+            if (!modalVisible) setModalVisible(true);
+          }
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1331,8 +1407,90 @@ const StockManage = () => {
         });
         if (!result.canceled) {
           const compressedUris = await Promise.all(result.assets.map(a => compressImage(a.uri)));
-          setPhotoUris(compressedUris);
-          if (!modalVisible) setModalVisible(true);
+          if (type === '入库' && compressedUris.length > 0) {
+            showToast('AI识别中...');
+            const base64 = await FileSystem.readAsStringAsync(compressedUris[0], { encoding: FileSystem.EncodingType.Base64 });
+            const imageData = `data:image/jpeg;base64,${base64}`;
+            try {
+              const reply = await fetchZhipuChat([{ role: 'user', content: `请识别这张图片中的商品名称，只返回商品名称，不要包含其他文字。` }], '你是一个商品识别助手。');
+              const productName = reply.trim();
+              if (!productName) {
+                showToast('无法识别商品');
+                return;
+              }
+              const existingGoods = (state.goodsList || []).find(g => g.name.includes(productName) || productName.includes(g.name));
+              if (existingGoods) {
+                Alert.alert(
+                  '确认入库',
+                  `识别到商品：${existingGoods.name}\n当前库存：${existingGoods.stock}\n请输入入库数量`,
+                  [
+                    { text: '取消' },
+                    { text: '确认入库', onPress: () => {
+                      const qty = 1;
+                      const newStock = existingGoods.stock + qty;
+                      const updatedGoods = (state.goodsList || []).map(g =>
+                        g.id === existingGoods.id ? { ...g, stock: newStock } : g
+                      );
+                      dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+                      const record = {
+                        id: Date.now().toString(),
+                        type: '入库',
+                        productName: existingGoods.name,
+                        quantity: qty,
+                        reason: '相册入库',
+                        time: new Date().toISOString(),
+                        photo: imageData,
+                      };
+                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+                      showToast(`入库成功: ${existingGoods.name} ×${qty}`);
+                    }}
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  '添加新商品',
+                  `识别到新商品：${productName}\n是否添加到库存？`,
+                  [
+                    { text: '取消' },
+                    { text: '添加', onPress: () => {
+                      const newGoods = {
+                        id: Date.now().toString(),
+                        name: productName,
+                        stock: 1,
+                        code: `SKU${Date.now()}`,
+                        platform: '默认',
+                        price: 0,
+                        costPrice: 0,
+                        unit: '个',
+                        image: imageData,
+                      };
+                      dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newGoods] });
+                      const record = {
+                        id: Date.now().toString(),
+                        type: '入库',
+                        productName: productName,
+                        quantity: 1,
+                        reason: '相册入库(新商品)',
+                        time: new Date().toISOString(),
+                        photo: imageData,
+                      };
+                      dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+                      showToast(`入库成功: ${productName} ×1`);
+                    }}
+                  ]
+                );
+              }
+            } catch (e) {
+              console.error('AI识别失败:', e);
+              showToast('识别失败，请手动录入');
+              setPhotoUris(compressedUris);
+              setShowManualInput(true);
+              setModalVisible(true);
+            }
+          } else {
+            setPhotoUris(compressedUris);
+            if (!modalVisible) setModalVisible(true);
+          }
         }
       }
     } catch (error) { showToast('选择图片失败'); }
