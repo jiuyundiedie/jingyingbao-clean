@@ -2065,7 +2065,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `请仔细数图片中有多少个物品，忽略背景和无关物体。请用JSON格式回答：{"count":数字}。例如：{"count":5}`;
+      const prompt = `数一数图片里一共有多少个物品，只回答一个数字。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -2084,26 +2084,12 @@ const StockManage = () => {
           }
           
           if (reply && reply !== 'aborted') {
-            let parsedCount = 0;
-            try {
-              const jsonMatch = reply.match(/\{[\s\S]*?\}/);
-              if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                parsedCount = parseInt(parsed.count);
-              }
-            } catch (e) {}
-            
-            if (!isNaN(parsedCount) && parsedCount > 0 && parsedCount < 10000) {
-              count = parsedCount;
-              success = true;
-            } else {
-              const numMatch = (reply || '').match(/\d+/);
-              if (numMatch) {
-                const num = parseInt(numMatch[0]);
-                if (!isNaN(num) && num > 0 && num < 10000) {
-                  count = num;
-                  success = true;
-                }
+            const numMatch = (reply || '').match(/\d+/);
+            if (numMatch) {
+              const num = parseInt(numMatch[0]);
+              if (!isNaN(num) && num > 0 && num < 10000) {
+                count = num;
+                success = true;
               }
             }
           }
@@ -2112,8 +2098,7 @@ const StockManage = () => {
         }
         newDetails.push({ photoIndex: photoIdx + 1, count, success });
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
-        const goodsOptions = (state.goodsList || []);
-        setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
+        setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
       
       const total = newDetails.reduce((sum, d) => sum + d.count, 0);
@@ -2121,7 +2106,7 @@ const StockManage = () => {
       if (failed > 0 && total > 0) {
         showToast(`识别完成 ${total} 件，${failed}张未识别出数量`);
       } else if (total > 0) {
-        showToast(`识别完成，共 ${total} 件商品`);
+        showToast(`识别完成，共 ${total} 件`);
       } else {
         showToast('未识别到物品，请确保照片清晰并包含完整物品后重试');
       }
@@ -2133,34 +2118,13 @@ const StockManage = () => {
     }
   };
 
-  const [aiCountSelectedGoodsId, setAiCountSelectedGoodsId] = useState(null);
-
   const aiCountSubmit = () => {
     if (!aiCountResult || aiCountResult.total === 0) { showToast('请先拍照识别数量'); return; }
-    if (!aiCountSelectedGoodsId) { showToast('请选择出库的商品'); return; }
-    const goods = (state.goodsList || []).find(g => g.id === aiCountSelectedGoodsId);
-    if (!goods) { showToast('商品不存在'); return; }
-    if (aiCountResult.total > goods.stock) {
-      showToast(`识别数量 ${aiCountResult.total} 超过库存 ${goods.stock}，请先入库`);
-      return;
-    }
-    const newStock = goods.stock - aiCountResult.total;
-    const updatedGoods = (state.goodsList || []).map(g => g.id === goods.id ? { ...g, stock: newStock } : g);
-    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-    dispatch({ type: 'ADD_STOCK_RECORD', payload: {
-      id: Date.now().toString(),
-      type: '出库',
-      productName: goods.name,
-      quantity: aiCountResult.total,
-      reason: 'AI拍照识别数量出库',
-      time: new Date().toISOString(),
-      photo: null,
-    }});
-    showToast(`已出库: ${goods.name} ×${aiCountResult.total}`);
+    setStockQuantity(String(aiCountResult.total));
+    showToast(`已填入数量: ${aiCountResult.total}`);
     setAiCountModalVisible(false);
     setAiCountPhotos([]);
     setAiCountResult(null);
-    setAiCountSelectedGoodsId(null);
   };
 
   const handleShelf = async (platform, goodsId) => {
@@ -2512,51 +2476,12 @@ const StockManage = () => {
                 ))}
               </View>
             )}
-            {aiCountResult && aiCountResult.total > 0 && (
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 8 }}>📦 选择出库商品（数量已自动匹配）</Text>
-                <ScrollView style={{ maxHeight: 200 }}>
-                  {aiCountResult.goodsOptions.length === 0 ? (
-                    <Text style={{ color: DANGER_COLOR, fontSize: 12, textAlign: 'center', padding: 12 }}>暂无库存商品，请先入库</Text>
-                  ) : (
-                    aiCountResult.goodsOptions.map(item => {
-                      const isSelected = aiCountSelectedGoodsId === item.id;
-                      const insufficient = aiCountResult.total > item.stock;
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            padding: 10,
-                            borderRadius: 8,
-                            marginBottom: 6,
-                            backgroundColor: isSelected ? LIGHT_PRIMARY : '#F5F7FA',
-                            borderWidth: isSelected ? 1.5 : 0,
-                            borderColor: PRIMARY_COLOR,
-                            opacity: insufficient ? 0.5 : 1,
-                          }}
-                          onPress={() => { if (!insufficient) setAiCountSelectedGoodsId(item.id); }}
-                          disabled={insufficient}
-                        >
-                          <Ionicons name={isSelected ? "radio-button-on" : "radio-button-off"} size={20} color={isSelected ? PRIMARY_COLOR : TEXT_THIRD} />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: isSelected ? '600' : '400' }}>{item.name}</Text>
-                            <Text style={{ fontSize: 11, color: TEXT_SECOND, marginTop: 2 }}>当前库存: {item.stock} {insufficient ? '⚠️ 不足' : ''}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  )}
-                </ScrollView>
-              </View>
-            )}
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); setAiCountSelectedGoodsId(null); }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
                 <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: (aiCountResult?.total > 0 && aiCountSelectedGoodsId) ? DANGER_COLOR : '#ccc', borderRadius: 8 }} onPress={aiCountSubmit} disabled={!(aiCountResult?.total > 0 && aiCountSelectedGoodsId)}>
-                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库{aiCountResult ? ` ×${aiCountResult.total}` : ''}</Text>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiCountResult?.total > 0 ? PRIMARY_COLOR : '#ccc', borderRadius: 8 }} onPress={aiCountSubmit} disabled={!(aiCountResult?.total > 0)}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认填入数量</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3579,8 +3504,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
                 <TouchableOpacity key={idx} style={{ width: 50, height: 50, borderRadius: 10, backgroundColor: color, borderWidth: bgColor === color ? 3 : 0, borderColor: PRIMARY_COLOR }} onPress={() => { changeBgColor(color); setShowMediaModal(false); }} />
               ))}
             </View>
-            <Text style={styles.label}>图片和视频</Text>
-            <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 16 }}>暂无媒体文件</Text>
+
           </View>
         </View>
       </Modal>
@@ -4055,34 +3979,51 @@ const MerchantAssistant = () => {
 
   useEffect(() => {
     if (messages.length === 0) {
-      if (industry === '待识别' && shopName) {
-        // 第一次打开AI助手且未识别 - 进行识别
-        setMessages([{ id: '1', text: `您好！我是经营宝AI助手，正在识别您的店铺类型...`, from: 'ai', time: new Date().toISOString() }]);
-        const abortController = new AbortController();
-        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
-          .then(async result => {
-            let detectedIndustry = '餐饮类';
-            if (result.includes('服务类')) detectedIndustry = '服务类';
-            else if (result.includes('企业类')) detectedIndustry = '企业类';
-            const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-            dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-            // 持久化到 AsyncStorage
-            try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-            setMessages([
-              { id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-            ]);
-          })
-          .catch(() => {
-            setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
-          });
-      } else if (industry === '待识别' && !shopName) {
-        setMessages([
-          { id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-        ]);
-      } else {
+      if (industry !== '待识别') {
         // 已识别 - 直接显示欢迎语
         setMessages([
           { id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
+        ]);
+      } else if (shopName) {
+        // 从AsyncStorage读取已识别的店铺类型
+        AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
+          if (storedShopInfo) {
+            try {
+              const parsed = JSON.parse(storedShopInfo);
+              if (parsed.industry && parsed.industry !== '待识别') {
+                dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
+                setMessages([
+                  { id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
+                ]);
+                return;
+              }
+            } catch (e) {}
+          }
+          // 首次识别
+          setMessages([{ id: '1', text: `您好！我是经营宝AI助手，正在识别您的店铺类型...`, from: 'ai', time: new Date().toISOString() }]);
+          const abortController = new AbortController();
+          fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
+            .then(async result => {
+              let detectedIndustry = '餐饮类';
+              if (result.includes('服务类')) detectedIndustry = '服务类';
+              else if (result.includes('企业类')) detectedIndustry = '企业类';
+              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+              try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+              setMessages([
+                { id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
+              ]);
+            })
+            .catch(() => {
+              setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
+            });
+        }).catch(() => {
+          // AsyncStorage读取失败，直接显示欢迎语
+          setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
+        });
+      } else {
+        setMessages([
+          { id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
         ]);
       }
     }
@@ -5749,7 +5690,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'bot' : 'bot-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
