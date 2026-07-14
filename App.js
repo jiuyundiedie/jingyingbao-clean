@@ -1464,6 +1464,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </Modal>
     </View>
+    </View>
   );
 };
 
