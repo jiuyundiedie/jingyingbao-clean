@@ -16,17 +16,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
+
+      - name: Clean npm cache
+        run: npm cache clean --force
 
       - name: Install dependencies
         run: npm install
 
+      - name: Clean expo cache
+        run: npx expo r -c
+
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
+
+      - name: Clean gradle cache
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew clean
 
       - name: Build APK
         run: |
           cd android
-          chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Upload APK
