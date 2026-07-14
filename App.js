@@ -353,6 +353,8 @@ function appReducer(state, action) {
       return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类' } };
     case 'UPDATE_SHOP_INFO':
       return { ...state, shopInfo: action.payload };
+    case 'SET_SHOP_INFO':
+      return { ...state, shopInfo: { ...state.shopInfo, ...action.payload } };
     case 'ADD_ORDER_RECORD':
       return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
     case 'ADD_STOCK_RECORD':
@@ -1104,10 +1106,11 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-    <View style={{ flex: 1, flexDirection: 'row' }}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
-      <ScrollView style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }} showsVerticalScrollIndicator={false}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', flexDirection: 'row' }} onPress={onClose}>
+      <View style={{ flex: 1 }} />
+      <View style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }} onStartShouldSetResponder={() => true}>
+        <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>系统设置</Text>
@@ -1220,7 +1223,9 @@ const SettingDrawer = ({ visible, onClose }) => {
               <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.settingsRow} onPress={() => setShowFontSize(true)}>
-              <Ionicons name="text-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
+              <View style={[styles.settingsIconWrap, { backgroundColor: '#06B6D420' }]}>
+                <Ionicons name="resize" size={18} color="#06B6D4" />
+              </View>
               <Text style={styles.settingsRowText}>字体大小</Text>
               <Text style={styles.settingsRight}>{fontSize}</Text>
               <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
@@ -1459,7 +1464,9 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </Modal>
-    </View>
+      </ScrollView>
+      </View>
+    </TouchableOpacity>
     </Modal>
   );
 };
@@ -2061,26 +2068,37 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      // 串行识别 + 即时更新（更稳定）
+      // 串行识别 + 即时更新
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
         let count = 0;
         let success = false;
         try {
-          const base64 = await FileSystem.readAsStringAsync(newPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
-          // 智谱GLM-4V视觉模型识别
-          const prompt = `数清这张图片中独立物品的总数。要求：\n1. 只数完整清晰可见的物品\n2. 散件(如螺丝、零件等)按单个计算\n3. 包装好的商品按可见的整包装单位数计算\n4. 必须只返回纯阿拉伯数字,不要其他任何文字标点说明`;
-          const reply = await fetchZhipuVision(newPhotos[i], prompt);
-          const num = parseInt((reply || '').replace(/[^\d]/g, ''));
-          if (!isNaN(num) && num > 0) {
-            count = num;
-            success = true;
+          // 智谱GLM-4V视觉模型识别 - 加入重试
+          const prompt = `数清图片中独立物品的总数。规则：\n1. 只数完整清晰可见的物品\n2. 散件按单个计算\n3. 包装按整包装数计算\n4. 必须只返回纯阿拉伯数字,不要其他任何内容`;
+          let reply = null;
+          // 最多重试 2 次
+          for (let retry = 0; retry < 2; retry++) {
+            try {
+              reply = await fetchZhipuVision(newPhotos[i], prompt);
+              if (reply && reply !== 'aborted') break;
+            } catch (err) {
+              if (retry === 1) throw err;
+              await new Promise(r => setTimeout(r, 500));
+            }
+          }
+          if (reply && reply !== 'aborted') {
+            const num = parseInt((reply || '').replace(/[^\d]/g, ''));
+            if (!isNaN(num) && num > 0 && num < 10000) {
+              count = num;
+              success = true;
+            }
           }
         } catch (e) {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
         newDetails.push({ photoIndex: photoIdx + 1, count, success });
-        // 流式更新
+        // 流式更新（每张识别完立即显示）
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         const goodsOptions = (state.goodsList || []);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
@@ -2088,9 +2106,11 @@ const StockManage = () => {
       const total = newDetails.reduce((sum, d) => sum + d.count, 0);
       const failed = newDetails.filter(d => !d.success).length;
       if (failed > 0) {
-        showToast(`识别完成，共 ${total} 件（${failed}张失败可重拍）`);
-      } else {
+        showToast(`识别完成 ${total} 件，${failed}张失败可点击重新识别`);
+      } else if (total > 0) {
         showToast(`识别完成，共 ${total} 件商品`);
+      } else {
+        showToast('识别失败，请确保照片清晰后重试');
       }
     } catch (e) {
       console.error('AI识别失败:', e);
@@ -2935,9 +2955,7 @@ const CustomerService = () => {
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
           <Text style={{ fontSize: 24 }}>😊</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="flash-outline" size={20} color={PRIMARY_COLOR} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="flash" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
           <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>
@@ -3420,10 +3438,6 @@ const ChatSettingScreen = ({ route, navigation }) => {
           <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowSearchModal(true)}>
             <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>查找聊天记录</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => showToast('功能开发中')}>
-            <Ionicons name="images-outline" size={22} color={TEXT_THIRD} />
-            <Text style={[styles.chatSettingText, { color: TEXT_THIRD }]}>图片、视频、文件（已隐藏）</Text>
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
@@ -4028,25 +4042,34 @@ const MerchantAssistant = () => {
 
   useEffect(() => {
     if (messages.length === 0) {
-      if (industry === '待识别') {
+      if (industry === '待识别' && shopName) {
+        // 第一次打开AI助手且未识别 - 进行识别
         setMessages([{ id: '1', text: `您好！我是经营宝AI助手，正在识别您的店铺类型...`, from: 'ai', time: new Date().toISOString() }]);
         const abortController = new AbortController();
         fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
-          .then(result => {
+          .then(async result => {
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
-            dispatch({ type: 'SET_SHOP_INFO', payload: { ...state.shopInfo, industry: detectedIndustry } });
+            const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+            dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+            // 持久化到 AsyncStorage
+            try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
             setMessages([
-              { id: '1', text: `您好 ${userName}！我是经营宝AI助手，已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据（营收、订单、库存）\n💡 提升利润建议\n📝 生成营销文案、海报、广告\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n🛍️ 推荐爆款海报/广告\n\n请直接输入您的问题，我会基于您的真实数据回答！`, from: 'ai', time: new Date().toISOString() }
+              { id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
             ]);
           })
           .catch(() => {
-            setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，已识别您的店铺「${shopName}」。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
+            setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
           });
-      } else {
+      } else if (industry === '待识别' && !shopName) {
         setMessages([
-          { id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的${industry}店铺「${shopName}」的智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n🛍️ 推荐同款爆款海报\n\n请直接输入您的问题，我会基于您的真实数据回答！`, from: 'ai', time: new Date().toISOString() }
+          { id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
+        ]);
+      } else {
+        // 已识别 - 直接显示欢迎语
+        setMessages([
+          { id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
         ]);
       }
     }
@@ -4349,7 +4372,7 @@ ${businessContext}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="sparkles-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="flash" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={[styles.inputBox, { flex: 1 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
