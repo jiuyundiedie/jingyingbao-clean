@@ -182,6 +182,40 @@ async function fetchZhipuImage(prompt, signal) {
   }
 }
 
+async function fetchZhipuVision(imageUri, prompt, signal) {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+    const dataUri = `data:image/jpeg;base64,${base64}`;
+    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
+      body: JSON.stringify({
+        model: "glm-4v-plus",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: dataUri } }
+          ]
+        }],
+        max_tokens: 100,
+        temperature: 0.1,
+      }),
+      signal: signal,
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      console.error('Vision API failed:', json);
+      return null;
+    }
+    return json.choices?.[0]?.message?.content || '';
+  } catch (err) {
+    if (err.name === 'AbortError') return 'aborted';
+    console.error('Vision API error:', err);
+    return null;
+  }
+}
+
 // ===== 日报/周报/月报计算 =====
 const calcDailyReport = (state) => {
   try {
@@ -1070,7 +1104,8 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <View style={{ position: 'absolute', zIndex: 9998, top: 0, left: 0, right: 0, bottom: 0, flexDirection: 'row' }}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <View style={{ flex: 1, flexDirection: 'row' }}>
       <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
       <ScrollView style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }} showsVerticalScrollIndicator={false}>
         <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
@@ -1425,6 +1460,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </Modal>
     </View>
+    </Modal>
   );
 };
 
@@ -2025,33 +2061,34 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      // 并行识别（更快）
-      const promises = newPhotos.map(async (_, i) => {
+      // 串行识别 + 即时更新（更稳定）
+      for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
+        let count = 0;
+        let success = false;
         try {
-          const base64 = await FileSystem.readAsStringAsync(aiCountPhotos[photoIdx], { encoding: FileSystem.EncodingType.Base64 });
-          const prompt = `请精确计算图片中可数物品的总数。规则：
-1. 只数完整、清晰可见的独立物品
-2. 部分被遮挡或模糊的物品不计入
-3. 如果是一堆散件（如螺丝、零件、调料等），尽量数单个个体
-4. 如果是包装好的商品（如整箱、整袋），数可见的包装单位数
-5. 必须返回纯阿拉伯数字，不能有任何其他文字、标点、说明`;
-          const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个物品数量识别专家，只返回纯数字，精确、严谨、零错误。');
+          const base64 = await FileSystem.readAsStringAsync(newPhotos[i], { encoding: FileSystem.EncodingType.Base64 });
+          // 智谱GLM-4V视觉模型识别
+          const prompt = `数清这张图片中独立物品的总数。要求：\n1. 只数完整清晰可见的物品\n2. 散件(如螺丝、零件等)按单个计算\n3. 包装好的商品按可见的整包装单位数计算\n4. 必须只返回纯阿拉伯数字,不要其他任何文字标点说明`;
+          const reply = await fetchZhipuVision(newPhotos[i], prompt);
           const num = parseInt((reply || '').replace(/[^\d]/g, ''));
-          return { photoIndex: photoIdx + 1, count: isNaN(num) ? 0 : num, success: true };
+          if (!isNaN(num) && num > 0) {
+            count = num;
+            success = true;
+          }
         } catch (e) {
-          return { photoIndex: photoIdx + 1, count: 0, success: false };
+          console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
-      });
-      const results = await Promise.all(promises);
-      results.forEach(r => newDetails.push(r));
-      newDetails.sort((a, b) => a.photoIndex - b.photoIndex);
+        newDetails.push({ photoIndex: photoIdx + 1, count, success });
+        // 流式更新
+        const total = newDetails.reduce((sum, d) => sum + d.count, 0);
+        const goodsOptions = (state.goodsList || []);
+        setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
+      }
       const total = newDetails.reduce((sum, d) => sum + d.count, 0);
-      const goodsOptions = (state.goodsList || []);
-      setAiCountResult({ total, details: newDetails, photos: newDetails.length, goodsOptions });
-      const failed = results.filter(r => !r.success || r.count === 0).length;
+      const failed = newDetails.filter(d => !d.success).length;
       if (failed > 0) {
-        showToast(`识别完成，共 ${total} 件（${failed}张识别失败，可重拍）`);
+        showToast(`识别完成，共 ${total} 件（${failed}张失败可重拍）`);
       } else {
         showToast(`识别完成，共 ${total} 件商品`);
       }
@@ -3332,7 +3369,9 @@ const ChatSettingScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
+          </TouchableOpacity>
           <Text style={styles.pageTitle}>聊天设置</Text>
           <View style={{ width: 24 }} />
         </View>
@@ -3349,18 +3388,27 @@ const ChatSettingScreen = ({ route, navigation }) => {
             </View>
           </TouchableOpacity>
           {showGroupMembers && (
-            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, marginTop: 8 }}>
-              {allMembers.map((m, idx) => (
-                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: idx < allMembers.length - 1 ? 1 : 0, borderColor: BORDER_COLOR }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#87CEEB', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>{(m.name || '?').substring(0, 1)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{m.name} {m.isOwner && <Text style={{ color: PRIMARY_COLOR, fontSize: 12 }}>(老板)</Text>}</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 2 }}>{m.role} · {m.phone}</Text>
-                  </View>
-                </View>
-              ))}
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 14, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
+                {allMembers.map((m, idx) => (
+                  <TouchableOpacity key={idx} style={{ width: 72, alignItems: 'center' }}>
+                    <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                      {m.avatar && (m.avatar.startsWith('http') || m.avatar.startsWith('file') || m.avatar.startsWith('data')) ? (
+                        <Image source={{ uri: m.avatar }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
+                      ) : (
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>{(m.name || '?').substring(0, 1)}</Text>
+                      )}
+                      {m.isOwner && (
+                        <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: '#FFD93D', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#fff' }}>
+                          <Text style={{ color: '#5B6DF0', fontSize: 8, fontWeight: 'bold' }}>老板</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 11, color: TEXT_MAIN, marginTop: 6, textAlign: 'center' }} numberOfLines={1}>{m.name}</Text>
+                    <Text style={{ fontSize: 9, color: TEXT_THIRD, textAlign: 'center' }}>{m.isOwner ? '老板' : '员工'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           )}
         </View>
@@ -3373,10 +3421,9 @@ const ChatSettingScreen = ({ route, navigation }) => {
             <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>查找聊天记录</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => setShowMediaModal(true)}>
-            <Ionicons name="images-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>图片、视频、文件</Text>
-            <Text style={styles.chatSettingDesc}>></Text>
+          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => showToast('功能开发中')}>
+            <Ionicons name="images-outline" size={22} color={TEXT_THIRD} />
+            <Text style={[styles.chatSettingText, { color: TEXT_THIRD }]}>图片、视频、文件（已隐藏）</Text>
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
@@ -3409,43 +3456,86 @@ const ChatSettingScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-      <Modal visible={showSearchModal} transparent animationType="fade">
-        <View style={styles.modalMask}>
-          <View style={[styles.modalWrap, { maxHeight: '80%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>查找聊天记录</Text>
-              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); setSearchResults([]); }}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+      <Modal visible={showSearchModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+          <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); setSearchResults([]); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+                <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 17, fontWeight: 'bold', color: TEXT_MAIN, flex: 1, marginLeft: 4 }}>查找聊天记录</Text>
             </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          </SafeAreaView>
+          <View style={{ padding: 14, backgroundColor: '#fff' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8 }}>
+              <Ionicons name="search" size={18} color={TEXT_THIRD} />
+              <TextInput style={{ flex: 1, fontSize: 14, marginLeft: 8, color: TEXT_MAIN }} placeholder={searchType === 'member' ? '输入成员姓名' : '搜索所有聊天内容'} value={searchText} onChangeText={setSearchText} onSubmitEditing={searchMessages} returnKeyType="search" />
+              {searchText ? (
+                <TouchableOpacity onPress={() => setSearchText('')}>
+                  <Ionicons name="close-circle" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {/* 类型筛选（不含图片视频文件） */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               {[
-                { key: 'all', label: '全部', icon: 'search' },
-                { key: 'text', label: '文字', icon: 'text' },
-                { key: 'image', label: '图片', icon: 'image' },
-                { key: 'video', label: '视频', icon: 'videocam' },
-                { key: 'file', label: '文件', icon: 'document' },
-                { key: 'member', label: '按成员', icon: 'person' },
+                { key: 'all', label: '全部' },
+                { key: 'text', label: '文字' },
+                { key: 'member', label: '按成员' },
               ].map(t => (
-                <TouchableOpacity key={t.key} onPress={() => setSearchType(t.key)} style={{ paddingHorizontal: 10, paddingVertical: 5, backgroundColor: searchType === t.key ? PRIMARY_COLOR : '#F0F0F0', borderRadius: 14 }}>
+                <TouchableOpacity key={t.key} onPress={() => setSearchType(t.key)} style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: searchType === t.key ? PRIMARY_COLOR : '#F0F2F5', borderRadius: 16 }}>
                   <Text style={{ fontSize: 12, color: searchType === t.key ? '#fff' : TEXT_MAIN }}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.formInput} placeholder={searchType === 'member' ? '输入成员姓名' : '输入关键词'} value={searchText} onChangeText={setSearchText} />
-            <TouchableOpacity style={styles.primaryBtn} onPress={searchMessages}><Text style={styles.sendTxt}>搜索</Text></TouchableOpacity>
-            {searchResults.length > 0 && (
-              <ScrollView style={{ maxHeight: 300, marginTop: 12 }}>
-                {searchResults.map((m, idx) => (
-                  <View key={idx} style={{ padding: 8, backgroundColor: '#F5F7FA', borderRadius: 6, marginBottom: 6 }}>
-                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{m.fromName || m.from} · {formatTime(m.time)}</Text>
-                    <Text style={{ fontSize: 14, color: TEXT_MAIN, marginTop: 4 }} numberOfLines={3}>{m.text || (m.image ? '🖼️ [图片]' : m.video ? '🎬 [视频]' : m.file ? '📎 [文件]' : '[消息]')}</Text>
-                  </View>
-                ))}
+            {/* 群成员快捷筛选（点击查看该成员所有消息） */}
+            <View style={{ marginTop: 14 }}>
+              <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>点击群成员查看其所有消息</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {allMembers.map((m, idx) => (
+                    <TouchableOpacity key={idx} onPress={() => { setSearchType('member'); setSearchText(m.name); searchMessages(); }} style={{ alignItems: 'center', width: 56 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{(m.name || '?').substring(0, 1)}</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: TEXT_MAIN, marginTop: 4 }} numberOfLines={1}>{m.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </ScrollView>
-            )}
-            {searchResults.length === 0 && searchText && (
-              <Text style={{ textAlign: 'center', color: TEXT_THIRD, padding: 20 }}>未找到匹配记录</Text>
-            )}
+            </View>
           </View>
+          <ScrollView style={{ flex: 1, padding: 12 }}>
+            {searchResults.length > 0 ? (
+              <>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>共找到 {searchResults.length} 条记录</Text>
+                {searchResults.map((m, idx) => (
+                  <TouchableOpacity key={idx} style={{ padding: 12, backgroundColor: '#fff', borderRadius: 8, marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: m.from === user?.phone ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center', marginRight: 6 }}>
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>{(m.fromName || m.from || '?').substring(0, 1)}</Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600' }}>{m.fromName || m.from}</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{formatTime(m.time)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 20 }} numberOfLines={3}>{m.text || (m.image ? '🖼️ [图片]' : m.video ? '🎬 [视频]' : m.file ? '📎 [文件]' : '[消息]')}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : searchText ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="search" size={48} color={TEXT_THIRD} />
+                <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>未找到匹配记录</Text>
+              </View>
+            ) : (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="search" size={48} color={TEXT_THIRD} />
+                <Text style={{ color: TEXT_THIRD, marginTop: 12, textAlign: 'center' }}>输入关键词搜索所有聊天内容{'\n'}或点击上方群成员查看其所有消息</Text>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </Modal>
 
@@ -3546,7 +3636,7 @@ const VoiceAssistant = () => {
   const abortControllerRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  const industry = state.shopInfo?.industry || '餐饮类';
+  const industry = state.shopInfo?.industry || '待识别';
   const shopName = state.shopInfo?.shopName || '我的门店';
   const userName = state.user?.name || '老板';
 
@@ -3857,7 +3947,7 @@ const MerchantAssistant = () => {
   const [downloading, setDownloading] = useState(false);
   const abortControllerRef = useRef(null);
 
-  const industry = state.shopInfo?.industry || '餐饮类';
+  const industry = state.shopInfo?.industry || '待识别';
   const shopName = state.shopInfo?.shopName || '我的门店';
   const userName = state.user?.name || '老板';
 
@@ -4170,7 +4260,9 @@ ${businessContext}
       />
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
+          </TouchableOpacity>
           <Text style={styles.pageTitle}>AI助手</Text>
           <View style={{ flexDirection: 'row' }}>
             {loading && (
@@ -4325,12 +4417,15 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 
   const startVoice = () => {
     try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) { showToast('当前环境不支持语音识别'); return; }
-      const recognition = new SpeechRecognition();
+      // 兼容多种环境
+      const SR = (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition))
+        || (typeof global !== 'undefined' && (global.SpeechRecognition || global.webkitSpeechRecognition));
+      if (!SR) { showToast('当前环境不支持语音识别，请使用文字输入'); return; }
+      const recognition = new SR();
       recognition.lang = 'zh-CN';
       recognition.interimResults = true;
       recognition.continuous = false;
+      recognition.maxAlternatives = 1;
       recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
       recognition.onresult = (event) => {
         let finalTranscript = '';
@@ -4340,14 +4435,20 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
           if (event.results[i].isFinal) finalTranscript += transcript;
           else interimTranscript += transcript;
         }
-        if (finalTranscript) setInputText(finalTranscript);
+        if (finalTranscript) setInputText(prev => (prev + ' ' + finalTranscript).trim());
         else if (interimTranscript) setInputText(interimTranscript);
       };
-      recognition.onerror = (e) => { setRecording(false); showToast('语音识别：' + e.error); };
+      recognition.onerror = (e) => {
+        setRecording(false);
+        const err = e.error || '未知错误';
+        if (err === 'no-speech') showToast('未检测到语音，请重试');
+        else if (err === 'not-allowed') showToast('请授权麦克风权限');
+        else showToast('语音识别错误：' + err);
+      };
       recognition.onend = () => { setRecording(false); };
       recognitionRef.current = recognition;
       recognition.start();
-    } catch (e) { showToast('启动语音失败'); setRecording(false); }
+    } catch (e) { showToast('启动语音失败: ' + (e?.message || e)); setRecording(false); }
   };
 
   const stopVoice = () => {
@@ -4424,11 +4525,12 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
   if (!visible) return null;
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, backgroundColor: '#F5F7FA' }}>
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: PRIMARY_COLOR }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, backgroundColor: PRIMARY_COLOR }}>
-          <TouchableOpacity onPress={onClose} style={{ padding: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#fff" />
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8, zIndex: 100 }}>
+            <Ionicons name="chevron-back" size={26} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 4 }}>
             <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#fff' }}>🎙️ 语音助手</Text>
@@ -4527,7 +4629,8 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
         </View>
       </View>
       <View style={{ height: 56 }} />
-    </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -4976,11 +5079,11 @@ const DraggableFloatingButton = ({ onPress }) => {
   };
 
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}>
+    <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}>
       <View
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
-        onResponderTerminationRequest={() => false}
+        onResponderTerminationRequest={() => true}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -4995,7 +5098,7 @@ const DraggableFloatingButton = ({ onPress }) => {
           shadowOffset: { width: 0, height: 6 },
           shadowOpacity: 0.4,
           shadowRadius: 10,
-          elevation: 10,
+          elevation: 8,
           transform: [{ scale: pressIn ? 0.92 : 1 }],
         }}
       >
