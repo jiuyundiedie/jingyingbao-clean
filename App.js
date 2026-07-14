@@ -1106,11 +1106,10 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-    <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', flexDirection: 'row' }} onPress={onClose}>
-      <View style={{ flex: 1 }} />
-      <View style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }} onStartShouldSetResponder={() => true}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, flexDirection: 'row' }}>
+      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
+      <View style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
         <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>系统设置</Text>
@@ -1465,8 +1464,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </Modal>
     </View>
-    </TouchableOpacity>
-    </Modal>
+    </View>
   );
 };
 
@@ -2073,8 +2071,8 @@ const StockManage = () => {
         let count = 0;
         let success = false;
         try {
-          // 智谱GLM-4V视觉模型识别 - 加入重试
-          const prompt = `数清图片中独立物品的总数。规则：\n1. 只数完整清晰可见的物品\n2. 散件按单个计算\n3. 包装按整包装数计算\n4. 必须只返回纯阿拉伯数字,不要其他任何内容`;
+          // 简化提示词 - 明确要求只返回数字
+          const prompt = `请直接回答图片中有几个物品？只用阿拉伯数字回答，不要其他内容。例如:5`;
           let reply = null;
           // 最多重试 2 次
           for (let retry = 0; retry < 2; retry++) {
@@ -2097,7 +2095,7 @@ const StockManage = () => {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
         newDetails.push({ photoIndex: photoIdx + 1, count, success });
-        // 流式更新（每张识别完立即显示）
+        // 流式更新
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         const goodsOptions = (state.goodsList || []);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
@@ -2954,7 +2952,7 @@ const CustomerService = () => {
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
           <Text style={{ fontSize: 24 }}>😊</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="flash" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="bookmark" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
           <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>
@@ -4371,7 +4369,7 @@ ${businessContext}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="flash" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="bookmark" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={[styles.inputBox, { flex: 1 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -5139,16 +5137,16 @@ const DraggableFloatingButton = ({ onPress }) => {
             transform: [{ translateX: -10 }, { translateY: -10 }, { rotate: '45deg' }],
             width: 30, height: 60,
           }} />
-          <Ionicons name="mic" size={26} color="#fff" />
-          <View style={{ position: 'absolute', bottom: 6, right: 6, backgroundColor: '#FFD93D', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#fff' }}>
-            <Text style={{ color: '#5B6DF0', fontSize: 8, fontWeight: 'bold' }}>AI</Text>
-          </View>
+          <Ionicons name="chatbubbles" size={26} color="#fff" />
         </View>
         <View style={{
-          position: 'absolute', top: -4, right: -4,
-          width: 16, height: 16, borderRadius: 8,
-          backgroundColor: '#FF4757', borderWidth: 2, borderColor: '#fff',
-        }} />
+          position: 'absolute', top: -2, right: -2,
+          width: 18, height: 18, borderRadius: 9,
+          backgroundColor: '#FFD93D', borderWidth: 2, borderColor: '#fff',
+          justifyContent: 'center', alignItems: 'center',
+        }}>
+          <Text style={{ color: '#5B6DF0', fontSize: 9, fontWeight: 'bold', lineHeight: 10 }}>AI</Text>
+        </View>
       </View>
     </View>
   );
