@@ -1302,6 +1302,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </ScrollView>
+      </View>
 
       <Modal visible={showLanguage} transparent animationType="fade" onRequestClose={() => setShowLanguage(false)}>
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowLanguage(false)}>
@@ -1463,7 +1464,6 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </Modal>
-    </View>
     </View>
   );
 };
