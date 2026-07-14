@@ -1029,7 +1029,6 @@ const ProfileEditScreen = ({ navigation }) => {
 
 // ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
-  const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const user = state.user;
   const shopInfo = state.shopInfo || { shopName: '', phone: '' };
@@ -1100,7 +1099,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     onClose();
     setTimeout(() => {
       if (navigationRef.current) navigationRef.current.navigate('ProfileEdit');
-      else navigation.navigate('ProfileEdit');
     }, 200);
   };
 
@@ -1167,7 +1165,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               <Text style={styles.settingsRight} numberOfLines={1}>{shopName || '未设置'}</Text>
               <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRowLast} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); else navigation.navigate('SwitchAccount'); }, 200); }}>
+            <TouchableOpacity style={styles.settingsRowLast} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); }, 200); }}>
               <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
               <Text style={styles.settingsRowText}>切换账号</Text>
               <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
