@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
-  PanResponder
+  PanResponder, Switch
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
@@ -1464,7 +1464,6 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </Modal>
     </View>
-    </View>
   );
 };
 
@@ -2065,53 +2064,69 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      // 串行识别 + 即时更新
+      const prompt = `请仔细数图片中有多少个物品，忽略背景和无关物体。请用JSON格式回答：{"count":数字}。例如：{"count":5}`;
+      
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
         let count = 0;
         let success = false;
         try {
-          // 简化提示词 - 明确要求只返回数字
-          const prompt = `请直接回答图片中有几个物品？只用阿拉伯数字回答，不要其他内容。例如:5`;
           let reply = null;
-          // 最多重试 2 次
-          for (let retry = 0; retry < 2; retry++) {
+          for (let retry = 0; retry < 3; retry++) {
             try {
               reply = await fetchZhipuVision(newPhotos[i], prompt);
               if (reply && reply !== 'aborted') break;
             } catch (err) {
-              if (retry === 1) throw err;
-              await new Promise(r => setTimeout(r, 500));
+              if (retry === 2) throw err;
+              await new Promise(r => setTimeout(r, 800));
             }
           }
+          
           if (reply && reply !== 'aborted') {
-            const num = parseInt((reply || '').replace(/[^\d]/g, ''));
-            if (!isNaN(num) && num > 0 && num < 10000) {
-              count = num;
+            let parsedCount = 0;
+            try {
+              const jsonMatch = reply.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                parsedCount = parseInt(parsed.count);
+              }
+            } catch (e) {}
+            
+            if (!isNaN(parsedCount) && parsedCount > 0 && parsedCount < 10000) {
+              count = parsedCount;
               success = true;
+            } else {
+              const numMatch = (reply || '').match(/\d+/);
+              if (numMatch) {
+                const num = parseInt(numMatch[0]);
+                if (!isNaN(num) && num > 0 && num < 10000) {
+                  count = num;
+                  success = true;
+                }
+              }
             }
           }
         } catch (e) {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
         newDetails.push({ photoIndex: photoIdx + 1, count, success });
-        // 流式更新
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         const goodsOptions = (state.goodsList || []);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length, goodsOptions });
       }
+      
       const total = newDetails.reduce((sum, d) => sum + d.count, 0);
       const failed = newDetails.filter(d => !d.success).length;
-      if (failed > 0) {
-        showToast(`识别完成 ${total} 件，${failed}张失败可点击重新识别`);
+      if (failed > 0 && total > 0) {
+        showToast(`识别完成 ${total} 件，${failed}张未识别出数量`);
       } else if (total > 0) {
         showToast(`识别完成，共 ${total} 件商品`);
       } else {
-        showToast('识别失败，请确保照片清晰后重试');
+        showToast('未识别到物品，请确保照片清晰并包含完整物品后重试');
       }
     } catch (e) {
       console.error('AI识别失败:', e);
-      showToast('识别失败，请重试');
+      showToast('识别失败，请检查网络后重试');
     } finally {
       setAiCountLoading(false);
     }
@@ -4369,7 +4384,7 @@ ${businessContext}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="bookmark" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="zap" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={[styles.inputBox, { flex: 1 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -5733,7 +5748,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'sparkles' : 'sparkles-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'bot' : 'bot-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
