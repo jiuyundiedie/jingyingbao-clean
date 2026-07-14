@@ -1379,7 +1379,7 @@ const SettingDrawer = ({ visible, onClose }) => {
                 { icon: 'sparkles', iconColor: '#8B5CF6', iconBg: '#8B5CF620', q: 'AI助手能做什么', a: 'AI助手基于您店铺的真实数据，提供经营分析、日报生成、营销文案、海报设计等服务。' },
                 { icon: 'swap-horizontal', iconColor: '#F59E0B', iconBg: '#F59E0B20', q: '如何切换账号', a: '在设置页面点击"切换账号"，选择已登录的其他账号或添加新账号。' },
                 { icon: 'cloud-upload', iconColor: '#06B6D4', iconBg: '#06B6D420', q: '数据会丢失吗', a: '所有数据保存在本地，建议定期通过"数据备份"功能备份重要数据。' },
-                { icon: 'chatbubbles', iconColor: '#EC4899', iconBg: '#EC489920', q: '遇到问题如何反馈', a: '通过设置页面的"意见反馈"功能提交问题，我们会尽快处理。' },
+                { icon: 'chatbox-ellipses', iconColor: '#EC4899', iconBg: '#EC489920', q: '遇到问题如何反馈', a: '通过设置页面的"意见反馈"功能提交问题，我们会尽快处理。' },
               ].map((item, idx) => (
                 <View key={idx} style={{ marginBottom: 14, padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1464,8 +1464,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </Modal>
-      </ScrollView>
-      </View>
+    </View>
     </TouchableOpacity>
     </Modal>
   );
