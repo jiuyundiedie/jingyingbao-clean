@@ -1035,24 +1035,9 @@ const SettingDrawer = ({ visible, onClose }) => {
   const isEmployee = user?.role === '员工';
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
-  const [pushConfig, setPushConfig] = useState(state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" });
-  const [workH, setWorkH] = useState(pushConfig.workHour);
-  const [workM, setWorkM] = useState(pushConfig.workMinute);
-  const [offH, setOffH] = useState(pushConfig.offHour);
-  const [offM, setOffM] = useState(pushConfig.offMinute);
-  const [theme, setTheme] = useState(state.theme || 'light');
-  const [language, setLanguage] = useState(state.language || '简体中文');
   const [notifSound, setNotifSound] = useState(state.notifSound !== false);
   const [notifVibrate, setNotifVibrate] = useState(state.notifVibrate !== false);
-  const [fontSize, setFontSize] = useState(state.fontSize || '标准');
   const [nightMode, setNightMode] = useState(state.nightMode || false);
-  const [showLanguage, setShowLanguage] = useState(false);
-  const [showFontSize, setShowFontSize] = useState(false);
-  const [showAbout, setShowAbout] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [showVersion, setShowVersion] = useState(false);
-  const [showClearCache, setShowClearCache] = useState(false);
   const [showShopNameEdit, setShowShopNameEdit] = useState(false);
   const [editShopName, setEditShopName] = useState(shopName);
 
@@ -1063,14 +1048,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
     showToast(`门店信息已保存，类型：${industry}`);
-  };
-
-  const savePush = () => {
-    if (isEmployee) return;
-    const config = { workHour: workH, workMinute: workM, offHour: offH, offMinute: offM };
-    dispatch({ type: 'SET_PUSH_CONFIG', payload: config });
-    setPushConfig(config);
-    showToast("推送时间保存成功");
   };
 
   const handleLogout = async () => {
@@ -1085,16 +1062,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     } catch (error) { showToast('退出失败'); }
   };
 
-  const clearCache = () => {
-    Alert.alert('清除缓存', '确定要清除所有缓存数据吗？这将删除本地存储的临时数据。', [
-      { text: '取消' },
-      { text: '清除', style: 'destructive', onPress: () => {
-        showToast('缓存已清除（演示）');
-        setShowClearCache(false);
-      }}
-    ]);
-  };
-
   const goToProfile = () => {
     onClose();
     setTimeout(() => {
@@ -1104,341 +1071,119 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, flexDirection: 'row' }}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ width: width * 0.75, height: '100%', backgroundColor: '#F5F7FA' }}>
-        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-        <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>系统设置</Text>
-            <TouchableOpacity onPress={onClose} style={{ padding: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 }}>
-              <Ionicons name="close" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={goToProfile} style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12 }}>
-              {user?.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('file') || user.avatar.startsWith('data')) ? (
-                <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
-              ) : (
-                <Text style={{ color: PRIMARY_COLOR, fontSize: 24, fontWeight: 'bold' }}>{(user?.name || '?').substring(0, 1)}</Text>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{user?.name || '未设置'}</Text>
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginLeft: 6 }}>
-                  <Text style={{ color: '#fff', fontSize: 10 }}>{user?.role || '用户'}</Text>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
+        <View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0 }}>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff' }}>系统设置</Text>
+                <TouchableOpacity onPress={onClose} style={{ padding: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 }}>
+                  <Ionicons name="close" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={goToProfile} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12 }}>
+                  <Text style={{ color: PRIMARY_COLOR, fontSize: 24, fontWeight: 'bold' }}>{(user?.name || '?').substring(0, 1)}</Text>
                 </View>
-              </View>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 }} numberOfLines={1}>{user?.signature || '点击设置个人资料 →'}</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={{ flexDirection: 'row', marginTop: 16, gap: 8 }}>
-            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.goodsList || []).length}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>商品数</Text>
-            </View>
-            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.globalOrderRecord || []).length}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>总订单</Text>
-            </View>
-            <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.staffMemberList || []).filter(s => s.status === 'approved').length}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: 2 }}>员工数</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={{ padding: 12 }}>
-          {/* 账户设置组 */}
-          <Text style={styles.settingsGroupTitle}>账户设置</Text>
-          <View style={styles.settingsCard}>
-            <TouchableOpacity style={styles.settingsRow} onPress={goToProfile}>
-              <Ionicons name="person-circle-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>个人资料</Text>
-              <Text style={styles.settingsRight}>{user?.name || '未设置'}</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowShopNameEdit(true)}>
-              <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>门店信息</Text>
-              <Text style={styles.settingsRight} numberOfLines={1}>{shopName || '未设置'}</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRowLast} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); }, 200); }}>
-              <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>切换账号</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-          </View>
-
-          {/* 消息通知组 */}
-          <Text style={styles.settingsGroupTitle}>消息通知</Text>
-          <View style={styles.settingsCard}>
-            <View style={styles.settingsRow}>
-              <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>新消息通知</Text>
-              <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
-            </View>
-            <View style={styles.settingsRow}>
-              <Ionicons name="volume-high-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>提示音</Text>
-              <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
-            </View>
-            <View style={styles.settingsRow}>
-              <Ionicons name="phone-portrait-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>震动提醒</Text>
-              <Switch value={notifVibrate} onValueChange={setNotifVibrate} trackColor={{ true: PRIMARY_COLOR }} />
-            </View>
-            {!isEmployee && (
-              <View style={styles.settingsRowLast}>
-                <Ionicons name="time-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-                <Text style={styles.settingsRowText}>推送时间</Text>
-                <Text style={styles.settingsRight}>{workH.padStart(2,'0')}:{workM.padStart(2,'0')} - {offH.padStart(2,'0')}:{offM.padStart(2,'0')}</Text>
-              </View>
-            )}
-          </View>
-          {!isEmployee && (
-            <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={workH} onChangeText={setWorkH} placeholder="开始时" />
-              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={workM} onChangeText={setWorkM} placeholder="开始分" />
-              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={offH} onChangeText={setOffH} placeholder="结束时" />
-              <TextInput style={{ flex: 1, backgroundColor: '#fff', borderRadius: 8, padding: 8, fontSize: 13 }} keyboardType="numeric" maxLength={2} value={offM} onChangeText={setOffM} placeholder="结束分" />
-              <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }} onPress={savePush}>
-                <Text style={{ color: '#fff', fontSize: 12 }}>保存</Text>
+                <View>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{user?.name || '未设置'}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 }}>{user?.role || '用户'}</Text>
+                </View>
               </TouchableOpacity>
             </View>
-          )}
 
-          {/* 通用设置组 */}
-          <Text style={styles.settingsGroupTitle}>通用设置</Text>
-          <View style={styles.settingsCard}>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowLanguage(true)}>
-              <Ionicons name="language-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>语言</Text>
-              <Text style={styles.settingsRight}>{language}</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowFontSize(true)}>
-              <View style={[styles.settingsIconWrap, { backgroundColor: '#06B6D420' }]}>
-                <Ionicons name="resize" size={18} color="#06B6D4" />
+            <View style={{ padding: 16 }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={goToProfile}>
+                  <Ionicons name="person-circle-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>个人资料</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowShopNameEdit(true)}>
+                  <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>门店信息</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); }, 200); }}>
+                  <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>切换账号</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
               </View>
-              <Text style={styles.settingsRowText}>字体大小</Text>
-              <Text style={styles.settingsRight}>{fontSize}</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <View style={styles.settingsRowLast}>
-              <Ionicons name="moon-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>深色模式</Text>
-              <Switch value={nightMode} onValueChange={(v) => { setNightMode(v); dispatch({ type: 'SET_NIGHT_MODE', payload: v }); }} trackColor={{ true: PRIMARY_COLOR }} />
+
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>新消息通知</Text>
+                  <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
+                </View>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="volume-high-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>提示音</Text>
+                  <Switch value={notifSound} onValueChange={setNotifSound} trackColor={{ true: PRIMARY_COLOR }} />
+                </View>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="phone-portrait-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>震动提醒</Text>
+                  <Switch value={notifVibrate} onValueChange={setNotifVibrate} trackColor={{ true: PRIMARY_COLOR }} />
+                </View>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="moon-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>深色模式</Text>
+                  <Switch value={nightMode} onValueChange={(v) => { setNightMode(v); dispatch({ type: 'SET_NIGHT_MODE', payload: v }); }} trackColor={{ true: PRIMARY_COLOR }} />
+                </View>
+              </View>
+
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="cloud-upload-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>数据备份</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="cloud-download-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>数据恢复</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="shield-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>隐私政策</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }} onPress={handleLogout}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="log-out-outline" size={22} color={DANGER_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: DANGER_COLOR }}>退出登录</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v 1.0.0</Text>
+              </View>
             </View>
-          </View>
-
-          {/* 数据与存储组 */}
-          <Text style={styles.settingsGroupTitle}>数据与存储</Text>
-          <View style={styles.settingsCard}>
-            <TouchableOpacity style={styles.settingsRow}>
-              <Ionicons name="cloud-upload-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>数据备份</Text>
-              <Text style={styles.settingsRight}>已备份</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRow}>
-              <Ionicons name="cloud-download-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>数据恢复</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRowLast} onPress={() => setShowClearCache(true)}>
-              <Ionicons name="trash-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>清除缓存</Text>
-              <Text style={styles.settingsRight}>12.4 MB</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-          </View>
-
-          {/* 帮助与关于组 */}
-          <Text style={styles.settingsGroupTitle}>帮助与关于</Text>
-          <View style={styles.settingsCard}>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowHelp(true)}>
-              <View style={[styles.settingsIconWrap, { backgroundColor: '#4FACFE20' }]}>
-                <Ionicons name="book" size={18} color="#4FACFE" />
-              </View>
-              <Text style={styles.settingsRowText}>使用帮助</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowPrivacy(true)}>
-              <Ionicons name="shield-checkmark-outline" size={22} color={PRIMARY_COLOR} style={styles.settingsIcon} />
-              <Text style={styles.settingsRowText}>隐私政策</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRow} onPress={() => setShowAbout(true)}>
-              <View style={[styles.settingsIconWrap, { backgroundColor: '#FF9F4520' }]}>
-                <Ionicons name="business" size={18} color="#FF9F45" />
-              </View>
-              <Text style={styles.settingsRowText}>关于我们</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.settingsRowLast} onPress={() => setShowVersion(true)}>
-              <View style={[styles.settingsIconWrap, { backgroundColor: '#5B6DF020' }]}>
-                <Ionicons name="code-slash" size={16} color="#5B6DF0" />
-              </View>
-              <Text style={styles.settingsRowText}>版本信息</Text>
-              <Text style={styles.settingsRight}>v 1.0.0</Text>
-              <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-            </TouchableOpacity>
-          </View>
-
-          {/* 退出登录 */}
-          <TouchableOpacity style={styles.settingsLogoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color={DANGER_COLOR} />
-            <Text style={{ color: DANGER_COLOR, fontSize: 16, fontWeight: '600', marginLeft: 8 }}>退出登录</Text>
-          </TouchableOpacity>
-
-          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-            <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v 1.0.0</Text>
-            <Text style={{ color: TEXT_THIRD, fontSize: 11, marginTop: 2 }}>© 2026 智谱AI · Powered by React Native</Text>
-          </View>
+          </ScrollView>
         </View>
-      </ScrollView>
       </View>
-
-      <Modal visible={showLanguage} transparent animationType="fade" onRequestClose={() => setShowLanguage(false)}>
-        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowLanguage(false)}>
-          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择语言</Text>
-            {['简体中文', '繁體中文', 'English', '日本語', '한국어'].map(l => (
-              <TouchableOpacity key={l} style={{ paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => { setLanguage(l); dispatch({ type: 'SET_LANGUAGE', payload: l }); setShowLanguage(false); showToast(`已切换到${l}`); }}>
-                <Text style={{ fontSize: 16, color: language === l ? PRIMARY_COLOR : TEXT_MAIN, fontWeight: language === l ? 'bold' : 'normal' }}>{l}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Modal visible={showFontSize} transparent animationType="fade" onRequestClose={() => setShowFontSize(false)}>
-        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowFontSize(false)}>
-          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 16 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>字体大小</Text>
-            {['小', '标准', '大', '特大'].map(s => (
-              <TouchableOpacity key={s} style={{ paddingVertical: 14, alignItems: 'center', borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => { setFontSize(s); setShowFontSize(false); showToast(`已设置字体为${s}`); }}>
-                <Text style={{ fontSize: s === '小' ? 14 : s === '标准' ? 16 : s === '大' ? 18 : 20, color: fontSize === s ? PRIMARY_COLOR : TEXT_MAIN, fontWeight: fontSize === s ? 'bold' : 'normal' }}>{s}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Modal visible={showAbout} transparent animationType="fade" onRequestClose={() => setShowAbout(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
-              <Ionicons name="business" size={48} color="#fff" />
-            </View>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 4 }}>v 1.0.0</Text>
-            <Text style={{ fontSize: 14, color: TEXT_MAIN, marginTop: 16, lineHeight: 22, textAlign: 'center' }}>经营宝是一款专为中小型门店设计的智能管理工具，集成经营分析、AI助手、订单核销、库存管理、顾客服务于一体。\n\n由智谱AI驱动，让门店管理更轻松。</Text>
-            <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, marginTop: 16 }} onPress={() => setShowAbout(false)}>
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>我知道了</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showPrivacy} transparent animationType="fade" onRequestClose={() => setShowPrivacy(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ flex: 1, backgroundColor: '#fff', margin: 20, marginTop: 80, borderRadius: 16, padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>隐私政策</Text>
-              <TouchableOpacity onPress={() => setShowPrivacy(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
-            </View>
-            <ScrollView>
-              <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22 }}>{`经营宝隐私政策\n\n1. 信息收集\n我们收集您主动提供的店铺信息、订单数据、库存数据用于为您提供管理服务。\n\n2. 信息使用\n您的数据仅用于经营分析、AI助手回复等核心功能，不会用于其他商业目的。\n\n3. 信息存储\n所有数据存储在您的设备本地，您可随时清除。\n\n4. 信息共享\n我们不会与任何第三方共享您的经营数据。\n\n5. 您的权利\n您可以随时查看、修改、删除您的个人信息和经营数据。\n\n6. 联系我们\n如有问题请通过应用内反馈功能联系我们。\n\n更新日期：2026-01-01`}</Text>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showHelp} transparent animationType="fade" onRequestClose={() => setShowHelp(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ flex: 1, backgroundColor: '#fff', margin: 20, marginTop: 80, borderRadius: 16, padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.settingsIconWrap, { backgroundColor: '#4FACFE20', marginRight: 10 }]}>
-                  <Ionicons name="book" size={18} color="#4FACFE" />
-                </View>
-                <Text style={{ fontSize: 18, fontWeight: 'bold' }}>使用帮助</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowHelp(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
-            </View>
-            <ScrollView>
-              {[
-                { icon: 'camera', iconColor: '#5B6DF0', iconBg: '#5B6DF020', q: '如何快速拍照识别商品', a: '在出入库页面点击"拍照识别数量"，可多次拍摄商品图片，AI将自动识别数量。' },
-                { icon: 'person-add', iconColor: '#10B981', iconBg: '#10B98120', q: '如何邀请员工加入', a: '员工在自己的手机下载App，注册时选择"员工"角色并填写店名，您的员工管理页面会收到入职申请。' },
-                { icon: 'sparkles', iconColor: '#8B5CF6', iconBg: '#8B5CF620', q: 'AI助手能做什么', a: 'AI助手基于您店铺的真实数据，提供经营分析、日报生成、营销文案、海报设计等服务。' },
-                { icon: 'swap-horizontal', iconColor: '#F59E0B', iconBg: '#F59E0B20', q: '如何切换账号', a: '在设置页面点击"切换账号"，选择已登录的其他账号或添加新账号。' },
-                { icon: 'cloud-upload', iconColor: '#06B6D4', iconBg: '#06B6D420', q: '数据会丢失吗', a: '所有数据保存在本地，建议定期通过"数据备份"功能备份重要数据。' },
-                { icon: 'chatbox-ellipses', iconColor: '#EC4899', iconBg: '#EC489920', q: '遇到问题如何反馈', a: '通过设置页面的"意见反馈"功能提交问题，我们会尽快处理。' },
-              ].map((item, idx) => (
-                <View key={idx} style={{ marginBottom: 14, padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={[styles.settingsIconWrap, { width: 24, height: 24, backgroundColor: item.iconBg, marginRight: 8 }]}>
-                      <Ionicons name={item.icon} size={14} color={item.iconColor} />
-                    </View>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: PRIMARY_COLOR, flex: 1 }}>{item.q}</Text>
-                  </View>
-                  <Text style={{ fontSize: 13, color: TEXT_MAIN, marginTop: 6, lineHeight: 20, paddingLeft: 32 }}>{item.a}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showVersion} transparent animationType="fade" onRequestClose={() => setShowVersion(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
-              <Ionicons name="rocket" size={40} color="#fff" />
-            </View>
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝 v 1.0.0</Text>
-            <View style={{ width: '100%', marginTop: 16 }}>
-              {[
-                ['版本号', '1.0.0'],
-                ['构建号', '20260301'],
-                ['更新日期', '2026-03-01'],
-                ['运行平台', Platform.OS],
-                ['开发者', '智谱AI团队'],
-              ].map(([k, v], idx) => (
-                <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: idx < 4 ? 1 : 0, borderColor: BORDER_COLOR }}>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{k}</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '500' }}>{v}</Text>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 30, paddingVertical: 10, borderRadius: 20, marginTop: 16 }} onPress={() => setShowVersion(false)}>
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>检查更新</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showClearCache} transparent animationType="fade" onRequestClose={() => setShowClearCache(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 24, alignItems: 'center' }}>
-            <Ionicons name="trash-outline" size={48} color={DANGER_COLOR} />
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginTop: 12, color: TEXT_MAIN }}>清除缓存</Text>
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 8, textAlign: 'center' }}>当前缓存大小：12.4 MB{'\n'}清除缓存不会删除您的经营数据</Text>
-            <View style={{ flexDirection: 'row', marginTop: 20, gap: 12 }}>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: '#F5F7FA', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowClearCache(false)}>
-                <Text style={{ color: TEXT_MAIN, fontSize: 14 }}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 10, backgroundColor: DANGER_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={clearCache}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>清除</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={showShopNameEdit} transparent animationType="fade" onRequestClose={() => setShowShopNameEdit(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
@@ -1462,7 +1207,7 @@ const SettingDrawer = ({ visible, onClose }) => {
           </View>
         </View>
       </Modal>
-    </View>
+    </Modal>
   );
 };
 
@@ -4324,7 +4069,7 @@ ${businessContext}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="zap" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="bookmark" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={[styles.inputBox, { flex: 1 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -5688,7 +5433,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline';
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
