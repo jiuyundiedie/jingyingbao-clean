@@ -2548,7 +2548,7 @@ const CustomerService = () => {
         </View>
       ) : (
         <View style={{ padding: 30, alignItems: 'center', backgroundColor: BG_CARD }}>
-          <Ionicons name="chatbubbles-outline" size={48} color={TEXT_THIRD} />
+          <Ionicons name="help-circle-outline" size={48} color={TEXT_THIRD} />
           <Text style={{ color: TEXT_THIRD, marginTop: 8 }}>{currentPlatform}平台暂无咨询</Text>
         </View>
       )}
@@ -3566,7 +3566,7 @@ ${businessContext}
         {messages.map(msg => (
           <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
             {msg.from === 'ai' && <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <Ionicons name="chatbubbles" size={14} color={PRIMARY_COLOR} />
+              <Ionicons name="help-circle" size={14} color={PRIMARY_COLOR} />
               <Text style={{ fontSize: 11, color: PRIMARY_COLOR, marginLeft: 4 }}>AI助手</Text>
             </View>}
             <Text style={{ fontSize: 15, color: TEXT_MAIN, lineHeight: 22 }}>{msg.text}</Text>
@@ -4449,7 +4449,7 @@ const HomePage = () => {
     { icon: "people-outline", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
     { icon: "chatbox-outline", label: "顾客客服", key: 'CustomerService', tab: '客服', screen: 'CustomerService' },
     { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: '内部', screen: 'InternalChat' },
-    { icon: "chatbubbles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
+    { icon: "help-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
     { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
   ];
   // 计算每个功能的消息数（按消息数从大到小排序）
@@ -4837,7 +4837,7 @@ const DraggableFloatingButton = ({ onPress }) => {
             transform: [{ translateX: -10 }, { translateY: -10 }, { rotate: '45deg' }],
             width: 30, height: 60,
           }} />
-          <Ionicons name="chatbubbles" size={26} color="#fff" />
+          <Ionicons name="help-circle" size={26} color="#fff" />
         </View>
         <View style={{
           position: 'absolute', top: -2, right: -2,
