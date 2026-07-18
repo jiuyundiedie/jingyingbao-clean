@@ -4599,6 +4599,9 @@ const HomePage = () => {
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || (isEmployee ? '员工' : '老板')}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
+            <TouchableOpacity style={{ marginTop: 12, backgroundColor: '#FF4444', padding: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => showToast('✅ 这是新版本！所有修复已生效！')}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>🆕 点击测试新版本</Text>
+            </TouchableOpacity>
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
 
