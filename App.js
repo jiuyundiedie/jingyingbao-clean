@@ -1046,6 +1046,8 @@ const SettingDrawer = ({ visible, onClose }) => {
   const isEmployee = user.role === '员工';
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editInput, setEditInput] = useState('');
 
   const detectIndustry = (name) => {
     if (!name) return '餐饮类';
@@ -1116,12 +1118,8 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => {
-                  Alert.prompt('编辑门店名称', '', (text) => {
-                    if (text && text.trim()) {
-                      setShopName(text.trim());
-                      saveShop();
-                    }
-                  }, 'plain-text', shopName);
+                  setEditInput(shopName);
+                  setShowEditModal(true);
                 }}>
                   <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>门店信息</Text>
@@ -1176,6 +1174,35 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           </ScrollView>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店名称</Text>
+          <TextInput
+            style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 16, color: TEXT_MAIN }}
+            value={editInput}
+            onChangeText={setEditInput}
+            placeholder="请输入门店名称"
+            autoFocus
+          />
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowEditModal(false)}>
+              <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
+              if (editInput && editInput.trim()) {
+                setShopName(editInput.trim());
+                saveShop();
+              }
+              setShowEditModal(false);
+            }}>
+              <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
