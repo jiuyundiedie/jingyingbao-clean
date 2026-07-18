@@ -499,7 +499,7 @@ function appReducer(state, action) {
         groupChatMessages: (r.groupChatMessages && typeof r.groupChatMessages === 'object') ? r.groupChatMessages : {},
         previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
         user: r.user || null,
-        shopInfo: r.shopInfo || { shopName: '', phone: '', industry: '餐饮类' },
+        shopInfo: { ...{ shopName: '', phone: '', industry: '餐饮类' }, ...(r.shopInfo || {}) },
         badReviewCount: typeof r.badReviewCount === 'number' ? r.badReviewCount : 0,
         costCache: r.costCache || { purchaseCost: "", fixedCost: "" },
         shopConfig: r.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
@@ -507,7 +507,15 @@ function appReducer(state, action) {
         latestDailyReport: r.latestDailyReport || null,
         pushConfig: r.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
         menuVisibility: { ...defaultState.menuVisibility, ...(r.menuVisibility || {}) },
-      };
+      aiChatMessages: Array.isArray(r.aiChatMessages) ? r.aiChatMessages : [],
+    };
+    }
+    case 'ADD_AI_MESSAGE': {
+      const existing = state.aiChatMessages || [];
+      return { ...state, aiChatMessages: [...existing, action.payload] };
+    }
+    case 'SET_AI_MESSAGES': {
+      return { ...state, aiChatMessages: action.payload || [] };
     }
     default:
       return state;
@@ -543,6 +551,7 @@ const saveAllData = async (state) => {
       latestDailyReport: state.latestDailyReport || null,
       pushConfig: state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
       menuVisibility: state.menuVisibility || {},
+      aiChatMessages: state.aiChatMessages || [],
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -1040,6 +1049,13 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [nightMode, setNightMode] = useState(state.nightMode || false);
   const [showShopNameEdit, setShowShopNameEdit] = useState(false);
   const [editShopName, setEditShopName] = useState(shopName);
+
+  const detectIndustry = (name) => {
+    if (!name) return '餐饮类';
+    if (name.includes('服务') || name.includes('美容') || name.includes('美发') || name.includes('健身') || name.includes('洗浴') || name.includes('按摩') || name.includes('KTV') || name.includes('娱乐')) return '服务类';
+    if (name.includes('公司') || name.includes('企业') || name.includes('科技') || name.includes('咨询') || name.includes('贸易') || name.includes('物流')) return '企业类';
+    return '餐饮类';
+  };
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
@@ -3624,7 +3640,7 @@ ${businessContext}
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(state.aiChatMessages || []);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [showImageGen, setShowImageGen] = useState(false);
@@ -3719,9 +3735,9 @@ const MerchantAssistant = () => {
   useEffect(() => {
     if (messages.length === 0) {
       if (industry !== '待识别') {
-        setMessages([
-          { id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-        ]);
+        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+        setMessages(welcomeMsg);
+        dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
       } else if (shopName) {
         AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
           if (storedShopInfo) {
@@ -3729,9 +3745,9 @@ const MerchantAssistant = () => {
               const parsed = JSON.parse(storedShopInfo);
               if (parsed.industry && parsed.industry !== '待识别') {
                 dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
-                setMessages([
-                  { id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-                ]);
+                const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+                setMessages(welcomeMsg);
+                dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
                 return;
               }
             } catch (e) {}
@@ -3745,20 +3761,24 @@ const MerchantAssistant = () => {
               const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
               dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
               try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-              setMessages([
-                { id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-              ]);
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              setMessages(welcomeMsg);
+              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
             })
             .catch(() => {
-              setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              setMessages(welcomeMsg);
+              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
             });
         }).catch(() => {
-          setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
+          const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+          setMessages(welcomeMsg);
+          dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
         });
       } else {
-        setMessages([
-          { id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
-        ]);
+        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+        setMessages(welcomeMsg);
+        dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
       }
     }
   }, [industry, shopName, userName]);
@@ -3831,6 +3851,7 @@ const MerchantAssistant = () => {
         time: new Date().toISOString(),
       };
       setMessages(prev => [...prev, userMsg]);
+      dispatch({ type: 'ADD_AI_MESSAGE', payload: userMsg });
       setInputText('');
       setImageUri(null);
       setShowMediaOptions(false);
@@ -3877,6 +3898,7 @@ const MerchantAssistant = () => {
               time: new Date().toISOString(),
             };
             setMessages(prev => [...prev, aiMsg]);
+            dispatch({ type: 'ADD_AI_MESSAGE', payload: aiMsg });
             setLoading(false);
             abortControllerRef.current = null;
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -3928,6 +3950,7 @@ ${businessContext}
         time: new Date().toISOString(),
       };
       setMessages(prev => [...prev, aiMsg]);
+      dispatch({ type: 'ADD_AI_MESSAGE', payload: aiMsg });
       setLoading(false);
       abortControllerRef.current = null;
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
