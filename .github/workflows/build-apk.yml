@@ -25,7 +25,7 @@ jobs:
         run: npm install
 
       - name: Clean expo cache
-        run: npx expo r -c
+        run: rm -rf .expo node_modules/.cache
 
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
