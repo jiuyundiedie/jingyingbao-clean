@@ -17,15 +17,6 @@ jobs:
         with:
           node-version: 18
 
-      - name: Clean npm cache
-        run: npm cache clean --force
-
-      - name: Delete node_modules
-        run: rm -rf node_modules
-
-      - name: Install dependencies
-        run: npm install
-
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
@@ -35,33 +26,14 @@ jobs:
       - name: Delete android directory
         run: rm -rf android
 
-      - name: Delete .expo directory
-        run: rm -rf .expo
-
       - name: Prebuild Android
-        run: npx expo prebuild --platform android --clean
-
-      - name: Verify test button in App.js
-        run: grep -n "测试新版本" App.js || echo "ERROR: Test button not found!"
+        run: npx expo prebuild --platform android
 
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease --no-daemon
-
-      - name: List build output
-        run: |
-          ls -la android/app/build/outputs/apk/release/
-
-      - name: Check JS bundle content
-        run: |
-          if [ -f android/app/build/generated/assets/react/release/index.android.bundle ]; then
-            echo "=== Checking JS bundle for test button ==="
-            grep "测试新版本" android/app/build/generated/assets/react/release/index.android.bundle && echo "SUCCESS: Test button found in JS bundle!" || echo "ERROR: Test button NOT found in JS bundle!"
-          else
-            echo "ERROR: JS bundle not found!"
-          fi
+          ./gradlew clean assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
