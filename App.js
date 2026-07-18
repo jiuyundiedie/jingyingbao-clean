@@ -342,6 +342,12 @@ const defaultState = {
     ProductOverview: true,
   },
   aiChatMessages: [],
+  dailyReportConfig: { workTimeStart: '09:00', workTimeEnd: '18:00' },
+  newMessageRedDots: {
+    '客服': false,
+    '内部': false,
+    'AI助手': false,
+  },
 };
 
 const initialState = JSON.parse(JSON.stringify(defaultState));
@@ -387,6 +393,8 @@ function appReducer(state, action) {
       return { ...state, language: action.payload };
     case 'SET_PUSH_CONFIG':
       return { ...state, pushConfig: action.payload };
+    case 'SET_DAILY_REPORT_CONFIG':
+      return { ...state, dailyReportConfig: action.payload };
     case 'SET_CUSTOMER_TAG': {
       const { phone, tag } = action.payload;
       const tags = (state.customerTags || {})[phone] || [];
@@ -428,7 +436,13 @@ function appReducer(state, action) {
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
       const existing = state.privateChatMessages[phone] || [];
-      return { ...state, privateChatMessages: { ...state.privateChatMessages, [phone]: [...existing, message] } };
+      const isCustomerMessage = message.from !== 'staff' && message.from !== state.user?.phone;
+      const shouldShowRedDot = isCustomerMessage && !state.newMessageRedDots?.['客服'];
+      return { 
+        ...state, 
+        privateChatMessages: { ...state.privateChatMessages, [phone]: [...existing, message] },
+        newMessageRedDots: shouldShowRedDot ? { ...state.newMessageRedDots, '客服': true } : state.newMessageRedDots
+      };
     }
     case 'SET_CUSTOMER_TAG': {
       const { phone, tag } = action.payload;
@@ -438,7 +452,14 @@ function appReducer(state, action) {
     case 'ADD_GROUP_MESSAGE': {
       const { chatId, message } = action.payload;
       const existing = state.groupChatMessages[chatId] || [];
-      return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: [...existing, message] } };
+      const isInternal = chatId === 'internal';
+      const isOtherMessage = message.from !== state.user?.name && message.from !== 'staff' && message.from !== state.user?.phone;
+      const shouldShowRedDot = isInternal && isOtherMessage && !state.newMessageRedDots?.['内部'];
+      return { 
+        ...state, 
+        groupChatMessages: { ...state.groupChatMessages, [chatId]: [...existing, message] },
+        newMessageRedDots: shouldShowRedDot ? { ...state.newMessageRedDots, '内部': true } : state.newMessageRedDots
+      };
     }
     case 'SET_GROUP_MESSAGES': {
       const { chatId, messages } = action.payload;
@@ -517,6 +538,17 @@ function appReducer(state, action) {
     }
     case 'SET_AI_MESSAGES': {
       return { ...state, aiChatMessages: action.payload || [] };
+    }
+    case 'SET_RED_DOT': {
+      const { tab, hasNew } = action.payload;
+      return { ...state, newMessageRedDots: { ...state.newMessageRedDots, [tab]: hasNew } };
+    }
+    case 'CLEAR_RED_DOT': {
+      const { tab } = action.payload;
+      return { ...state, newMessageRedDots: { ...state.newMessageRedDots, [tab]: false } };
+    }
+    case 'CLEAR_ALL_RED_DOTS': {
+      return { ...state, newMessageRedDots: { '客服': false, '内部': false, 'AI助手': false } };
     }
     default:
       return state;
@@ -1047,6 +1079,10 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [workTimeStart, setWorkTimeStart] = useState(state.dailyReportConfig?.workTimeStart || '09:00');
+  const [workTimeEnd, setWorkTimeEnd] = useState(state.dailyReportConfig?.workTimeEnd || '18:00');
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerType, setTimePickerType] = useState('start');
 
   const detectIndustry = (name) => {
     if (!name) return '餐饮类';
@@ -1062,6 +1098,13 @@ const SettingDrawer = ({ visible, onClose }) => {
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
     showToast(`门店信息已保存，类型：${industry}`);
+  };
+
+  const saveDailyReportConfig = () => {
+    const config = { workTimeStart, workTimeEnd };
+    dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
+    showToast('日报推送时间已保存');
+    setShowTimePicker(false);
   };
 
   const handleLogout = async () => {
@@ -1148,6 +1191,13 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowTimePicker(true)}>
+                  <Ionicons name="calendar-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>推送日报时间</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{workTimeStart} - {workTimeEnd}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
                   <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
@@ -1185,6 +1235,49 @@ const SettingDrawer = ({ visible, onClose }) => {
         saveShop();
       }} 
     />
+
+    <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowTimePicker(false)}>
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>设置日报推送时间</Text>
+          
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>上班时间</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => {
+                const times = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00'];
+                setTimePickerType('start');
+                Alert.alert('选择上班时间', '', times.map(t => ({ text: t, onPress: () => setWorkTimeStart(t) })));
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: PRIMARY_COLOR }}>{workTimeStart}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>下班时间</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => {
+                const times = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
+                setTimePickerType('end');
+                Alert.alert('选择下班时间', '', times.map(t => ({ text: t, onPress: () => setWorkTimeEnd(t) })));
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: PRIMARY_COLOR }}>{workTimeEnd}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F5F7FA', borderRadius: 12, alignItems: 'center' }} onPress={() => setShowTimePicker(false)}>
+              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 12, alignItems: 'center' }} onPress={saveDailyReportConfig}>
+              <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>保存</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
     </>
   );
 };
@@ -1821,10 +1914,11 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `数一数图片里一共有多少个物品，只回答一个数字。`;
+      const prompt = `请仔细识别图片中的物品，按以下JSON格式返回：{"items":[{"name":"物品名称","count":数量}]}。只返回JSON，不要其他内容。如果没有识别到物品，返回空数组。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
+        let items = [];
         let count = 0;
         let success = false;
         try {
@@ -1840,19 +1934,32 @@ const StockManage = () => {
           }
           
           if (reply && reply !== 'aborted') {
-            const numMatch = (reply || '').match(/\d+/);
-            if (numMatch) {
-              const num = parseInt(numMatch[0]);
-              if (!isNaN(num) && num > 0 && num < 10000) {
-                count = num;
-                success = true;
+            try {
+              const jsonStr = reply.match(/\{[\s\S]*\}/);
+              if (jsonStr) {
+                const result = JSON.parse(jsonStr[0]);
+                if (result.items && Array.isArray(result.items)) {
+                  items = result.items;
+                  count = items.reduce((sum, item) => sum + (parseInt(item.count) || 0), 0);
+                  success = count > 0;
+                }
+              }
+            } catch (parseErr) {
+              const numMatch = (reply || '').match(/\d+/);
+              if (numMatch) {
+                const num = parseInt(numMatch[0]);
+                if (!isNaN(num) && num > 0 && num < 10000) {
+                  count = num;
+                  items = [{ name: '物品', count }];
+                  success = true;
+                }
               }
             }
           }
         } catch (e) {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
-        newDetails.push({ photoIndex: photoIdx + 1, count, success });
+        newDetails.push({ photoIndex: photoIdx + 1, count, items, success });
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
@@ -1877,6 +1984,19 @@ const StockManage = () => {
   const aiCountSubmit = () => {
     if (!aiCountResult || aiCountResult.total === 0) { showToast('请先拍照识别数量'); return; }
     const qty = aiCountResult.total;
+    const allItems = [];
+    aiCountResult.details.forEach(d => {
+      if (d.items && d.items.length > 0) {
+        d.items.forEach(item => allItems.push(item));
+      }
+    });
+    const groupedItems = {};
+    allItems.forEach(item => {
+      const name = item.name || '物品';
+      groupedItems[name] = (groupedItems[name] || 0) + (parseInt(item.count) || 0);
+    });
+    const productNames = Object.keys(groupedItems).slice(0, 3).join('、');
+    
     setQuantity(String(qty));
     setAiCountModalVisible(false);
     setAiCountPhotos([]);
@@ -1884,14 +2004,14 @@ const StockManage = () => {
     
     if (type === '入库') {
       setShowManualInput(true);
-      setManualProductName('');
+      setManualProductName(productNames || '');
       setModalVisible(true);
-      showToast(`已填入入库数量: ${qty}`);
+      showToast(`已识别 ${productNames || '物品'}，共 ${qty} 件`);
     } else {
       setShowManualInput(true);
-      setManualProductName('');
+      setManualProductName(productNames || '');
       setModalVisible(true);
-      showToast(`已填入出库数量: ${qty}`);
+      showToast(`已识别 ${productNames || '物品'}，共 ${qty} 件`);
     }
   };
 
@@ -3131,7 +3251,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
             <Ionicons name="person-add-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>发起群聊</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowSearchModal(true)}>
+          <TouchableOpacity style={styles.chatSettingItem} onPress={() => navigation.navigate('SearchChatRecord', { chatId })}>
             <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
             <Text style={styles.chatSettingText}>查找聊天记录</Text>
           </TouchableOpacity>
@@ -3165,89 +3285,6 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <Modal visible={showSearchModal} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
-          <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-              <TouchableOpacity onPress={() => { setShowSearchModal(false); setSearchText(''); setSearchResults([]); }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
-                <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
-              </TouchableOpacity>
-              <Text style={{ fontSize: 17, fontWeight: 'bold', color: TEXT_MAIN, flex: 1, marginLeft: 4 }}>查找聊天记录</Text>
-            </View>
-          </SafeAreaView>
-          <View style={{ padding: 14, backgroundColor: '#fff' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8 }}>
-              <Ionicons name="search" size={18} color={TEXT_THIRD} />
-              <TextInput style={{ flex: 1, fontSize: 14, marginLeft: 8, color: TEXT_MAIN }} placeholder={searchType === 'member' ? '输入成员姓名' : '搜索所有聊天内容'} value={searchText} onChangeText={setSearchText} onSubmitEditing={searchMessages} returnKeyType="search" />
-              {searchText ? (
-                <TouchableOpacity onPress={() => setSearchText('')}>
-                  <Ionicons name="close-circle" size={18} color={TEXT_THIRD} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-            {/* 类型筛选（不含图片视频文件） */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              {[
-                { key: 'all', label: '全部' },
-                { key: 'text', label: '文字' },
-                { key: 'member', label: '按成员' },
-              ].map(t => (
-                <TouchableOpacity key={t.key} onPress={() => setSearchType(t.key)} style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: searchType === t.key ? PRIMARY_COLOR : '#F0F2F5', borderRadius: 16 }}>
-                  <Text style={{ fontSize: 12, color: searchType === t.key ? '#fff' : TEXT_MAIN }}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {/* 群成员快捷筛选（点击查看该成员所有消息） */}
-            <View style={{ marginTop: 14 }}>
-              <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>点击群成员查看其所有消息</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {allMembers.map((m, idx) => (
-                    <TouchableOpacity key={idx} onPress={() => { setSearchType('member'); setSearchText(m.name); searchMessages(); }} style={{ alignItems: 'center', width: 56 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{(m.name || '?').substring(0, 1)}</Text>
-                      </View>
-                      <Text style={{ fontSize: 10, color: TEXT_MAIN, marginTop: 4 }} numberOfLines={1}>{m.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-          <ScrollView style={{ flex: 1, padding: 12 }}>
-            {searchResults.length > 0 ? (
-              <>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>共找到 {searchResults.length} 条记录</Text>
-                {searchResults.map((m, idx) => (
-                  <TouchableOpacity key={idx} style={{ padding: 12, backgroundColor: '#fff', borderRadius: 8, marginBottom: 8 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: m.from === user?.phone ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center', marginRight: 6 }}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>{(m.fromName || m.from || '?').substring(0, 1)}</Text>
-                        </View>
-                        <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600' }}>{m.fromName || m.from}</Text>
-                      </View>
-                      <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{formatTime(m.time)}</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 20 }} numberOfLines={3}>{m.text || '[消息]'}</Text>
-                  </TouchableOpacity>
-                ))}
-              </>
-            ) : searchText ? (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <Ionicons name="search" size={48} color={TEXT_THIRD} />
-                <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>未找到匹配记录</Text>
-              </View>
-            ) : (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <Ionicons name="search" size={48} color={TEXT_THIRD} />
-                <Text style={{ color: TEXT_THIRD, marginTop: 12, textAlign: 'center' }}>输入关键词搜索所有聊天内容{'\n'}或点击上方群成员查看其所有消息</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
 
       <Modal visible={showMediaModal} transparent animationType="fade">
         <View style={styles.modalMask}>
@@ -3328,6 +3365,122 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+    </View>
+  );
+};
+
+// ================== 查找聊天记录页面 ==================
+const SearchChatRecordScreen = ({ route, navigation }) => {
+  const { chatId } = route.params || {};
+  const { state } = useApp();
+  const [searchText, setSearchText] = useState('');
+  const [searchType, setSearchType] = useState('all');
+  const [searchResults, setSearchResults] = useState([]);
+
+  const staffMembers = state.staffMemberList || [];
+  const groupMessages = state.groupChatMessages[chatId] || [];
+
+  const allMembers = [
+    { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true },
+    ...staffMembers.filter(s => s.status === 'approved').map(s => ({ phone: s.phone, name: s.name, role: '员工', isOwner: false }))
+  ];
+
+  const searchMessages = () => {
+    if (!searchText.trim()) { showToast('请输入搜索内容'); return; }
+    let filtered = groupMessages;
+    if (searchType === 'text') {
+      filtered = filtered.filter(m => m.text && m.text.includes(searchText));
+    } else if (searchType === 'member') {
+      filtered = filtered.filter(m => (m.fromName || '').includes(searchText) || (m.from || '').includes(searchText));
+    } else {
+      filtered = filtered.filter(m => {
+        if (m.text && m.text.includes(searchText)) return true;
+        if (m.fromName && m.fromName.includes(searchText)) return true;
+        if (m.from && m.from.includes(searchText)) return true;
+        return false;
+      });
+    }
+    setSearchResults(filtered);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#fff' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
+          </TouchableOpacity>
+          <Text style={{ fontSize: 17, fontWeight: 'bold', color: TEXT_MAIN, flex: 1, marginLeft: 4 }}>查找聊天记录</Text>
+        </View>
+      </SafeAreaView>
+      <View style={{ padding: 14, backgroundColor: '#fff' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 8 }}>
+          <Ionicons name="search" size={18} color={TEXT_THIRD} />
+          <TextInput style={{ flex: 1, fontSize: 14, marginLeft: 8, color: TEXT_MAIN }} placeholder={searchType === 'member' ? '输入成员姓名' : '搜索所有聊天内容'} value={searchText} onChangeText={setSearchText} onSubmitEditing={searchMessages} returnKeyType="search" />
+          {searchText ? (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={18} color={TEXT_THIRD} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          {[
+            { key: 'all', label: '全部' },
+            { key: 'text', label: '文字' },
+            { key: 'member', label: '按成员' },
+          ].map(t => (
+            <TouchableOpacity key={t.key} onPress={() => setSearchType(t.key)} style={{ paddingHorizontal: 14, paddingVertical: 6, backgroundColor: searchType === t.key ? PRIMARY_COLOR : '#F0F2F5', borderRadius: 16 }}>
+              <Text style={{ fontSize: 12, color: searchType === t.key ? '#fff' : TEXT_MAIN }}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={{ marginTop: 14 }}>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>点击群成员查看其所有消息</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {allMembers.map((m, idx) => (
+                <TouchableOpacity key={idx} onPress={() => { setSearchType('member'); setSearchText(m.name); searchMessages(); }} style={{ alignItems: 'center', width: 56 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{(m.name || '?').substring(0, 1)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: TEXT_MAIN, marginTop: 4 }} numberOfLines={1}>{m.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+      <ScrollView style={{ flex: 1, padding: 12 }}>
+        {searchResults.length > 0 ? (
+          <>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 8 }}>共找到 {searchResults.length} 条记录</Text>
+            {searchResults.map((m, idx) => (
+              <TouchableOpacity key={idx} style={{ padding: 12, backgroundColor: '#fff', borderRadius: 8, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: m.from === state.user?.phone ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center', marginRight: 6 }}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>{(m.fromName || m.from || '?').substring(0, 1)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600' }}>{m.fromName || m.from}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{formatTime(m.time)}</Text>
+                </View>
+                <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 20 }} numberOfLines={3}>{m.text || '[消息]'}</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        ) : searchText ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Ionicons name="search" size={48} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>未找到匹配记录</Text>
+          </View>
+        ) : (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Ionicons name="search" size={48} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12, textAlign: 'center' }}>输入关键词搜索所有聊天内容{'\n'}或点击上方群成员查看其所有消息</Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -5431,7 +5584,7 @@ const PlaceholderPage = ({ title }) => {
 // ================== 底部标签导航 ==================
 const Tab = createBottomTabNavigator();
 function RootTabs() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const isEmployee = state.user?.role === '员工';
 
   return (
@@ -5444,14 +5597,32 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'help' : 'help-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
+          else if (route.name === 'AI助手') iconName = focused ? 'bot' : 'bot-outline';
+          
+          const hasRedDot = state.newMessageRedDots?.[route.name] || false;
+          
+          return (
+            <View style={{ position: 'relative' }}>
+              <Ionicons name={iconName} size={size} color={color} />
+              {hasRedDot && (
+                <View style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, backgroundColor: DANGER_COLOR, borderRadius: 4 }} />
+              )}
+            </View>
+          );
         },
         tabBarActiveTintColor: PRIMARY_COLOR,
         tabBarInactiveTintColor: TEXT_THIRD,
         headerShown: false,
         tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
+        tabBarLabel: ({ focused, children }) => (
+          <Text style={{ fontSize: 10, color: focused ? PRIMARY_COLOR : TEXT_THIRD }}>{children}</Text>
+        ),
       })}
+      listeners={{
+        tabPress: ({ route }) => {
+          dispatch({ type: 'CLEAR_RED_DOT', payload: { tab: route.name } });
+        },
+      }}
     >
       <Tab.Screen name="首页" component={HomePage} />
       <Tab.Screen name="核销" component={VerifyOrder} />
@@ -5490,6 +5661,7 @@ function AppStack() {
       <Stack.Screen name="StaffManage" component={StaffManage} />
       <Stack.Screen name="PrivateChat" component={PrivateChat} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} />
+      <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
     </Stack.Navigator>
   );
