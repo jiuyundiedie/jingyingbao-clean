@@ -1047,7 +1047,6 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [shopName, setShopName] = useState(shopInfo.shopName || '');
   const [phone, setPhone] = useState(shopInfo.phone || '');
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editInput, setEditInput] = useState('');
 
   const detectIndustry = (name) => {
     if (!name) return '餐饮类';
@@ -1086,6 +1085,7 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
@@ -1118,7 +1118,6 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => {
-                  setEditInput(shopName);
                   setShowEditModal(true);
                 }}>
                   <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
@@ -1177,8 +1176,24 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </View>
     </Modal>
+    <EditShopNameModal 
+      visible={showEditModal} 
+      onClose={() => setShowEditModal(false)} 
+      shopName={shopName} 
+      onSave={(name) => {
+        setShopName(name);
+        saveShop();
+      }} 
+    />
+    </>
+  );
+};
 
-    <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)}>
+const EditShopNameModal = ({ visible, onClose, shopName, onSave }) => {
+  const [editInput, setEditInput] = useState(shopName);
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
         <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
           <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店名称</Text>
@@ -1190,15 +1205,14 @@ const SettingDrawer = ({ visible, onClose }) => {
             autoFocus
           />
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowEditModal(false)}>
+            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={onClose}>
               <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
               if (editInput && editInput.trim()) {
-                setShopName(editInput.trim());
-                saveShop();
+                onSave(editInput.trim());
               }
-              setShowEditModal(false);
+              onClose();
             }}>
               <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
             </TouchableOpacity>
