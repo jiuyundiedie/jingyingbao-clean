@@ -1184,29 +1184,29 @@ const SettingDrawer = ({ visible, onClose }) => {
           </ScrollView>
         </View>
       </View>
+    </Modal>
 
-      <Modal visible={showShopNameEdit} transparent animationType="fade" onRequestClose={() => setShowShopNameEdit(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
-          <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 20 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>编辑门店信息</Text>
-              <TouchableOpacity onPress={() => setShowShopNameEdit(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
-            </View>
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>门店名称</Text>
-            <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 12 }} value={editShopName} onChangeText={setEditShopName} placeholder="输入门店名称" />
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>绑定手机号</Text>
-            <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 16 }} value={phone} onChangeText={setPhone} placeholder="输入手机号" keyboardType="phone-pad" maxLength={11} />
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: '#F5F7FA', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowShopNameEdit(false)}>
-                <Text style={{ color: TEXT_MAIN, fontSize: 14 }}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => { setShopName(editShopName); saveShop(); setShowShopNameEdit(false); }}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>保存</Text>
-              </TouchableOpacity>
-            </View>
+    <Modal visible={showShopNameEdit} transparent animationType="fade" onRequestClose={() => setShowShopNameEdit(false)}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
+        <View style={{ backgroundColor: '#fff', margin: 20, borderRadius: 16, padding: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>编辑门店信息</Text>
+            <TouchableOpacity onPress={() => setShowShopNameEdit(false)}><Ionicons name="close" size={24} color={TEXT_THIRD} /></TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>门店名称</Text>
+          <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 12 }} value={editShopName} onChangeText={setEditShopName} placeholder="输入门店名称" />
+          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>绑定手机号</Text>
+          <TextInput style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 15, color: TEXT_MAIN, marginBottom: 16 }} value={phone} onChangeText={setPhone} placeholder="输入手机号" keyboardType="phone-pad" maxLength={11} />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: '#F5F7FA', borderRadius: 8, alignItems: 'center' }} onPress={() => setShowShopNameEdit(false)}>
+              <Text style={{ color: TEXT_MAIN, fontSize: 14 }}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => { setShopName(editShopName); saveShop(); setShowShopNameEdit(false); }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>保存</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </View>
     </Modal>
   );
 };
@@ -3017,12 +3017,6 @@ const ChatSettingScreen = ({ route, navigation }) => {
     let filtered = groupMessages;
     if (searchType === 'text') {
       filtered = filtered.filter(m => m.text && m.text.includes(searchText));
-    } else if (searchType === 'image') {
-      filtered = filtered.filter(m => m.image);
-    } else if (searchType === 'video') {
-      filtered = filtered.filter(m => m.video);
-    } else if (searchType === 'file') {
-      filtered = filtered.filter(m => m.file);
     } else if (searchType === 'member') {
       filtered = filtered.filter(m => (m.fromName || '').includes(searchText) || (m.from || '').includes(searchText));
     } else {
@@ -3723,12 +3717,10 @@ const MerchantAssistant = () => {
   useEffect(() => {
     if (messages.length === 0) {
       if (industry !== '待识别') {
-        // 已识别 - 直接显示欢迎语
         setMessages([
           { id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }
         ]);
       } else if (shopName) {
-        // 从AsyncStorage读取已识别的店铺类型
         AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
           if (storedShopInfo) {
             try {
@@ -3742,8 +3734,6 @@ const MerchantAssistant = () => {
               }
             } catch (e) {}
           }
-          // 首次识别
-          setMessages([{ id: '1', text: `您好！我是经营宝AI助手，正在识别您的店铺类型...`, from: 'ai', time: new Date().toISOString() }]);
           const abortController = new AbortController();
           fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
             .then(async result => {
@@ -3761,7 +3751,6 @@ const MerchantAssistant = () => {
               setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
             });
         }).catch(() => {
-          // AsyncStorage读取失败，直接显示欢迎语
           setMessages([{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }]);
         });
       } else {
@@ -3770,7 +3759,7 @@ const MerchantAssistant = () => {
         ]);
       }
     }
-  }, []);
+  }, [industry, shopName, userName]);
 
   const handleMarketing = (type) => {
     const prompts = {
