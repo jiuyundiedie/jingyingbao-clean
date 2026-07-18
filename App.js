@@ -508,8 +508,8 @@ function appReducer(state, action) {
         latestDailyReport: r.latestDailyReport || null,
         pushConfig: r.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
         menuVisibility: { ...defaultState.menuVisibility, ...(r.menuVisibility || {}) },
-      aiChatMessages: Array.isArray(r.aiChatMessages) ? r.aiChatMessages : [],
-    };
+        aiChatMessages: Array.isArray(r.aiChatMessages) ? r.aiChatMessages : [],
+      };
     }
     case 'ADD_AI_MESSAGE': {
       const existing = state.aiChatMessages || [];
