@@ -4492,7 +4492,7 @@ const HomePage = () => {
   const handleApprove = (phone) => {
     try {
       dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
-      const staff = state.staffMemberList.find(s => s.phone === phone);
+      const staff = (state.staffMemberList || []).find(s => s.phone === phone);
       if (staff) {
         // 发送系统群消息
         const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
