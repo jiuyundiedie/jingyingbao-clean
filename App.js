@@ -3086,7 +3086,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
             <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
           </TouchableOpacity>
-          <Text style={styles.pageTitle}>聊天设置</Text>
+          <Text style={styles.pageTitle}>聊天设置 v2.0</Text>
           <View style={{ width: 24 }} />
         </View>
       </SafeAreaView>
