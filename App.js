@@ -1071,7 +1071,8 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <View>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
         <View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0 }}>
@@ -1208,6 +1209,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </View>
     </Modal>
+    </View>
   );
 };
 
