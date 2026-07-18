@@ -18,28 +18,19 @@ jobs:
           node-version: 18
           cache: 'npm'
 
-      - name: Clean npm cache
-        run: npm cache clean --force
-
       - name: Install dependencies
         run: npm install
 
-      - name: Clean expo cache
-        run: rm -rf .expo node_modules/.cache
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-      - name: Prebuild Android
-        run: npx expo prebuild --platform android --clean
-
-      - name: Clean gradle cache
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew clean
-
-      - name: Build APK
-        run: |
-          cd android
-          ./gradlew assembleRelease
+      - name: Build Android APK
+        run: npx expo run:android --variant release
+        env:
+          EXPO_NO_DOTENV: true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
