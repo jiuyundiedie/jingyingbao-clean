@@ -19,7 +19,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --verbose
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -27,8 +27,15 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Debug Info
+        run: |
+          node --version
+          npm --version
+          npx expo --version
+          ls -la assets/
+
       - name: Prebuild Android
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean --verbose
 
       - name: Build APK
         run: |
