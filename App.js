@@ -349,7 +349,7 @@ const initialState = JSON.parse(JSON.stringify(defaultState));
 function appReducer(state, action) {
   switch (action.type) {
     case 'LOGIN':
-      return { ...state, user: action.payload.user, shopInfo: action.payload.shopInfo };
+      return { ...state, user: action.payload.user, shopInfo: { ...state.shopInfo, ...action.payload.shopInfo } };
     case 'LOGOUT':
       return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类' } };
     case 'UPDATE_SHOP_INFO':
@@ -782,7 +782,7 @@ const LoginScreen = () => {
       console.log('Validation passed');
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
-      const shopInfo = { shopName, phone, industry: '待识别' };
+      const shopInfo = { shopName, phone, industry: '餐饮类' };
 
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
@@ -814,7 +814,8 @@ const LoginScreen = () => {
   const handleHistorySelect = async (account) => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
+      const existingShopInfo = state.shopInfo || {};
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: existingShopInfo.industry || '餐饮类' };
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
@@ -1198,7 +1199,8 @@ const SwitchAccountPage = ({ navigation }) => {
   const handleSelect = async (account) => {
     try {
       const user = { role: account.role, phone: account.phone, shopName: account.shopName, name: account.name || '老板' };
-      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: '餐饮类' };
+      const existingShopInfo = state.shopInfo || {};
+      const shopInfo = { shopName: account.shopName, phone: account.phone, industry: existingShopInfo.industry || '餐饮类' };
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
