@@ -44,8 +44,8 @@ jobs:
       - name: Delete Metro bundler cache
         run: rm -rf /tmp/metro-*
 
-      - name: Clear Expo cache
-        run: npx expo start --clear 2>&1 | head -5 || true
+      - name: Clear Metro bundler cache
+        run: rm -rf /tmp/metro-bundler-cache-* /tmp/haste-map-*
 
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
