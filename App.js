@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
-  PanResponder, Switch
+  PanResponder, Switch, Picker
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
@@ -1243,27 +1243,63 @@ const SettingDrawer = ({ visible, onClose }) => {
           
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>上班时间</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => {
-                const times = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00'];
-                setTimePickerType('start');
-                Alert.alert('选择上班时间', '', times.map(t => ({ text: t, onPress: () => setWorkTimeStart(t) })));
-              }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: PRIMARY_COLOR }}>{workTimeStart}</Text>
-              </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Picker
+                selectedValue={workTimeStart.split(':')[0]}
+                onValueChange={(val) => {
+                  const min = workTimeStart.split(':')[1];
+                  setWorkTimeStart(`${val.padStart(2, '0')}:${min}`);
+                }}
+                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <Picker.Item key={i} label={`${String(i).padStart(2, '0')}时`} value={String(i).padStart(2, '0')} />
+                ))}
+              </Picker>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
+              <Picker
+                selectedValue={workTimeStart.split(':')[1]}
+                onValueChange={(val) => {
+                  const hour = workTimeStart.split(':')[0];
+                  setWorkTimeStart(`${hour}:${val}`);
+                }}
+                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
+              >
+                {['00', '15', '30', '45'].map(min => (
+                  <Picker.Item key={min} label={`${min}分`} value={min} />
+                ))}
+              </Picker>
             </View>
           </View>
 
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>下班时间</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, padding: 12, alignItems: 'center' }} onPress={() => {
-                const times = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'];
-                setTimePickerType('end');
-                Alert.alert('选择下班时间', '', times.map(t => ({ text: t, onPress: () => setWorkTimeEnd(t) })));
-              }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: PRIMARY_COLOR }}>{workTimeEnd}</Text>
-              </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Picker
+                selectedValue={workTimeEnd.split(':')[0]}
+                onValueChange={(val) => {
+                  const min = workTimeEnd.split(':')[1];
+                  setWorkTimeEnd(`${val.padStart(2, '0')}:${min}`);
+                }}
+                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <Picker.Item key={i} label={`${String(i).padStart(2, '0')}时`} value={String(i).padStart(2, '0')} />
+                ))}
+              </Picker>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
+              <Picker
+                selectedValue={workTimeEnd.split(':')[1]}
+                onValueChange={(val) => {
+                  const hour = workTimeEnd.split(':')[0];
+                  setWorkTimeEnd(`${hour}:${val}`);
+                }}
+                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
+              >
+                {['00', '15', '30', '45'].map(min => (
+                  <Picker.Item key={min} label={`${min}分`} value={min} />
+                ))}
+              </Picker>
             </View>
           </View>
 
@@ -1914,11 +1950,10 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `请仔细识别图片中的物品，按以下JSON格式返回：{"items":[{"name":"物品名称","count":数量}]}。只返回JSON，不要其他内容。如果没有识别到物品，返回空数组。`;
+      const prompt = `请识别图片中物品的总数量，只返回一个数字，不要其他文字。如果没有识别到物品，返回0。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
-        let items = [];
         let count = 0;
         let success = false;
         try {
@@ -1934,32 +1969,19 @@ const StockManage = () => {
           }
           
           if (reply && reply !== 'aborted') {
-            try {
-              const jsonStr = reply.match(/\{[\s\S]*\}/);
-              if (jsonStr) {
-                const result = JSON.parse(jsonStr[0]);
-                if (result.items && Array.isArray(result.items)) {
-                  items = result.items;
-                  count = items.reduce((sum, item) => sum + (parseInt(item.count) || 0), 0);
-                  success = count > 0;
-                }
-              }
-            } catch (parseErr) {
-              const numMatch = (reply || '').match(/\d+/);
-              if (numMatch) {
-                const num = parseInt(numMatch[0]);
-                if (!isNaN(num) && num > 0 && num < 10000) {
-                  count = num;
-                  items = [{ name: '物品', count }];
-                  success = true;
-                }
+            const numMatch = (reply || '').match(/\d+/);
+            if (numMatch) {
+              const num = parseInt(numMatch[0]);
+              if (!isNaN(num) && num >= 0 && num < 10000) {
+                count = num;
+                success = count > 0;
               }
             }
           }
         } catch (e) {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
-        newDetails.push({ photoIndex: photoIdx + 1, count, items, success });
+        newDetails.push({ photoIndex: photoIdx + 1, count, success });
         const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
@@ -1984,18 +2006,6 @@ const StockManage = () => {
   const aiCountSubmit = () => {
     if (!aiCountResult || aiCountResult.total === 0) { showToast('请先拍照识别数量'); return; }
     const qty = aiCountResult.total;
-    const allItems = [];
-    aiCountResult.details.forEach(d => {
-      if (d.items && d.items.length > 0) {
-        d.items.forEach(item => allItems.push(item));
-      }
-    });
-    const groupedItems = {};
-    allItems.forEach(item => {
-      const name = item.name || '物品';
-      groupedItems[name] = (groupedItems[name] || 0) + (parseInt(item.count) || 0);
-    });
-    const productNames = Object.keys(groupedItems).slice(0, 3).join('、');
     
     setQuantity(String(qty));
     setAiCountModalVisible(false);
@@ -2004,14 +2014,14 @@ const StockManage = () => {
     
     if (type === '入库') {
       setShowManualInput(true);
-      setManualProductName(productNames || '');
+      setManualProductName('');
       setModalVisible(true);
-      showToast(`已识别 ${productNames || '物品'}，共 ${qty} 件`);
+      showToast(`已识别数量：${qty} 件`);
     } else {
       setShowManualInput(true);
-      setManualProductName(productNames || '');
+      setManualProductName('');
       setModalVisible(true);
-      showToast(`已识别 ${productNames || '物品'}，共 ${qty} 件`);
+      showToast(`已识别数量：${qty} 件`);
     }
   };
 
@@ -5597,7 +5607,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'bot' : 'bot-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'sparkles' : 'sparkles-outline';
           
           const hasRedDot = state.newMessageRedDots?.[route.name] || false;
           
