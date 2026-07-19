@@ -1184,6 +1184,10 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>切换账号</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, backgroundColor: '#FF6B6B' }} onPress={() => showToast('测试成功！代码已更新到v2.5')}>
+                  <Text style={{ flex: 1, fontSize: 15, color: '#fff', fontWeight: 'bold', textAlign: 'center' }}>🔴 测试按钮v2.5</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
