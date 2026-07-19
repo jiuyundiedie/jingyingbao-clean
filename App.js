@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
-import { Animated, Easing } from 'react-native';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
-  PanResponder, Switch, Picker
+  PanResponder, Switch, Picker, LayoutAnimation
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
@@ -1084,7 +1083,16 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [workTimeEnd, setWorkTimeEnd] = useState(state.dailyReportConfig?.workTimeEnd || '18:00');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerType, setTimePickerType] = useState('start');
-  const [drawerStyle, setDrawerStyle] = useState({ transform: [{ translateX: width }] });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    LayoutAnimation.configureNext({
+      duration: 300,
+      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+      update: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.scaleXY },
+    });
+    setDrawerOpen(visible);
+  }, [visible]);
 
   const detectIndustry = (name) => {
     if (!name) return '餐饮类';
@@ -1128,21 +1136,13 @@ const SettingDrawer = ({ visible, onClose }) => {
     }, 200);
   };
 
-  useEffect(() => {
-    if (visible) {
-      setDrawerStyle({ transform: [{ translateX: 0 }], transition: 'transform 0.3s ease' });
-    } else {
-      setDrawerStyle({ transform: [{ translateX: width }], transition: 'transform 0.3s ease' });
-    }
-  }, [visible]);
-
   if (!visible) return null;
   return (
     <>
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
-        <View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0, ...drawerStyle }}>
+        <View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0, transform: [{ translateX: drawerOpen ? 0 : width }] }}>
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
