@@ -20,8 +20,8 @@ jobs:
       - name: Clean npm cache
         run: npm cache clean --force
 
-      - name: Remove node_modules
-        run: rm -rf node_modules package-lock.json
+      - name: Remove node_modules and lock files
+        run: rm -rf node_modules package-lock.json yarn.lock
 
       - name: Install dependencies
         run: npm install
@@ -38,6 +38,15 @@ jobs:
       - name: Delete .expo directory
         run: rm -rf .expo
 
+      - name: Delete Gradle cache
+        run: rm -rf ~/.gradle/caches
+
+      - name: Delete Metro bundler cache
+        run: rm -rf /tmp/metro-*
+
+      - name: Clear Expo cache
+        run: npx expo start --clear 2>&1 | head -5 || true
+
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
 
@@ -45,10 +54,10 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease
+          ./gradlew clean assembleRelease --no-build-cache
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-v2.8
           path: android/app/build/outputs/apk/release/*.apk
