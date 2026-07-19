@@ -1084,7 +1084,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [workTimeEnd, setWorkTimeEnd] = useState(state.dailyReportConfig?.workTimeEnd || '18:00');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerType, setTimePickerType] = useState('start');
-  const slideAnim = useRef(new Animated.Value(width)).current;
+  const [drawerStyle, setDrawerStyle] = useState({ transform: [{ translateX: width }] });
 
   const detectIndustry = (name) => {
     if (!name) return '餐饮类';
@@ -1130,19 +1130,9 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }).start();
+      setDrawerStyle({ transform: [{ translateX: 0 }], transition: 'transform 0.3s ease' });
     } else {
-      Animated.timing(slideAnim, {
-        toValue: width,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }).start();
+      setDrawerStyle({ transform: [{ translateX: width }], transition: 'transform 0.3s ease' });
     }
   }, [visible]);
 
@@ -1152,7 +1142,7 @@ const SettingDrawer = ({ visible, onClose }) => {
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <TouchableOpacity style={{ flex: 1 }} onPress={onClose} />
-        <Animated.View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0, transform: [{ translateX: slideAnim }] }}>
+        <View style={{ width: width * 0.8, height: '100%', backgroundColor: '#F5F7FA', position: 'absolute', right: 0, top: 0, ...drawerStyle }}>
           <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={{ backgroundColor: PRIMARY_COLOR, paddingTop: 50, paddingBottom: 20, paddingHorizontal: 16 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1243,7 +1233,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
             </View>
           </ScrollView>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
     <EditShopNameModal 
