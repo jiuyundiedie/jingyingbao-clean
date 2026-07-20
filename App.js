@@ -1193,11 +1193,7 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>切换账号</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
-                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, backgroundColor: '#FF6B6B' }} onPress={() => showToast('测试成功！代码已更新到v2.5')}>
-                  <Text style={{ flex: 1, fontSize: 15, color: '#fff', fontWeight: 'bold', textAlign: 'center' }}>🔴 测试按钮v2.5</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
@@ -2026,7 +2022,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `请识别图片中物品的总数量，只返回一个数字，不要其他文字。如果没有识别到物品，返回0。`;
+      const prompt = `请仔细数图片中所有可见的物品数量。规则：1. 哪怕只看到一部分、被遮挡或不完整的物品也要计数；2. 不要识别物品名称或种类，只统计数量；3. 仔细逐个清点，不要遗漏；4. 如果完全没有物品，返回0；5. 只返回一个纯数字，不要任何其他文字。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -4831,9 +4827,6 @@ const HomePage = () => {
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
-          <View style={{ backgroundColor: '#FF6B6B', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, position: 'absolute', top: 8, right: 50 }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.2</Text>
-          </View>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -4841,9 +4834,7 @@ const HomePage = () => {
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || (isEmployee ? '员工' : '老板')}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
-            <TouchableOpacity style={{ marginTop: 12, backgroundColor: '#FF4444', padding: 10, borderRadius: 8, alignItems: 'center' }} onPress={() => showToast('✅ 这是新版本！所有修复已生效！')}>
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>🆕 点击测试新版本</Text>
-            </TouchableOpacity>
+            
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
 
