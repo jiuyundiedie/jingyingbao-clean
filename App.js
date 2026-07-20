@@ -1725,6 +1725,10 @@ const StockManage = () => {
   const [aiCountPhotos, setAiCountPhotos] = useState([]);
   const [aiCountResult, setAiCountResult] = useState(null);
   const [aiCountLoading, setAiCountLoading] = useState(false);
+  const [aiGoodsModalVisible, setAiGoodsModalVisible] = useState(false);
+  const [aiGoodsPhoto, setAiGoodsPhoto] = useState(null);
+  const [aiGoodsResult, setAiGoodsResult] = useState(null);
+  const [aiGoodsLoading, setAiGoodsLoading] = useState(false);
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
   
@@ -1999,6 +2003,83 @@ const StockManage = () => {
     setAiCountModalVisible(true);
   };
 
+  const handleAIGoodsRecognition = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      if (!result.canceled) {
+        const compressed = await compressImage(result.assets[0].uri);
+        setAiGoodsPhoto(compressed);
+        setAiGoodsResult(null);
+        setAiGoodsModalVisible(true);
+      }
+    } catch (e) { showToast('拍照失败'); }
+  };
+
+  const aiGoodsRecognize = async () => {
+    if (!aiGoodsPhoto) { showToast('请先拍照'); return; }
+    setAiGoodsLoading(true);
+    try {
+      const goodsList = state.goodsList || [];
+      const goodsNames = goodsList.map(g => g.name).join('、');
+      const prompt = `请识别图片中的商品名称和数量。现有库存商品：${goodsNames || '暂无'}。请返回JSON格式：{"name":"商品名称","count":数量}。如果识别到的商品不在库存中，也请如实返回商品名称。只返回JSON，不要其他文字。`;
+      
+      let reply = null;
+      for (let retry = 0; retry < 3; retry++) {
+        try {
+          reply = await fetchZhipuVision(aiGoodsPhoto, prompt);
+          if (reply && reply !== 'aborted') break;
+        } catch (err) {
+          if (retry === 2) throw err;
+          await new Promise(r => setTimeout(r, 800));
+        }
+      }
+      
+      if (reply && reply !== 'aborted') {
+        try {
+          const jsonStr = reply.replace(/```json/g, '').replace(/```/g, '').trim();
+          const result = JSON.parse(jsonStr);
+          const matchedGoods = goodsList.find(g => g.name.includes(result.name) || result.name.includes(g.name));
+          setAiGoodsResult({
+            name: result.name,
+            count: result.count || 1,
+            matchedId: matchedGoods?.id,
+            matchedStock: matchedGoods?.stock || 0,
+            matchedName: matchedGoods?.name,
+          });
+          showToast(`识别到：${result.name}，数量：${result.count}`);
+        } catch (e) {
+          showToast('识别结果解析失败，请重试');
+        }
+      }
+    } catch (e) {
+      console.error('AI商品识别失败:', e);
+      showToast('识别失败，请检查网络后重试');
+    } finally {
+      setAiGoodsLoading(false);
+    }
+  };
+
+  const aiGoodsSubmit = () => {
+    if (!aiGoodsResult) { showToast('请先识别商品'); return; }
+    
+    if (aiGoodsResult.matchedId) {
+      setSelectedGoodsId(aiGoodsResult.matchedId);
+      setQuantity(String(aiGoodsResult.count));
+    } else {
+      setShowManualInput(true);
+      setManualProductName(aiGoodsResult.name);
+      setQuantity(String(aiGoodsResult.count));
+    }
+    
+    setAiGoodsModalVisible(false);
+    setAiGoodsPhoto(null);
+    setAiGoodsResult(null);
+    setModalVisible(true);
+    showToast(`已识别：${aiGoodsResult.name}，数量：${aiGoodsResult.count}`);
+  };
+
   const aiCountAddPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -2180,13 +2261,17 @@ const StockManage = () => {
           <Ionicons name="images-outline" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>相册入库</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: PRIMARY_COLOR }]} onPress={() => { setType('入库'); handleAICount(); }}>
-          <Ionicons name="camera-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照入库识别</Text>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#FF8C00' }]} onPress={() => { setType('入库'); handleAIGoodsRecognition(); }}>
+          <Ionicons name="scan-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照识别入库</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: DANGER_COLOR }]} onPress={() => { setType('出库'); handleAICount(); }}>
-          <Ionicons name="camera-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照出库识别</Text>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#9370DB' }]} onPress={() => { setType('出库'); handleAIGoodsRecognition(); }}>
+          <Ionicons name="scan-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照识别出库</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#00CED1' }]} onPress={() => { setType('入库'); handleAICount(); }}>
+          <Ionicons name="calculator-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照识别数量</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: SUCCESS_COLOR }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}>
           <Ionicons name="pencil" size={20} color="#fff" />
@@ -2406,6 +2491,57 @@ const StockManage = () => {
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: DANGER_COLOR, borderRadius: 8 }} onPress={confirmQuickOut}>
                 <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* AI商品识别弹窗 */}
+      <Modal visible={aiGoodsModalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={[styles.voiceModal, { maxHeight: '90%', width: '92%' }]}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>📷 AI拍照识别商品</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>拍照识别商品名称和数量，自动匹配库存</Text>
+            {aiGoodsPhoto && (
+              <Image source={{ uri: aiGoodsPhoto }} style={{ width: '100%', height: 200, borderRadius: 8, marginBottom: 12 }} />
+            )}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleAIGoodsRecognition}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 重新拍照</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiGoodsLoading ? '#999' : SUCCESS_COLOR, borderRadius: 8 }} onPress={aiGoodsRecognize} disabled={aiGoodsLoading}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>{aiGoodsLoading ? '识别中...' : '🤖 开始识别'}</Text>
+              </TouchableOpacity>
+            </View>
+            {aiGoodsResult && (
+              <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>📊 识别结果</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN }}>商品名称:</Text>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR }}>{aiGoodsResult.name}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN }}>识别数量:</Text>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN }}>{aiGoodsResult.count} 件</Text>
+                </View>
+                {aiGoodsResult.matchedName && (
+                  <View style={{ backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>✅ 已匹配库存商品：{aiGoodsResult.matchedName}（当前库存：{aiGoodsResult.matchedStock}）</Text>
+                  </View>
+                )}
+                {!aiGoodsResult.matchedName && (
+                  <View style={{ backgroundColor: '#FFF3E0', padding: 8, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 12, color: '#FF8C00' }}>⚠️ 未匹配到库存商品，将以手动录入方式添加</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiGoodsModalVisible(false); setAiGoodsPhoto(null); setAiGoodsResult(null); }}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiGoodsResult ? PRIMARY_COLOR : '#ccc', borderRadius: 8 }} onPress={aiGoodsSubmit} disabled={!aiGoodsResult}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认{type}</Text>
               </TouchableOpacity>
             </View>
           </View>
