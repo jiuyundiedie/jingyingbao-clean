@@ -4770,7 +4770,7 @@ const HomePage = () => {
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <View style={{ backgroundColor: '#FF6B6B', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, position: 'absolute', top: 8, right: 50 }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>v2.9</Text>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.0</Text>
           </View>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
