@@ -2000,6 +2000,7 @@ const StockManage = () => {
     setAiCountPhotos([]);
     setAiCountResult(null);
     setAiCountModalVisible(true);
+    showToast('点击拍照按钮开始识别物品数量');
   };
 
   const handleAIGoodsRecognition = async () => {
@@ -2104,7 +2105,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `你是一个专业的物品数量统计专家。请仔细观察图片并数出所有可见物品的数量。要求：1. 必须精确计数，逐个数清楚；2. 对所有可见物体计数，包括被遮挡、重叠、部分可见的物品；3. 不要识别物品名称、颜色、种类等任何属性，只统计数量；4. 如果图片中完全没有物品或无法辨认，返回0；5. 你的回答只能是一个阿拉伯数字，不能有任何其他文字、标点符号或解释。`;
+      const prompt = `请数出图片中所有可见物品的数量。规则：1. 逐个数清楚，不要遗漏；2. 只要能看到的都要计数，包括被遮挡、重叠、部分可见、只露出一角的物品；3. 不要识别物品名称或种类，只返回数量；4. 如果完全没有物品或图片模糊，返回0；5. 你的回答只能是一个阿拉伯数字。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -3030,29 +3031,32 @@ const CustomerService = () => {
       )}
 
       <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}>
-          <Text style={{ fontSize: 24 }}>😊</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="bookmark" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
-        </TouchableOpacity>
         <TextInput
-          style={styles.inputBox}
+          style={[styles.inputBox, { flex: 1, minHeight: 40, maxHeight: 120 }]}
           placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
           value={inputText}
           onChangeText={setInputText}
           multiline
           editable={!!selectedPhone}
+          numberOfLines={4}
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
-        {selectedImages.length > 0 && (
-          <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}>
-            <Text style={styles.sendTxt}>📷 发送图片</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingLeft: 8 }}>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
+            <Text style={{ fontSize: 20 }}>😊</Text>
           </TouchableOpacity>
-        )}
+          <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="star" size={18} color={PRIMARY_COLOR} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
+            <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+            <Text style={styles.sendTxt}>发送</Text>
+          </TouchableOpacity>
+          {selectedImages.length > 0 && (
+            <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}>
+              <Text style={styles.sendTxt}>📷 发送图片</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <View style={{ height: 56 }} />
     </View>
@@ -4484,19 +4488,22 @@ ${businessContext}
         </View>
       )}
       <View style={styles.inputBar}>
-        <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 8 }}><Ionicons name="star" size={22} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
-          style={[styles.inputBox, { flex: 1 }]}
+          style={[styles.inputBox, { flex: 1, minHeight: 40, maxHeight: 120 }]}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
           value={inputText}
           onChangeText={setInputText}
           multiline
+          numberOfLines={4}
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
-          <Text style={styles.sendTxt}>发送</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingLeft: 8 }}>
+          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Text style={{ fontSize: 20 }}>😊</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="star" size={18} color={PRIMARY_COLOR} /></TouchableOpacity>
+          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
+            <Text style={styles.sendTxt}>发送</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={{ height: 56 }} />
     </View>
