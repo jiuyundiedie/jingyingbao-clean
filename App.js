@@ -18,6 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
+import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -1146,6 +1147,50 @@ const SettingDrawer = ({ visible, onClose }) => {
     }, 200);
   };
 
+  const handleBackup = async () => {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const allData = await AsyncStorage.multiGet(allKeys);
+      const backupData = {};
+      allData.forEach(([key, value]) => {
+        try { backupData[key] = JSON.parse(value); } 
+        catch { backupData[key] = value; }
+      });
+      backupData.timestamp = new Date().toISOString();
+      const backupStr = JSON.stringify(backupData, null, 2);
+      const backupPath = FileSystem.documentDirectory + 'jingyingbao_backup_' + Date.now() + '.json';
+      await FileSystem.writeAsStringAsync(backupPath, backupStr);
+      showToast('数据备份成功！备份文件已保存');
+      await Sharing.shareAsync(backupPath, { mimeType: 'application/json', dialogTitle: '分享数据备份' });
+    } catch (error) {
+      console.error('备份失败:', error);
+      showToast('备份失败：' + (error.message || '未知错误'));
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const content = await FileSystem.readAsStringAsync(result.assets[0].uri);
+        const backupData = JSON.parse(content);
+        const keys = Object.keys(backupData).filter(k => k !== 'timestamp');
+        const dataToRestore = keys.map(k => [k, typeof backupData[k] === 'string' ? backupData[k] : JSON.stringify(backupData[k])]);
+        await AsyncStorage.multiSet(dataToRestore);
+        showToast('数据恢复成功！请重启应用');
+        setTimeout(() => {
+          handleLogout();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('恢复失败:', error);
+      showToast('恢复失败：' + (error.message || '请选择正确的备份文件'));
+    }
+  };
+
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
   if (!visible) return null;
   return (
     <>
@@ -1197,13 +1242,13 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={handleBackup}>
                   <Ionicons name="cloud-upload-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>数据备份</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={handleRestore}>
                   <Ionicons name="cloud-download-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>数据恢复</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
@@ -1224,13 +1269,13 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpModal(true)}>
                   <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowPrivacyModal(true)}>
                   <Ionicons name="shield-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>隐私政策</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
@@ -1383,6 +1428,84 @@ const SettingDrawer = ({ visible, onClose }) => {
               })}
             </View>
           </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
+    <Modal visible={showHelpModal} transparent animationType="fade" onRequestClose={() => setShowHelpModal(false)}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
+        <View style={{ width: '85%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>📖 使用帮助</Text>
+          <ScrollView style={{ maxHeight: 400 }}>
+            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22, marginBottom: 12 }}>
+              欢迎使用经营宝！这是一款专为商家设计的智能管理工具，帮助您高效管理店铺运营。
+
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📱 主要功能</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
+              • 首页：查看店铺概览、日报推送设置\n
+              • 核销：扫码核销顾客订单\n
+              • 客服：与顾客进行聊天沟通\n
+              • 出入库：管理商品库存，支持拍照识别\n
+              • 内部：员工之间内部沟通\n
+              • AI助手：智能生成文案、海报、日报等
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>🔧 常见问题</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
+              Q: 拍照识别数量不准确怎么办？\n
+              A: 请确保照片清晰，物品摆放整齐，避免过度重叠。识别后可手动调整数量。
+
+              Q: 如何切换账号？\n
+              A: 在设置中点击"切换账号"，可选择历史账号或添加新账号。
+
+              Q: 数据会丢失吗？\n
+              A: 建议定期进行数据备份，备份文件可分享保存到其他设备。
+            </Text>
+          </ScrollView>
+          <TouchableOpacity style={{ marginTop: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>知道了</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
+    <Modal visible={showPrivacyModal} transparent animationType="fade" onRequestClose={() => setShowPrivacyModal(false)}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowPrivacyModal(false)}>
+        <View style={{ width: '85%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>🔒 隐私政策</Text>
+          <ScrollView style={{ maxHeight: 400 }}>
+            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22, marginBottom: 12 }}>
+              经营宝重视您的隐私保护。本政策旨在说明我们如何收集、使用和保护您的个人信息。
+
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📊 收集的信息</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
+              • 用户信息：姓名、手机号、角色等\n
+              • 店铺信息：店铺名称、行业类型等\n
+              • 业务数据：库存、订单、聊天记录等\n
+              • 设备信息：设备型号、操作系统等
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>🎯 使用方式</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
+              • 为您提供服务和功能\n
+              • 优化产品体验\n
+              • 保障账户安全\n
+              • 发送必要的通知
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>🛡️ 安全保护</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
+              • 数据本地存储，不上传云端\n
+              • 支持数据备份和恢复\n
+              • 采用加密传输和存储
+            </Text>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📅 更新</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
+              本政策可能会更新，更新后会在应用内通知您。
+            </Text>
+          </ScrollView>
+          <TouchableOpacity style={{ marginTop: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowPrivacyModal(false)}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>我知道了</Text>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     </Modal>
@@ -2095,6 +2218,7 @@ const StockManage = () => {
   const aiCountRecognize = async () => {
     if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
     setAiCountLoading(true);
+    showToast('正在识别中，请稍候...');
     try {
       const existingDetails = aiCountResult?.details || [];
       const startIdx = existingDetails.length;
@@ -2105,7 +2229,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `请数出图片中所有可见物品的数量。规则：1. 逐个数清楚，不要遗漏；2. 只要能看到的都要计数，包括被遮挡、重叠、部分可见、只露出一角的物品；3. 不要识别物品名称或种类，只返回数量；4. 如果完全没有物品或图片模糊，返回0；5. 你的回答只能是一个阿拉伯数字。`;
+      const prompt = `请仔细数图片中所有可见物品的数量。规则：1. 逐个清点，不要遗漏任何一个；2. 只要能看到一部分的都要计数，包括被遮挡、重叠、只露出一角的物品；3. 只返回数量数字，不要识别物品名称；4. 如果图片中没有物品或无法辨认，返回0；5. 你的回答只能是一个阿拉伯数字。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -2113,28 +2237,45 @@ const StockManage = () => {
         let success = false;
         try {
           let reply = null;
+          let lastError = null;
           for (let retry = 0; retry < 3; retry++) {
             try {
+              showToast(`正在识别第${photoIdx + 1}张图片...`);
               reply = await fetchZhipuVision(newPhotos[i], prompt);
+              console.log(`第${photoIdx + 1}张识别结果:`, reply);
               if (reply && reply !== 'aborted') break;
             } catch (err) {
+              lastError = err;
+              console.error(`第${photoIdx + 1}张识别重试${retry + 1}失败:`, err);
               if (retry === 2) throw err;
               await new Promise(r => setTimeout(r, 800));
             }
           }
           
-          if (reply && reply !== 'aborted') {
+          if (!reply || reply === 'aborted') {
+            console.error(`第${photoIdx + 1}张识别失败：API返回空或aborted`);
+            showToast(`第${photoIdx + 1}张图片识别失败，请检查网络`);
+          } else {
+            console.log(`第${photoIdx + 1}张原始回复:`, reply);
             const numMatch = (reply || '').match(/\d+/);
             if (numMatch) {
               const num = parseInt(numMatch[0]);
               if (!isNaN(num) && num >= 0 && num < 10000) {
                 count = num;
-                success = count >= 0;
+                success = true;
+                console.log(`第${photoIdx + 1}张识别数量:`, count);
+              } else {
+                console.error(`第${photoIdx + 1}张解析失败：数字无效`, num);
+                showToast(`第${photoIdx + 1}张图片识别结果异常`);
               }
+            } else {
+              console.error(`第${photoIdx + 1}张解析失败：未找到数字`, reply);
+              showToast(`第${photoIdx + 1}张图片未识别到数量`);
             }
           }
         } catch (e) {
-          console.warn(`第${photoIdx + 1}张识别失败:`, e);
+          console.error(`第${photoIdx + 1}张识别异常:`, e);
+          showToast(`第${photoIdx + 1}张图片识别异常: ${e.message || '未知错误'}`);
         }
         newDetails.push({ photoIndex: photoIdx + 1, count, success, manualAdjust: 0, marks: [] });
         const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
@@ -2148,7 +2289,7 @@ const StockManage = () => {
         showToast('未识别到物品，请确保照片清晰并包含物品后重试');
       }
     } catch (e) {
-      console.error('AI识别失败:', e);
+      console.error('AI识别总数异常:', e);
       showToast('识别失败，请检查网络后重试');
     } finally {
       setAiCountLoading(false);
@@ -3030,9 +3171,9 @@ const CustomerService = () => {
         </View>
       )}
 
-      <View style={styles.inputBar}>
+      <View style={{ padding: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
         <TextInput
-          style={[styles.inputBox, { flex: 1, minHeight: 40, maxHeight: 120 }]}
+          style={{ minHeight: 40, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 8, padding: 10, fontSize: 15, textAlignVertical: 'top' }}
           placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
           value={inputText}
           onChangeText={setInputText}
@@ -3040,22 +3181,28 @@ const CustomerService = () => {
           editable={!!selectedPhone}
           numberOfLines={4}
         />
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingLeft: 8 }}>
-          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
-            <Text style={{ fontSize: 20 }}>😊</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="star" size={18} color={PRIMARY_COLOR} /></TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}>
-            <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-            <Text style={styles.sendTxt}>发送</Text>
-          </TouchableOpacity>
-          {selectedImages.length > 0 && (
-            <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}>
-              <Text style={styles.sendTxt}>📷 发送图片</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+              <Text style={{ fontSize: 22 }}>😊</Text>
             </TouchableOpacity>
-          )}
+            <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+              <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+              <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+              <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
+            {selectedImages.length > 0 && (
+              <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
+                <Text style={styles.sendTxt}>📷 发送图片</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
       <View style={{ height: 56 }} />
@@ -3252,11 +3399,28 @@ const InternalChat = () => {
             </TouchableOpacity>
           </View>
         )}
-        <View style={[styles.inputBar, { backgroundColor: chatBgColor === '#F2F3F5' ? '#F7F7F7' : chatBgColor }]}>
-          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 8 }}><Text style={{ fontSize: 24 }}>😊</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
-          <TextInput style={styles.inputBox} placeholder="发送内部消息..." value={inputText} onChangeText={setInputText} multiline />
-          <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}><Text style={styles.sendTxt}>发送</Text></TouchableOpacity>
+        <View style={{ padding: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <TextInput
+            style={{ minHeight: 40, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 8, padding: 10, fontSize: 15, textAlignVertical: 'top' }}
+            placeholder="发送内部消息..."
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            numberOfLines={4}
+          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                <Text style={{ fontSize: 22 }}>😊</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
+              <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={{ height: 56 }} />
       </View>
@@ -4487,19 +4651,27 @@ ${businessContext}
           ))}
         </View>
       )}
-      <View style={styles.inputBar}>
+      <View style={{ padding: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
         <TextInput
-          style={[styles.inputBox, { flex: 1, minHeight: 40, maxHeight: 120 }]}
+          style={{ minHeight: 40, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 8, padding: 10, fontSize: 15, textAlignVertical: 'top' }}
           placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
           value={inputText}
           onChangeText={setInputText}
           multiline
           numberOfLines={4}
         />
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingLeft: 8 }}>
-          <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Text style={{ fontSize: 20 }}>😊</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} /></TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)} style={{ paddingHorizontal: 6, paddingBottom: 4 }}><Ionicons name="star" size={18} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+              <Text style={{ fontSize: 22 }}>😊</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+              <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+              <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
             <Text style={styles.sendTxt}>发送</Text>
           </TouchableOpacity>
