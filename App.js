@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
-  PanResponder, Switch, Picker, Animated, Easing
+  PanResponder, Switch, Animated, Easing
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
@@ -1084,6 +1084,8 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [dailyReportEnable, setDailyReportEnable] = useState(state.dailyReportConfig?.enable || true);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerType, setTimePickerType] = useState('start');
+  const [showHourPicker, setShowHourPicker] = useState(null);
+  const [showMinutePicker, setShowMinutePicker] = useState(null);
   const translateX = useRef(new Animated.Value(width)).current;
 
   useEffect(() => {
@@ -1271,64 +1273,26 @@ const SettingDrawer = ({ visible, onClose }) => {
           <View style={{ marginBottom: 16 }}>
             <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>上班时间</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Picker
-                selectedValue={workTimeStart.split(':')[0]}
-                onValueChange={(val) => {
-                  const min = workTimeStart.split(':')[1];
-                  setWorkTimeStart(`${val.padStart(2, '0')}:${min}`);
-                }}
-                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <Picker.Item key={i} label={`${String(i).padStart(2, '0')}时`} value={String(i).padStart(2, '0')} />
-                ))}
-              </Picker>
+              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('start')}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[0]}时</Text>
+              </TouchableOpacity>
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
-              <Picker
-                selectedValue={workTimeStart.split(':')[1]}
-                onValueChange={(val) => {
-                  const hour = workTimeStart.split(':')[0];
-                  setWorkTimeStart(`${hour}:${val}`);
-                }}
-                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
-              >
-                {Array.from({ length: 12 }, (_, i) => {
-                    const min = String(i * 5).padStart(2, '0');
-                    return <Picker.Item key={min} label={`${min}分`} value={min} />;
-                  })}
-              </Picker>
+              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('start')}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[1]}分</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>下班时间</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Picker
-                selectedValue={workTimeEnd.split(':')[0]}
-                onValueChange={(val) => {
-                  const min = workTimeEnd.split(':')[1];
-                  setWorkTimeEnd(`${val.padStart(2, '0')}:${min}`);
-                }}
-                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <Picker.Item key={i} label={`${String(i).padStart(2, '0')}时`} value={String(i).padStart(2, '0')} />
-                ))}
-              </Picker>
+              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('end')}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[0]}时</Text>
+              </TouchableOpacity>
               <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
-              <Picker
-                selectedValue={workTimeEnd.split(':')[1]}
-                onValueChange={(val) => {
-                  const hour = workTimeEnd.split(':')[0];
-                  setWorkTimeEnd(`${hour}:${val}`);
-                }}
-                style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
-              >
-                {Array.from({ length: 12 }, (_, i) => {
-                    const min = String(i * 5).padStart(2, '0');
-                    return <Picker.Item key={min} label={`${min}分`} value={min} />;
-                  })}
-              </Picker>
+              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('end')}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[1]}分</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1343,6 +1307,89 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </TouchableOpacity>
     </Modal>
+
+    <Modal visible={showHourPicker !== null} transparent animationType="slide" onRequestClose={() => setShowHourPicker(null)}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowHourPicker(null)}>
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择小时</Text>
+          <ScrollView>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {Array.from({ length: 24 }, (_, i) => {
+                const hour = String(i).padStart(2, '0');
+                const isSelected = (showHourPicker === 'start' ? workTimeStart.split(':')[0] : workTimeEnd.split(':')[0]) === hour;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={{
+                      width: (width - 56) / 6,
+                      height: 44,
+                      backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => {
+                      if (showHourPicker === 'start') {
+                        const min = workTimeStart.split(':')[1];
+                        setWorkTimeStart(`${hour}:${min}`);
+                      } else {
+                        const min = workTimeEnd.split(':')[1];
+                        setWorkTimeEnd(`${hour}:${min}`);
+                      }
+                      setShowHourPicker(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{hour}时</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
+    <Modal visible={showMinutePicker !== null} transparent animationType="slide" onRequestClose={() => setShowMinutePicker(null)}>
+      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowMinutePicker(null)}>
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择分钟</Text>
+          <ScrollView>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {Array.from({ length: 12 }, (_, i) => {
+                const min = String(i * 5).padStart(2, '0');
+                const isSelected = (showMinutePicker === 'start' ? workTimeStart.split(':')[1] : workTimeEnd.split(':')[1]) === min;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={{
+                      width: (width - 56) / 6,
+                      height: 44,
+                      backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
+                      borderRadius: 8,
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => {
+                      if (showMinutePicker === 'start') {
+                        const hour = workTimeStart.split(':')[0];
+                        setWorkTimeStart(`${hour}:${min}`);
+                      } else {
+                        const hour = workTimeEnd.split(':')[0];
+                        setWorkTimeEnd(`${hour}:${min}`);
+                      }
+                      setShowMinutePicker(null);
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{min}分</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+
     </>
   );
 };
@@ -4785,7 +4832,7 @@ const HomePage = () => {
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <View style={{ backgroundColor: '#FF6B6B', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, position: 'absolute', top: 8, right: 50 }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.1</Text>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.2</Text>
           </View>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
