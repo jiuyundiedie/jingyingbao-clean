@@ -2022,7 +2022,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `请仔细数图片中所有可见的物品数量。规则：1. 哪怕只看到一部分、被遮挡或不完整的物品也要计数；2. 不要识别物品名称或种类，只统计数量；3. 仔细逐个清点，不要遗漏；4. 如果完全没有物品，返回0；5. 只返回一个纯数字，不要任何其他文字。`;
+      const prompt = `你是一个专业的物品计数工具。请仔细数图片中所有可见的物品数量。规则：1. 对所有能看到的物体都要计数，不管是完整的还是只看到一部分、被遮挡、重叠、不完整的；2. 不要识别物品名称、种类或其他属性，只统计数量；3. 仔细逐个清点，不要遗漏任何一个；4. 如果图片中完全没有物品，返回0；5. 如果图片模糊无法辨认，返回0；6. 只返回一个纯数字，不要任何其他文字、标点或说明。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -2046,26 +2046,23 @@ const StockManage = () => {
               const num = parseInt(numMatch[0]);
               if (!isNaN(num) && num >= 0 && num < 10000) {
                 count = num;
-                success = count > 0;
+                success = count >= 0;
               }
             }
           }
         } catch (e) {
           console.warn(`第${photoIdx + 1}张识别失败:`, e);
         }
-        newDetails.push({ photoIndex: photoIdx + 1, count, success });
-        const total = newDetails.reduce((sum, d) => sum + d.count, 0);
+        newDetails.push({ photoIndex: photoIdx + 1, count, success, manualAdjust: 0, marks: [] });
+        const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
       
-      const total = newDetails.reduce((sum, d) => sum + d.count, 0);
-      const failed = newDetails.filter(d => !d.success).length;
-      if (failed > 0 && total > 0) {
-        showToast(`识别完成 ${total} 件，${failed}张未识别出数量`);
-      } else if (total > 0) {
+      const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+      if (total > 0) {
         showToast(`识别完成，共 ${total} 件`);
       } else {
-        showToast('未识别到物品，请确保照片清晰并包含完整物品后重试');
+        showToast('未识别到物品，请确保照片清晰并包含物品后重试');
       }
     } catch (e) {
       console.error('AI识别失败:', e);
@@ -2073,6 +2070,19 @@ const StockManage = () => {
     } finally {
       setAiCountLoading(false);
     }
+  };
+
+  const adjustAiCount = (photoIdx, delta) => {
+    if (!aiCountResult?.details) return;
+    const newDetails = aiCountResult.details.map((d, idx) => {
+      if (idx === photoIdx) {
+        const newManualAdjust = d.manualAdjust + delta;
+        return { ...d, manualAdjust: newManualAdjust };
+      }
+      return d;
+    });
+    const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+    setAiCountResult({ ...aiCountResult, total, details: newDetails });
   };
 
   const aiCountSubmit = () => {
@@ -2435,19 +2445,38 @@ const StockManage = () => {
                 <Text style={{ textAlign: 'center', color: '#fff' }}>{aiCountLoading ? '识别中...' : '🤖 开始识别'}</Text>
               </TouchableOpacity>
             </View>
-            {aiCountResult && aiCountResult.total > 0 && (
+            {aiCountResult && (
               <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12 }}>
                 <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>📊 识别结果</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, color: TEXT_MAIN }}>拍照数: {aiCountResult.photos} 张</Text>
-                  <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: 'bold' }}>总数量: {aiCountResult.total} 件</Text>
+                  <Text style={{ fontSize: 20, color: PRIMARY_COLOR, fontWeight: 'bold' }}>总数量: {aiCountResult.total} 件</Text>
                 </View>
-                {aiCountResult.details.map((d, idx) => (
-                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND }}>第 {d.photoIndex} 张</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_MAIN }}>识别到 {d.count} 件</Text>
-                  </View>
-                ))}
+                <View style={{ maxHeight: 200, overflow: 'auto' }}>
+                  {aiCountResult.details.map((d, idx) => {
+                    const finalCount = d.count + d.manualAdjust;
+                    return (
+                      <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#E8E8E8' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Image source={{ uri: aiCountPhotos[idx] }} style={{ width: 40, height: 40, borderRadius: 6 }} />
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND }}>第 {d.photoIndex} 张</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TouchableOpacity style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FF6B6B', justifyContent: 'center', alignItems: 'center' }} onPress={() => adjustAiCount(idx, -1)}>
+                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', lineHeight: 24 }}>-</Text>
+                          </TouchableOpacity>
+                          <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, minWidth: 40, textAlign: 'center' }}>{finalCount}</Text>
+                          <TouchableOpacity style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#52C41A', justifyContent: 'center', alignItems: 'center' }} onPress={() => adjustAiCount(idx, 1)}>
+                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', lineHeight: 24 }}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+                {aiCountResult.details.some(d => d.manualAdjust !== 0) && (
+                  <Text style={{ fontSize: 11, color: '#FF6B6B', marginTop: 8, textAlign: 'center' }}>已手动调整数量</Text>
+                )}
               </View>
             )}
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -5677,7 +5706,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'sparkles' : 'sparkles-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'cpu' : 'cpu-outline';
           
           const hasRedDot = state.newMessageRedDots?.[route.name] || false;
           
