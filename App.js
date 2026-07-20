@@ -18,6 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
+import Voice from '@react-native-voice/voice';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -2104,7 +2105,7 @@ const StockManage = () => {
         return;
       }
       const newDetails = [...existingDetails];
-      const prompt = `你是一个专业的物品计数工具。请仔细数图片中所有可见的物品数量。规则：1. 对所有能看到的物体都要计数，不管是完整的还是只看到一部分、被遮挡、重叠、不完整的；2. 不要识别物品名称、种类或其他属性，只统计数量；3. 仔细逐个清点，不要遗漏任何一个；4. 如果图片中完全没有物品，返回0；5. 如果图片模糊无法辨认，返回0；6. 只返回一个纯数字，不要任何其他文字、标点或说明。`;
+      const prompt = `你是一个专业的物品数量统计专家。请仔细观察图片并数出所有可见物品的数量。要求：1. 必须精确计数，逐个数清楚；2. 对所有可见物体计数，包括被遮挡、重叠、部分可见的物品；3. 不要识别物品名称、颜色、种类等任何属性，只统计数量；4. 如果图片中完全没有物品或无法辨认，返回0；5. 你的回答只能是一个阿拉伯数字，不能有任何其他文字、标点符号或解释。`;
       
       for (let i = 0; i < newPhotos.length; i++) {
         const photoIdx = startIdx + i;
@@ -4284,7 +4285,7 @@ const MerchantAssistant = () => {
 
       if (shouldGenImage) {
         try {
-          const fullPrompt = `${text}，适用于${industry}店铺「${shopName}」的宣传，参考当前${industry}行业爆款海报的设计风格：构图简洁、色彩鲜明、突出卖点、吸引眼球，风格时尚高端。`;
+          const fullPrompt = `${text}。设计要求：高品质商业海报风格，采用当前${industry}行业最流行的视觉设计趋势，构图精美、色彩搭配高级、光影效果出色、细节丰富细腻，具有强烈的视觉冲击力和品牌质感，适合社交媒体传播和线下宣传使用，分辨率高、画面清晰、专业摄影级别的视觉效果。`;
           const imageResult = await fetchZhipuImage(fullPrompt, abortControllerRef.current.signal);
           if (!abortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
@@ -4463,9 +4464,17 @@ ${businessContext}
       )}
       {showQuickReply && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          {['文案', '海报', '广告语', '日报', '周报', '月报'].map(label => (
-            <TouchableOpacity key={label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: label === '海报' || label === '广告语' ? '#FFE4B5' : LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => handleMarketing(label)}>
-              <Text style={{ fontSize: 13, color: label === '海报' || label === '广告语' ? '#FF8C00' : PRIMARY_COLOR }}>📣 {label}</Text>
+          {[
+            { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+            { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
+            { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
+            { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+            { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+            { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+          ].map(item => (
+            <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
+              <Ionicons name={item.icon} size={14} color={item.color} />
+              <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
             </TouchableOpacity>
           ))}
           {quickReplies.map((text, idx) => (
@@ -4544,42 +4553,36 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     }
   }, [visible]);
 
-  const startVoice = () => {
+  const startVoice = async () => {
     try {
-      const SR = (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition));
-      if (!SR) { showToast('当前环境不支持语音识别，请使用文字输入'); return; }
-      const recognition = new SR();
-      recognition.lang = 'zh-CN';
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
-      recognition.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += transcript;
-          else interimTranscript += transcript;
+      const hasPermission = await Voice.requestPermissions();
+      if (!hasPermission) { showToast('请授权麦克风权限'); return; }
+      
+      setRecording(true);
+      showToast('正在聆听...请说话');
+      
+      Voice.onSpeechStart = () => { setRecording(true); };
+      Voice.onSpeechEnd = () => { setRecording(false); };
+      Voice.onSpeechResults = (event) => {
+        const text = event.value[0] || '';
+        if (text) {
+          setInputText(prev => (prev + ' ' + text).trim());
         }
-        if (finalTranscript) setInputText(prev => (prev + ' ' + finalTranscript).trim());
-        else if (interimTranscript) setInputText(interimTranscript);
       };
-      recognition.onerror = (e) => {
+      Voice.onSpeechError = (event) => {
         setRecording(false);
-        const err = e.error || '未知错误';
+        const err = event.error || '语音识别错误';
         if (err === 'no-speech') showToast('未检测到语音，请重试');
         else if (err === 'not-allowed') showToast('请授权麦克风权限');
         else showToast('语音识别错误：' + err);
       };
-      recognition.onend = () => { setRecording(false); };
-      recognitionRef.current = recognition;
-      recognition.start();
+      
+      await Voice.start('zh-CN');
     } catch (e) { showToast('启动语音失败: ' + (e?.message || e)); setRecording(false); }
   };
 
-  const stopVoice = () => {
-    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) {} }
+  const stopVoice = async () => {
+    try { await Voice.stop(); } catch (e) {}
     setRecording(false);
   };
 
@@ -5839,7 +5842,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'help-circle' : 'help-circle-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'star' : 'star-outline';
           
           const hasRedDot = state.newMessageRedDots?.[route.name] || false;
           
