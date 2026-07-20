@@ -342,7 +342,7 @@ const defaultState = {
     ProductOverview: true,
   },
   aiChatMessages: [],
-  dailyReportConfig: { workTimeStart: '09:00', workTimeEnd: '18:00' },
+  dailyReportConfig: { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
   newMessageRedDots: {
     '客服': false,
     '内部': false,
@@ -1081,6 +1081,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [workTimeStart, setWorkTimeStart] = useState(state.dailyReportConfig?.workTimeStart || '09:00');
   const [workTimeEnd, setWorkTimeEnd] = useState(state.dailyReportConfig?.workTimeEnd || '18:00');
+  const [dailyReportEnable, setDailyReportEnable] = useState(state.dailyReportConfig?.enable || true);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timePickerType, setTimePickerType] = useState('start');
   const translateX = useRef(new Animated.Value(width)).current;
@@ -1111,10 +1112,16 @@ const SettingDrawer = ({ visible, onClose }) => {
   };
 
   const saveDailyReportConfig = () => {
-    const config = { workTimeStart, workTimeEnd };
+    const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
-    showToast('日报推送时间已保存');
+    showToast('日报推送设置已保存');
     setShowTimePicker(false);
+  };
+
+  const toggleDailyReport = () => {
+    setDailyReportEnable(!dailyReportEnable);
+    dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: { enable: !dailyReportEnable, workTimeStart, workTimeEnd } });
+    showToast(!dailyReportEnable ? '日报推送已开启' : '日报推送已关闭');
   };
 
   const handleLogout = async () => {
@@ -1205,6 +1212,12 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>日报推送</Text>
+                  <Switch value={dailyReportEnable} onValueChange={toggleDailyReport} trackColor={{ false: '#ccc', true: PRIMARY_COLOR }} thumbColor={dailyReportEnable ? '#fff' : '#f4f3f4'} />
+                </View>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowTimePicker(true)}>
                   <Ionicons name="calendar-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>推送日报时间</Text>
@@ -1279,9 +1292,10 @@ const SettingDrawer = ({ visible, onClose }) => {
                 }}
                 style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
               >
-                {['00', '15', '30', '45'].map(min => (
-                  <Picker.Item key={min} label={`${min}分`} value={min} />
-                ))}
+                {Array.from({ length: 12 }, (_, i) => {
+                    const min = String(i * 5).padStart(2, '0');
+                    return <Picker.Item key={min} label={`${min}分`} value={min} />;
+                  })}
               </Picker>
             </View>
           </View>
@@ -1310,9 +1324,10 @@ const SettingDrawer = ({ visible, onClose }) => {
                 }}
                 style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}
               >
-                {['00', '15', '30', '45'].map(min => (
-                  <Picker.Item key={min} label={`${min}分`} value={min} />
-                ))}
+                {Array.from({ length: 12 }, (_, i) => {
+                    const min = String(i * 5).padStart(2, '0');
+                    return <Picker.Item key={min} label={`${min}分`} value={min} />;
+                  })}
               </Picker>
             </View>
           </View>
@@ -4770,7 +4785,7 @@ const HomePage = () => {
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <View style={{ backgroundColor: '#FF6B6B', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, position: 'absolute', top: 8, right: 50 }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.0</Text>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>v3.1</Text>
           </View>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
