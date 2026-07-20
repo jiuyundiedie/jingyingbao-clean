@@ -17,6 +17,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as Speech from 'expo-speech';
+import * as Voice from 'expo-voice';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -2187,7 +2189,7 @@ const StockManage = () => {
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>拍照出库识别</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: SUCCESS_COLOR }]} onPress={() => { setType('入库'); setShowManualInput(true); setModalVisible(true); }}>
-          <Ionicons name="keyboard-outline" size={20} color="#fff" />
+          <Ionicons name="pencil" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
         </TouchableOpacity>
       </View>
@@ -4407,74 +4409,64 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     }
   }, [visible]);
 
-  const startVoice = () => {
+  const startVoice = async () => {
     try {
-      // 兼容多种环境
-      const SR = (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition))
-        || (typeof global !== 'undefined' && (global.SpeechRecognition || global.webkitSpeechRecognition));
-      if (!SR) { showToast('当前环境不支持语音识别，请使用文字输入'); return; }
-      const recognition = new SR();
-      recognition.lang = 'zh-CN';
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
-      recognition.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += transcript;
-          else interimTranscript += transcript;
+      const permission = await Voice.requestRecordingPermissionsAsync();
+      if (!permission.granted) { showToast('请授权麦克风权限'); return; }
+      
+      setRecording(true);
+      showToast('正在聆听...请说话');
+      
+      await Voice.startAsync('zh-CN');
+      
+      Voice.onSpeechStart = () => { setRecording(true); };
+      Voice.onSpeechEnd = () => { setRecording(false); };
+      Voice.onSpeechResult = (event) => {
+        const text = event.results[0]?.transcript || '';
+        if (text) {
+          setInputText(prev => (prev + ' ' + text).trim());
         }
-        if (finalTranscript) setInputText(prev => (prev + ' ' + finalTranscript).trim());
-        else if (interimTranscript) setInputText(interimTranscript);
       };
-      recognition.onerror = (e) => {
+      Voice.onSpeechError = (event) => {
         setRecording(false);
-        const err = e.error || '未知错误';
-        if (err === 'no-speech') showToast('未检测到语音，请重试');
-        else if (err === 'not-allowed') showToast('请授权麦克风权限');
+        const err = event.error?.message || '语音识别错误';
+        if (err.includes('no-speech')) showToast('未检测到语音，请重试');
+        else if (err.includes('not-allowed')) showToast('请授权麦克风权限');
         else showToast('语音识别错误：' + err);
       };
-      recognition.onend = () => { setRecording(false); };
-      recognitionRef.current = recognition;
-      recognition.start();
     } catch (e) { showToast('启动语音失败: ' + (e?.message || e)); setRecording(false); }
   };
 
-  const stopVoice = () => {
-    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) {} }
+  const stopVoice = async () => {
+    try { await Voice.stopAsync(); } catch (e) {}
     setRecording(false);
   };
 
   const speakText = (text) => {
     try {
       if (!voiceMode) return;
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
-        // 按标点分句，更自然
-        const sentences = text.split(/(?<=[。！？!?；;])/g).filter(s => s.trim());
-        if (sentences.length === 0) sentences.push(text);
-        let idx = 0;
-        setSpeaking(true);
-        const speakNext = () => {
-          if (idx >= sentences.length) { setSpeaking(false); return; }
-          const utter = new SpeechSynthesisUtterance(sentences[idx].trim());
-          utter.lang = 'zh-CN';
-          utter.rate = 1.05;
-          utter.onend = () => { idx++; speechTimerRef.current = setTimeout(speakNext, 100); };
-          utter.onerror = () => setSpeaking(false);
-          window.speechSynthesis.speak(utter);
-        };
-        speakNext();
-      }
+      Speech.stop();
+      if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
+      const sentences = text.split(/(?<=[。！？!?；;])/g).filter(s => s.trim());
+      if (sentences.length === 0) sentences.push(text);
+      let idx = 0;
+      setSpeaking(true);
+      const speakNext = () => {
+        if (idx >= sentences.length) { setSpeaking(false); return; }
+        const utterance = sentences[idx].trim();
+        Speech.speak(utterance, {
+          language: 'zh-CN',
+          rate: 1.0,
+          onDone: () => { idx++; speechTimerRef.current = setTimeout(speakNext, 100); },
+          onError: () => setSpeaking(false),
+        });
+      };
+      speakNext();
     } catch (e) { setSpeaking(false); }
   };
 
   const stopSpeaking = () => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    Speech.stop();
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
     setSpeaking(false);
   };
@@ -5706,7 +5698,7 @@ function RootTabs() {
           else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
           else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
           else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'cpu' : 'cpu-outline';
+          else if (route.name === 'AI助手') iconName = focused ? 'help-circle' : 'help-circle-outline';
           
           const hasRedDot = state.newMessageRedDots?.[route.name] || false;
           
