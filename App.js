@@ -18,7 +18,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
-import Voice from '@react-native-voice/voice';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -4553,36 +4552,45 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     }
   }, [visible]);
 
-  const startVoice = async () => {
+  const startVoice = () => {
     try {
-      const hasPermission = await Voice.requestPermissions();
-      if (!hasPermission) { showToast('请授权麦克风权限'); return; }
-      
-      setRecording(true);
-      showToast('正在聆听...请说话');
-      
-      Voice.onSpeechStart = () => { setRecording(true); };
-      Voice.onSpeechEnd = () => { setRecording(false); };
-      Voice.onSpeechResults = (event) => {
-        const text = event.value[0] || '';
-        if (text) {
-          setInputText(prev => (prev + ' ' + text).trim());
+      const SR = (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition));
+      if (!SR) { 
+        showToast('当前环境暂不支持语音识别，请使用文字输入'); 
+        return; 
+      }
+      const recognition = new SR();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalTranscript += transcript;
+          else interimTranscript += transcript;
         }
+        if (finalTranscript) setInputText(prev => (prev + ' ' + finalTranscript).trim());
+        else if (interimTranscript) setInputText(interimTranscript);
       };
-      Voice.onSpeechError = (event) => {
+      recognition.onerror = (e) => {
         setRecording(false);
-        const err = event.error || '语音识别错误';
+        const err = e.error || '未知错误';
         if (err === 'no-speech') showToast('未检测到语音，请重试');
         else if (err === 'not-allowed') showToast('请授权麦克风权限');
         else showToast('语音识别错误：' + err);
       };
-      
-      await Voice.start('zh-CN');
+      recognition.onend = () => { setRecording(false); };
+      recognitionRef.current = recognition;
+      recognition.start();
     } catch (e) { showToast('启动语音失败: ' + (e?.message || e)); setRecording(false); }
   };
 
-  const stopVoice = async () => {
-    try { await Voice.stop(); } catch (e) {}
+  const stopVoice = () => {
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) {} }
     setRecording(false);
   };
 
