@@ -2212,13 +2212,49 @@ const StockManage = () => {
     } catch (e) { showToast('拍照失败'); }
   };
 
+  const extractNumber = (text) => {
+    if (!text) return 0;
+    text = text.trim();
+    
+    const numbers = text.match(/\d+/g);
+    if (!numbers || numbers.length === 0) return 0;
+    
+    if (text.includes('共')) {
+      const afterGong = text.split('共')[1];
+      if (afterGong) {
+        const gongNum = afterGong.match(/\d+/);
+        if (gongNum) return parseInt(gongNum[0]);
+      }
+    }
+    
+    if (text.includes('有')) {
+      const afterYou = text.split('有')[1];
+      if (afterYou) {
+        const youNum = afterYou.match(/\d+/);
+        if (youNum) return parseInt(youNum[0]);
+      }
+    }
+    
+    if (numbers.length === 1) {
+      return parseInt(numbers[0]);
+    }
+    
+    const lastNum = parseInt(numbers[numbers.length - 1]);
+    if (lastNum > 0 && lastNum < 10000) {
+      return lastNum;
+    }
+    
+    const maxNum = Math.max(...numbers.map(n => parseInt(n)));
+    return maxNum > 0 && maxNum < 10000 ? maxNum : parseInt(numbers[0]);
+  };
+
   const aiCountRecognize = async () => {
     if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
     setAiCountLoading(true);
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `Count the total number of objects in this image. Count every single one including partially visible ones. Return ONLY a number, nothing else. No item names, no descriptions, just the number.`;
+      const prompt = `请数一下图片中有多少个物品。严格按照以下规则：1.不要识别物品名称，不要描述任何物品；2.不要回答任何问题，不要解释；3.只返回一个阿拉伯数字；4.如果图片中没有物品，返回0。例如看到8个物品，就只返回：8`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
@@ -2240,13 +2276,21 @@ const StockManage = () => {
           if (reply && reply !== 'aborted') {
             reply = reply.trim();
             console.log(`[AI计数] 第${i+1}张识别结果(清理后):`, reply);
-            const numMatch = reply.match(/\d+/);
-            if (numMatch) {
-              const num = parseInt(numMatch[0]);
-              console.log(`[AI计数] 第${i+1}张提取数字:`, num);
-              if (!isNaN(num) && num >= 0 && num < 10000) {
-                count = num;
-                success = true;
+            
+            const extractedNum = extractNumber(reply);
+            console.log(`[AI计数] 第${i+1}张提取数字:`, extractedNum);
+            
+            if (extractedNum > 0 && extractedNum < 10000) {
+              count = extractedNum;
+              success = true;
+            } else if (extractedNum === 0) {
+              const numMatch = reply.match(/\d+/);
+              if (numMatch) {
+                const num = parseInt(numMatch[0]);
+                if (!isNaN(num) && num >= 0 && num < 10000) {
+                  count = num;
+                  success = true;
+                }
               }
             }
           }
@@ -3207,7 +3251,7 @@ const CustomerService = () => {
               </TouchableOpacity>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, justifyContent: 'space-around' }}>
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
@@ -3432,7 +3476,7 @@ const InternalChat = () => {
               <Text style={styles.sendTxt}>发送</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, justifyContent: 'space-around' }}>
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
@@ -4690,7 +4734,7 @@ ${businessContext}
               <Text style={styles.sendTxt}>发送</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, justifyContent: 'space-around' }}>
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
