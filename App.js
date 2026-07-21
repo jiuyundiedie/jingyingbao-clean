@@ -25,9 +25,6 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 let toastHideTimer = null;
 let toastClickHandler = null;
 const showToast = (msg, duration = 2000) => {
-  if (Platform.OS === 'android') {
-    ToastAndroid.show(msg, ToastAndroid.SHORT);
-  }
   if (toastRef.current) {
     toastRef.current.setMsg(msg);
     toastRef.current.setVisible(true);
@@ -2221,21 +2218,7 @@ const StockManage = () => {
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `你是一个专业的点数神器，专门用于准确清点图片中的物品数量。请严格按照以下规则执行：
-
-【清点规则】
-1. 逐个数清：仔细查看图片中的每一个物品，一个一个地数，不要遗漏
-2. 包含遮挡：只要能看到一部分的物品都要计数，包括被遮挡、重叠、只露出一角的
-3. 忽略干扰：只计数目标物品，忽略背景、包装、阴影等非目标物体
-4. 精确计数：给出精确的数量，不要估算或模糊回答
-5. 格式要求：你的回答只能是一个阿拉伯数字，不要包含任何文字、符号或解释
-
-【示例】
-如果图片中有5个苹果，你只需要返回：5
-如果图片中有12个瓶子，你只需要返回：12
-如果图片中没有物品，返回：0
-
-请开始计数。`;
+      const prompt = `请数一下图片中有多少个物品。请仔细看，一个一个地数。只返回一个数字。`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
@@ -2246,6 +2229,7 @@ const StockManage = () => {
           for (let retry = 0; retry < 3; retry++) {
             showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
             reply = await fetchZhipuVision(aiCountPhotos[i], prompt);
+            console.log(`第${i+1}张识别结果:`, reply);
             if (reply && reply !== 'aborted') {
               rawReply = reply;
               break;
@@ -3200,18 +3184,7 @@ const CustomerService = () => {
           )}
 
           <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8 }}>
-              <View style={{ flexDirection: 'row', gap: 8, marginRight: 8 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 20 }}>😊</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                  <Ionicons name="star" size={18} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
+            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
               <TextInput
                 style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
                 placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
@@ -3221,14 +3194,29 @@ const CustomerService = () => {
                 editable={!!selectedPhone}
                 onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
               />
-              <TouchableOpacity style={[styles.sendBtn, { marginLeft: 8 }]} onPress={() => sendMessage('text')}>
-                <Text style={styles.sendTxt}>发送</Text>
-              </TouchableOpacity>
-              {selectedImages.length > 0 && (
-                <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 8 }]} onPress={() => sendMessage('image')}>
-                  <Text style={styles.sendTxt}>📷</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                  <Text style={{ fontSize: 22 }}>😊</Text>
                 </TouchableOpacity>
-              )}
+                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+                  <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+                  <Text style={styles.sendTxt}>发送</Text>
+                </TouchableOpacity>
+                {selectedImages.length > 0 && (
+                  <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
+                    <Text style={styles.sendTxt}>📷</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -3428,15 +3416,7 @@ const InternalChat = () => {
             </View>
           )}
           <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8 }}>
-              <View style={{ flexDirection: 'row', gap: 8, marginRight: 8 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 20 }}>😊</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
+            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
               <TextInput
                 style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
                 placeholder="发送内部消息..."
@@ -3445,7 +3425,17 @@ const InternalChat = () => {
                 multiline
                 onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
               />
-              <TouchableOpacity style={[styles.sendBtn, { marginLeft: 8 }]} onPress={() => sendGroupMessage('text')}>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                  <Text style={{ fontSize: 22 }}>😊</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
                 <Text style={styles.sendTxt}>发送</Text>
               </TouchableOpacity>
             </View>
@@ -4682,18 +4672,7 @@ ${businessContext}
             </View>
           )}
           <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8 }}>
-              <View style={{ flexDirection: 'row', gap: 8, marginRight: 8 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 20 }}>😊</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                  <Ionicons name="star" size={18} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
+            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
               <TextInput
                 style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
                 placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -4702,7 +4681,20 @@ ${businessContext}
                 multiline
                 onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
               />
-              <TouchableOpacity style={[styles.sendBtn, { marginLeft: 8 }]} onPress={() => sendMessage('text')} disabled={loading}>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                  <Text style={{ fontSize: 22 }}>😊</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+                  <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
                 <Text style={styles.sendTxt}>发送</Text>
               </TouchableOpacity>
             </View>
