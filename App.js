@@ -107,12 +107,12 @@ const getWeekStart = () => {
 };
 
 // ===== 压缩图片 =====
-const compressImage = async (uri) => {
+const compressImage = async (uri, quality = 0.7) => {
   try {
     const result = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: 800 } }],
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      [{ resize: { width: 1200 } }],
+      { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
     );
     return result.uri;
   } catch (error) {
@@ -2204,9 +2204,9 @@ const StockManage = () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 });
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9 });
       if (!result.canceled) {
-        const compressed = await compressImage(result.assets[0].uri);
+        const compressed = await compressImage(result.assets[0].uri, 0.85);
         setAiCountPhotos(prev => [...prev, compressed]);
       }
     } catch (e) { showToast('拍照失败'); }
@@ -2218,7 +2218,7 @@ const StockManage = () => {
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `请仔细数一下图片中有多少个物品。\n要求：\n1. 从左到右、从上到下逐个计数\n2. 即使物品部分被遮挡也要计数\n3. 不要遗漏任何一个物品\n4. 只返回一个阿拉伯数字\n5. 如果图片中没有物品，返回0`;
+      const prompt = `Count the total number of objects in this image. Count every single one including partially visible ones. Return ONLY a number, nothing else. No item names, no descriptions, just the number.`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
@@ -2229,7 +2229,7 @@ const StockManage = () => {
           for (let retry = 0; retry < 3; retry++) {
             showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
             reply = await fetchZhipuVision(aiCountPhotos[i], prompt);
-            console.log(`第${i+1}张识别结果:`, reply);
+            console.log(`[AI计数] 第${i+1}张识别结果(原始):`, reply);
             if (reply && reply !== 'aborted') {
               rawReply = reply;
               break;
@@ -2239,9 +2239,11 @@ const StockManage = () => {
           
           if (reply && reply !== 'aborted') {
             reply = reply.trim();
+            console.log(`[AI计数] 第${i+1}张识别结果(清理后):`, reply);
             const numMatch = reply.match(/\d+/);
             if (numMatch) {
               const num = parseInt(numMatch[0]);
+              console.log(`[AI计数] 第${i+1}张提取数字:`, num);
               if (!isNaN(num) && num >= 0 && num < 10000) {
                 count = num;
                 success = true;
@@ -2249,7 +2251,7 @@ const StockManage = () => {
             }
           }
         } catch (e) {
-          console.error(`第${i + 1}张识别异常:`, e);
+          console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
         }
         newDetails.push({ photoIndex: i + 1, count, success, manualAdjust: 0, marks: [], rawReply });
         const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
@@ -2263,7 +2265,7 @@ const StockManage = () => {
         showToast('⚠️ 未识别到物品，请确保照片清晰并包含物品');
       }
     } catch (e) {
-      console.error('AI识别异常:', e);
+      console.error('[AI计数] 识别异常:', e);
       showToast('识别失败，请检查网络后重试');
     } finally {
       setAiCountLoading(false);
@@ -3186,7 +3188,7 @@ const CustomerService = () => {
         )}
         
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
               placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
@@ -3196,29 +3198,25 @@ const CustomerService = () => {
               editable={!!selectedPhone}
               onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             />
+            <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+              <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
+            {selectedImages.length > 0 && (
+              <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
+                <Text style={styles.sendTxt}>📷</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                <Text style={{ fontSize: 22 }}>😊</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-                <Text style={styles.sendTxt}>发送</Text>
-              </TouchableOpacity>
-              {selectedImages.length > 0 && (
-                <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
-                  <Text style={styles.sendTxt}>📷</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+            <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+              <Text style={{ fontSize: 24 }}>😊</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+              <Ionicons name="star" size={22} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+              <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -3421,7 +3419,7 @@ const InternalChat = () => {
         )}
         
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
               placeholder="发送内部消息..."
@@ -3430,18 +3428,16 @@ const InternalChat = () => {
               multiline
               onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                <Text style={{ fontSize: 22 }}>😊</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-            </View>
             <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
               <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+            <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+              <Text style={{ fontSize: 24 }}>😊</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+              <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
             </TouchableOpacity>
           </View>
         </View>
@@ -4681,7 +4677,7 @@ ${businessContext}
         )}
         
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
               placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
@@ -4690,21 +4686,19 @@ ${businessContext}
               multiline
               onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                <Text style={{ fontSize: 22 }}>😊</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-            </View>
             <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
               <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 20 }}>
+            <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+              <Text style={{ fontSize: 24 }}>😊</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+              <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+              <Ionicons name="star" size={22} color={PRIMARY_COLOR} />
             </TouchableOpacity>
           </View>
         </View>
@@ -5185,10 +5179,17 @@ const HomePage = () => {
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (navigation.isFocused() && !navigation.canGoBack()) {
-        if (exitTimer) { BackHandler.exitApp(); return true; }
+        if (exitTimer) { 
+          BackHandler.exitApp(); 
+          return true; 
+        }
         showToast('再按一次退出');
         const timer = setTimeout(() => setExitTimer(null), 2000);
         setExitTimer(timer);
+        return true;
+      }
+      if (navigation.canGoBack()) {
+        navigation.goBack();
         return true;
       }
       return false;
