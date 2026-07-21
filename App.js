@@ -184,6 +184,9 @@ async function fetchZhipuImage(prompt, signal) {
 async function fetchZhipuVision(imageUri, prompt, signal) {
   try {
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+    console.log(`[VisionAPI] base64长度: ${base64.length}`);
+    console.log(`[VisionAPI] prompt: ${prompt}`);
+    
     const dataUri = `data:image/jpeg;base64,${base64}`;
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: "POST",
@@ -202,12 +205,19 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
       }),
       signal: signal,
     });
+    
+    console.log(`[VisionAPI] HTTP状态码: ${res.status}`);
     const json = await res.json();
+    console.log(`[VisionAPI] 完整响应:`, JSON.stringify(json));
+    
     if (!res.ok) {
       console.error('Vision API failed:', json);
       return null;
     }
-    return json.choices?.[0]?.message?.content || '';
+    
+    const content = json.choices?.[0]?.message?.content || '';
+    console.log(`[VisionAPI] 返回内容: "${content}"`);
+    return content;
   } catch (err) {
     if (err.name === 'AbortError') return 'aborted';
     console.error('Vision API error:', err);
@@ -2254,7 +2264,14 @@ const StockManage = () => {
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `请数一下图片中有多少个物品。严格按照以下规则：1.不要识别物品名称，不要描述任何物品；2.不要回答任何问题，不要解释；3.只返回一个阿拉伯数字；4.如果图片中没有物品，返回0。例如看到8个物品，就只返回：8`;
+      const prompt = `你是一个专业的点数器。请数一下图片中有多少个相同的物品。请按照以下步骤进行：
+1. 将图片从左到右分成3列，从上到下分成3行，共9个区域
+2. 逐个区域清点物品数量
+3. 将所有区域的数量相加得到总数
+4. 最后只返回这个总数（一个阿拉伯数字）
+5. 如果图片中没有物品，返回0
+
+示例格式：总数：20`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
