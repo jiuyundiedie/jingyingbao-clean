@@ -2218,7 +2218,7 @@ const StockManage = () => {
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `请数一下图片中有多少个物品。请仔细看，一个一个地数。只返回一个数字。`;
+      const prompt = `请仔细数一下图片中有多少个物品。\n要求：\n1. 从左到右、从上到下逐个计数\n2. 即使物品部分被遮挡也要计数\n3. 不要遗漏任何一个物品\n4. 只返回一个阿拉伯数字\n5. 如果图片中没有物品，返回0`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
@@ -2238,6 +2238,7 @@ const StockManage = () => {
           }
           
           if (reply && reply !== 'aborted') {
+            reply = reply.trim();
             const numMatch = reply.match(/\d+/);
             if (numMatch) {
               const num = parseInt(numMatch[0]);
@@ -3102,7 +3103,7 @@ const CustomerService = () => {
         </View>
       )}
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           {selectedImages.length > 0 && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
@@ -3124,8 +3125,8 @@ const CustomerService = () => {
 
           <ScrollView
             ref={scrollViewRef}
-            style={styles.chatScroll}
-            contentContainerStyle={{ paddingTop: 12 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {currentMessages.map(msg => (
@@ -3143,80 +3144,80 @@ const CustomerService = () => {
               <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无咨询，开始与顾客对话</Text>
             )}
           </ScrollView>
-
-          {showQuickReply && (
-            <View style={styles.quickReplyContainer}>
-              {quickReplies.map((text, idx) => (
-                <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}>
-                  <Text style={styles.quickReplyText}>{text}</Text>
+        </View>
+        
+        {showQuickReply && (
+          <View style={styles.quickReplyContainer}>
+            {quickReplies.map((text, idx) => (
+              <TouchableOpacity key={idx} style={styles.quickReplyBtn} onPress={() => { setInputText(text); setShowQuickReply(false); }}>
+                <Text style={styles.quickReplyText}>{text}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          )}
-
-          {showEmoji && (
-            <View style={styles.emojiRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {EMOJI_LIST.map(emoji => (
-                  <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                    <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {showMediaOptions && (
-            <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
-                <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
-                <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
+            </ScrollView>
+          </View>
+        )}
+        
+        {showMediaOptions && (
+          <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
+              <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
+              <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
+              <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
+              <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+            <TextInput
+              style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
+              placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              editable={!!selectedPhone}
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                <Text style={{ fontSize: 22 }}>😊</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
-                <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
-                <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
+              <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+                <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-                <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
-                <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
               </TouchableOpacity>
             </View>
-          )}
-
-          <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-              <TextInput
-                style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
-                placeholder={selectedPhone ? `回复 ${selectedPhone}...` : "请先选择顾客..."}
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-                editable={!!selectedPhone}
-                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-              />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 22 }}>😊</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
+                <Text style={styles.sendTxt}>发送</Text>
+              </TouchableOpacity>
+              {selectedImages.length > 0 && (
+                <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
+                  <Text style={styles.sendTxt}>📷</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                  <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')}>
-                  <Text style={styles.sendTxt}>发送</Text>
-                </TouchableOpacity>
-                {selectedImages.length > 0 && (
-                  <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => sendMessage('image')}>
-                    <Text style={styles.sendTxt}>📷</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              )}
             </View>
           </View>
         </View>
@@ -3364,12 +3365,12 @@ const InternalChat = () => {
           <TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>
         </View>
       </SafeAreaView>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
           <ScrollView
             ref={scrollViewRef}
-            style={styles.chatScroll}
-            contentContainerStyle={{ paddingTop: 12 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {groupMessages.length === 0 && <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无消息</Text>}
@@ -3388,57 +3389,60 @@ const InternalChat = () => {
               );
             })}
           </ScrollView>
-          {showEmoji && (
-            <View style={styles.emojiRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {EMOJI_LIST.map(emoji => (
-                  <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                    <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          {showMediaOptions && (
-            <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
-                <Ionicons name="call-outline" size={24} color={SUCCESS_COLOR} />
-                <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>语音通话</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
-                <Ionicons name="videocam-outline" size={24} color={PRIMARY_COLOR} />
-                <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>视频通话</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-                <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
-                <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-              <TextInput
-                style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
-                placeholder="发送内部消息..."
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-              />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 22 }}>😊</Text>
+        </View>
+        
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
-                <Text style={styles.sendTxt}>发送</Text>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+        
+        {showMediaOptions && (
+          <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
+              <Ionicons name="call-outline" size={24} color={SUCCESS_COLOR} />
+              <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>语音通话</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
+              <Ionicons name="videocam-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>视频通话</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
+              <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
+              <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+            <TextInput
+              style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
+              placeholder="发送内部消息..."
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                <Text style={{ fontSize: 22 }}>😊</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity style={styles.sendBtn} onPress={() => sendGroupMessage('text')}>
+              <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -4593,12 +4597,12 @@ ${businessContext}
           </View>
         </View>
       </SafeAreaView>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           <ScrollView
             ref={scrollViewRef}
-            style={styles.chatScroll}
-            contentContainerStyle={{ paddingTop: 12 }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {messages.map(msg => (
@@ -4622,82 +4626,86 @@ ${businessContext}
             ))}
             {loading && <View style={[styles.bubbleLeft, { padding: 12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
           </ScrollView>
-          {showEmoji && (
-            <View style={styles.emojiRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {EMOJI_LIST.map(emoji => (
-                  <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
-                    <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          {showMediaOptions && (
-            <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
-                <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
-                <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
-                <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
-                <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-                <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
-                <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          {showQuickReply && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-              {[
-                { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
-                { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
-                { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-              ].map(item => (
-                <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
-                  <Ionicons name={item.icon} size={14} color={item.color} />
-                  <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
+        </View>
+        
+        {showEmoji && (
+          <View style={styles.emojiRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {EMOJI_LIST.map(emoji => (
+                <TouchableOpacity key={emoji} onPress={() => { setInputText(inputText + emoji); setShowEmoji(false); }}>
+                  <Text style={{ fontSize: 28, marginHorizontal: 4 }}>{emoji}</Text>
                 </TouchableOpacity>
               ))}
-              {quickReplies.map((text, idx) => (
-                <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
-                  <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-              <TextInput
-                style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
-                placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-              />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
-              <View style={{ flexDirection: 'row', gap: 16 }}>
-                <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
-                  <Text style={{ fontSize: 22 }}>😊</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
-                  <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-                  <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
-                <Text style={styles.sendTxt}>发送</Text>
+            </ScrollView>
+          </View>
+        )}
+        
+        {showMediaOptions && (
+          <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
+              <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('library')}>
+              <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
+              <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
+              <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {showQuickReply && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            {[
+              { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+              { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
+              { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
+              { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+              { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+              { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+            ].map(item => (
+              <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
+                <Ionicons name={item.icon} size={14} color={item.color} />
+                <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            {quickReplies.map((text, idx) => (
+              <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
+                <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+            <TextInput
+              style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
+              placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
+                <Text style={{ fontSize: 22 }}>😊</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
+                <Ionicons name="add-circle-outline" size={22} color={PRIMARY_COLOR} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
+                <Ionicons name="star" size={20} color={PRIMARY_COLOR} />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity style={styles.sendBtn} onPress={() => sendMessage('text')} disabled={loading}>
+              <Text style={styles.sendTxt}>发送</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -5185,8 +5193,11 @@ const HomePage = () => {
       }
       return false;
     });
-    return () => backHandler.remove();
-  }, [navigation, exitTimer]);
+    return () => {
+      backHandler.remove();
+      if (exitTimer) clearTimeout(exitTimer);
+    };
+  }, [navigation]);
 
   const getReportData = () => {
     if (reportType === 'daily') return latestReport;
