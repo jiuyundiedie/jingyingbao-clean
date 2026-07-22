@@ -78,16 +78,20 @@ const SHADOW = {
   elevation: 6,
 };
 
-const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
-const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-const ZHIPU_MODEL = "glm-4-flash";
+// ===== AI视觉模型配置（多API自动切换）=====
+// 1. Google Gemini（免费1500次/天，推荐）
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
 
-// 百度AI配置（从环境变量读取，使用EXPO_PUBLIC_前缀）
+// 2. 硅基流动 SiliconFlow（国内平台，新用户送14元）
+const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "";
+
+// 3. 智谱AI（备用）
+const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
+const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+
+// 4. 百度AI（备用）
 const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
 const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
-
-// 智谱AI配置（用于视觉语言模型计数）
-const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "";
 
 // ===== 日期工具 =====
 const getTodayStr = () => {
@@ -232,77 +236,144 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
   }
 }
 
-// ===== 智谱GLM-4V视觉语言模型（用于计数）=====
-async function fetchZhipuObjectDetection(imageUri) {
+// ===== 多API视觉模型计数（自动切换）=====
+
+// 从文本中提取数字
+function extractNumber(text) {
+  if (!text) return 0;
+  const numMatch = text.match(/(\d+)/);
+  return numMatch ? parseInt(numMatch[1]) : 0;
+}
+
+// 1. Google Gemini API（免费1500次/天）
+async function countWithGemini(base64) {
+  if (!GEMINI_API_KEY) return null;
   try {
-    const apiKey = ZHIPU_API_KEY || process.env.EXPO_PUBLIC_ZHIPU_API_KEY;
-    if (!apiKey) {
-      console.warn('[ZhipuAI] API Key未配置');
-      return 0;
-    }
-    
-    const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
-    console.log(`[ZhipuAI] base64长度: ${base64.length}`);
-    
-    // 使用智谱GLM-4V视觉语言模型进行计数
-    const res = await fetch(ZHIPU_URL, {
+    console.log('[Gemini] 开始识别...');
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' },
+            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0, maxOutputTokens: 10 }
+      })
+    });
+    const json = await res.json();
+    console.log('[Gemini] 响应:', JSON.stringify(json).substring(0, 200));
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('[Gemini] 回答:', text);
+    return extractNumber(text);
+  } catch (err) {
+    console.error('[Gemini] 失败:', err.message);
+    return null;
+  }
+}
+
+// 2. 硅基流动 SiliconFlow API（OpenAI兼容格式）
+async function countWithSiliconFlow(base64) {
+  if (!SILICONFLOW_API_KEY) return null;
+  try {
+    console.log('[SiliconFlow] 开始识别...');
+    const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'glm-4v',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64}`
-                }
-              },
-              {
-                type: 'text',
-                text: '图片中有多少个相同的物品？请只返回一个阿拉伯数字，不要回答其他内容。如果图片中没有物品或无法识别，返回0。'
-              }
-            ]
-          }
-        ],
+        model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+          ]
+        }],
         max_tokens: 10,
         temperature: 0
       })
     });
-    
     const json = await res.json();
-    console.log(`[ZhipuAI] HTTP状态码: ${res.status}`);
-    console.log(`[ZhipuAI] 完整响应:`, JSON.stringify(json));
-    
-    if (json.error) {
-      console.error('[ZhipuAI] API调用失败:', json.error.message);
-      return 0;
-    }
-    
-    // 提取返回的数字
-    const content = json.choices?.[0]?.message?.content || '';
-    console.log(`[ZhipuAI] 原始回答: ${content}`);
-    
-    // 从回答中提取数字
-    const numMatch = content.match(/(\d+)/);
-    const count = numMatch ? parseInt(numMatch[1]) : 0;
-    console.log(`[ZhipuAI] 提取的数字: ${count}`);
-    
-    return count;
+    console.log('[SiliconFlow] 响应:', JSON.stringify(json).substring(0, 200));
+    if (json.error) { console.error('[SiliconFlow] 错误:', json.error); return null; }
+    const text = json.choices?.[0]?.message?.content || '';
+    console.log('[SiliconFlow] 回答:', text);
+    return extractNumber(text);
   } catch (err) {
-    console.error('[ZhipuAI] 识别异常:', err);
-    return 0;
+    console.error('[SiliconFlow] 失败:', err.message);
+    return null;
   }
 }
 
-// 兼容旧函数名
+// 3. 智谱GLM-4V API
+async function countWithZhipu(base64) {
+  if (!ZHIPU_API_KEY) return null;
+  try {
+    console.log('[ZhipuAI] 开始识别...');
+    const res = await fetch(ZHIPU_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ZHIPU_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4v',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+          ]
+        }],
+        max_tokens: 10,
+        temperature: 0
+      })
+    });
+    const json = await res.json();
+    console.log('[ZhipuAI] 响应:', JSON.stringify(json).substring(0, 200));
+    if (json.error) { console.error('[ZhipuAI] 错误:', json.error); return null; }
+    const text = json.choices?.[0]?.message?.content || '';
+    console.log('[ZhipuAI] 回答:', text);
+    return extractNumber(text);
+  } catch (err) {
+    console.error('[ZhipuAI] 失败:', err.message);
+    return null;
+  }
+}
+
+// 统一识别函数：自动按顺序尝试多个API
 async function fetchBaiduObjectDetection(imageUri) {
-  return await fetchZhipuObjectDetection(imageUri);
+  try {
+    const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+    console.log(`[AI计数] base64长度: ${base64.length}`);
+
+    // 按优先级顺序尝试：Gemini → SiliconFlow → 智谱
+    const apis = [
+      { name: 'Gemini', fn: () => countWithGemini(base64) },
+      { name: 'SiliconFlow', fn: () => countWithSiliconFlow(base64) },
+      { name: 'ZhipuAI', fn: () => countWithZhipu(base64) },
+    ];
+
+    for (const api of apis) {
+      const result = await api.fn();
+      if (result !== null && result > 0 && result < 10000) {
+        console.log(`[AI计数] ${api.name} 识别成功: ${result}`);
+        return result;
+      }
+      console.log(`[AI计数] ${api.name} 未返回有效结果，尝试下一个API`);
+    }
+
+    console.log('[AI计数] 所有API均未返回有效结果');
+    return 0;
+  } catch (err) {
+    console.error('[AI计数] 识别异常:', err);
+    return 0;
+  }
 }
 
 // ===== 日报/周报/月报计算 =====

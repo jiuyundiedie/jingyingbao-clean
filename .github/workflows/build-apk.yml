@@ -53,6 +53,9 @@ jobs:
         run: |
           echo "EXPO_PUBLIC_BAIDU_API_KEY=2X4R2K4qq9u3K9769BOjDXtq" > .env
           echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=oHTvqHAZvXUyAMBTrF8n93GnoE41lqri" >> .env
+          echo "EXPO_PUBLIC_ZHIPU_API_KEY=1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p" >> .env
+          echo "EXPO_PUBLIC_GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "EXPO_PUBLIC_SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}" >> .env
 
       - name: Prebuild Android (only if android directory missing)
         run: |
@@ -76,5 +79,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-v5.5
+          name: app-release-v5.7
           path: android/app/build/outputs/apk/release/*.apk
