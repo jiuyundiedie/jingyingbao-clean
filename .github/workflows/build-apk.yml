@@ -17,11 +17,15 @@ jobs:
         with:
           node-version: 18
 
-      - name: Clean npm cache
-        run: npm cache clean --force
-
-      - name: Remove node_modules and lock files
-        run: rm -rf node_modules package-lock.json yarn.lock
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            package-lock.json
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
       - name: Install dependencies
         run: npm install
@@ -32,20 +36,21 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/build.gradle', 'android/app/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Delete android directory
         run: rm -rf android
 
       - name: Delete .expo directory
         run: rm -rf .expo
-
-      - name: Delete Gradle cache
-        run: rm -rf ~/.gradle/caches
-
-      - name: Delete Metro bundler cache
-        run: rm -rf /tmp/metro-*
-
-      - name: Clear Metro bundler cache
-        run: rm -rf /tmp/metro-bundler-cache-* /tmp/haste-map-*
 
       - name: Create .env file with environment variables
         run: |
