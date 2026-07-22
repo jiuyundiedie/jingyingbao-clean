@@ -298,20 +298,30 @@ async function fetchBaiduObjectDetection(imageUri) {
       return 0;
     }
     
-    // 图像多主体检测API返回objects数组，数组长度就是检测到的物体数量
-    const objects = json.objects || [];
-    const count = objects.length;
-    console.log(`[BaiduAI] 检测到的物体数量: ${count}`);
+    // 图像多主体检测API返回result数组，每个元素是一个独立检测到的物体
+    const objects = json.result || [];
+    const totalCount = objects.length;
+    console.log(`[BaiduAI] 检测到的物体总数: ${totalCount}`);
     
     // 如果检测到物体，输出详细信息
-    if (count > 0) {
+    if (totalCount > 0) {
       console.log('[BaiduAI] 物体详情:');
       objects.forEach((obj, idx) => {
         console.log(`${idx + 1}. name: ${obj.name}, score: ${obj.score}`);
       });
+      
+      // 按类别统计数量（便于调试）
+      const categoryCount = {};
+      objects.forEach(obj => {
+        categoryCount[obj.name] = (categoryCount[obj.name] || 0) + 1;
+      });
+      console.log('[BaiduAI] 按类别统计:', JSON.stringify(categoryCount));
+      
+      // 返回所有检测到的物体数量（每个物体都是独立的实例）
+      console.log(`[BaiduAI] 最终计数结果: ${totalCount}`);
     }
     
-    return count;
+    return totalCount;
   } catch (err) {
     console.error('[BaiduAI] 识别异常:', err);
     return 0;
