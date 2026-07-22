@@ -82,6 +82,12 @@ const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
+// 百度AI配置
+const BAIDU_API_KEY = "your_baidu_api_key";
+const BAIDU_SECRET_KEY = "your_baidu_secret_key";
+let BAIDU_ACCESS_TOKEN = null;
+let BAIDU_TOKEN_EXPIRE_TIME = 0;
+
 // ===== 日期工具 =====
 const getTodayStr = () => {
   const d = new Date();
@@ -222,6 +228,83 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
     if (err.name === 'AbortError') return 'aborted';
     console.error('Vision API error:', err);
     return null;
+  }
+}
+
+// ===== 百度AI图像识别 =====
+async function getBaiduAccessToken() {
+  try {
+    const now = Date.now();
+    if (BAIDU_ACCESS_TOKEN && now < BAIDU_TOKEN_EXPIRE_TIME) {
+      return BAIDU_ACCESS_TOKEN;
+    }
+    
+    if (!BAIDU_API_KEY || BAIDU_API_KEY === 'your_baidu_api_key') {
+      console.warn('[BaiduAI] API Key未配置');
+      return null;
+    }
+    
+    const res = await fetch(`https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const json = await res.json();
+    if (json.access_token) {
+      BAIDU_ACCESS_TOKEN = json.access_token;
+      BAIDU_TOKEN_EXPIRE_TIME = now + (json.expires_in || 2592000) * 1000;
+      console.log('[BaiduAI] Token获取成功');
+      return BAIDU_ACCESS_TOKEN;
+    } else {
+      console.error('[BaiduAI] Token获取失败:', json);
+      return null;
+    }
+  } catch (err) {
+    console.error('[BaiduAI] Token获取异常:', err);
+    return null;
+  }
+}
+
+async function fetchBaiduObjectDetection(imageUri) {
+  try {
+    const token = await getBaiduAccessToken();
+    if (!token) {
+      console.warn('[BaiduAI] Token无效，使用智谱API作为备用');
+      // 使用智谱API作为备用
+      const prompt = '请数一下图片中有多少个物品。只返回一个数字。';
+      const reply = await fetchZhipuVision(imageUri, prompt);
+      if (reply && reply !== 'aborted') {
+        const numMatch = reply.match(/\d+/);
+        return numMatch ? parseInt(numMatch[0]) : 0;
+      }
+      return 0;
+    }
+    
+    const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+    console.log(`[BaiduAI] base64长度: ${base64.length}`);
+    
+    const res = await fetch('https://aip.baidubce.com/rest/2.0/image-classify/v2/advanced_general', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `image=${encodeURIComponent(base64)}&access_token=${token}`
+    });
+    
+    const json = await res.json();
+    console.log(`[BaiduAI] HTTP状态码: ${res.status}`);
+    console.log(`[BaiduAI] 完整响应:`, JSON.stringify(json));
+    
+    if (json.error_code) {
+      console.error('[BaiduAI] API调用失败:', json.error_msg);
+      return 0;
+    }
+    
+    // 通用物体识别返回结果列表，统计识别到的物品数量
+    const result_num = json.result_num || 0;
+    console.log(`[BaiduAI] 识别到的物品数量: ${result_num}`);
+    return result_num;
+  } catch (err) {
+    console.error('[BaiduAI] 识别异常:', err);
+    return 0;
   }
 }
 
@@ -2264,52 +2347,22 @@ const StockManage = () => {
     showToast('AI正在仔细清点物品数量...');
     try {
       const newDetails = [];
-      const prompt = `你是一个专业的点数器。请数一下图片中有多少个相同的物品。请按照以下步骤进行：
-1. 将图片从左到右分成3列，从上到下分成3行，共9个区域
-2. 逐个区域清点物品数量
-3. 将所有区域的数量相加得到总数
-4. 最后只返回这个总数（一个阿拉伯数字）
-5. 如果图片中没有物品，返回0
-
-示例格式：总数：20`;
       
       for (let i = 0; i < aiCountPhotos.length; i++) {
         let count = 0;
         let success = false;
         let rawReply = '';
         try {
-          let reply = null;
-          for (let retry = 0; retry < 3; retry++) {
-            showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
-            reply = await fetchZhipuVision(aiCountPhotos[i], prompt);
-            console.log(`[AI计数] 第${i+1}张识别结果(原始):`, reply);
-            if (reply && reply !== 'aborted') {
-              rawReply = reply;
-              break;
-            }
-            await new Promise(r => setTimeout(r, 500));
-          }
+          showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          if (reply && reply !== 'aborted') {
-            reply = reply.trim();
-            console.log(`[AI计数] 第${i+1}张识别结果(清理后):`, reply);
-            
-            const extractedNum = extractNumber(reply);
-            console.log(`[AI计数] 第${i+1}张提取数字:`, extractedNum);
-            
-            if (extractedNum > 0 && extractedNum < 10000) {
-              count = extractedNum;
-              success = true;
-            } else if (extractedNum === 0) {
-              const numMatch = reply.match(/\d+/);
-              if (numMatch) {
-                const num = parseInt(numMatch[0]);
-                if (!isNaN(num) && num >= 0 && num < 10000) {
-                  count = num;
-                  success = true;
-                }
-              }
-            }
+          // 使用百度AI进行物体识别计数
+          const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
+          console.log(`[AI计数] 第${i+1}张识别结果:`, result);
+          
+          if (result > 0 && result < 10000) {
+            count = result;
+            success = true;
+            rawReply = `识别到${result}个物品`;
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
