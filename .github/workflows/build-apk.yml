@@ -49,8 +49,8 @@ jobs:
 
       - name: Create .env file with environment variables
         run: |
-          echo "EXPO_PUBLIC_BAIDU_API_KEY=${{ secrets.BAIDU_API_KEY }}" > .env
-          echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=${{ secrets.BAIDU_SECRET_KEY }}" >> .env
+          echo "EXPO_PUBLIC_BAIDU_API_KEY=2X4R2K4qq9u3K9769BOjDXtq" > .env
+          echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=oHTvqHAZvXUyAMBTrF8n93GnoE41lqri" >> .env
 
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
@@ -64,5 +64,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-v5.0
+          name: app-release-v5.1
           path: android/app/build/outputs/apk/release/*.apk
