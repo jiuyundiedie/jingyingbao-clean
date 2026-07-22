@@ -86,6 +86,9 @@ const ZHIPU_MODEL = "glm-4-flash";
 const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
 const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
 
+// 智谱AI配置（用于视觉语言模型计数）
+const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "";
+
 // ===== 日期工具 =====
 const getTodayStr = () => {
   const d = new Date();
@@ -229,103 +232,77 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
   }
 }
 
-// ===== 百度AI图像多主体检测API（正确的图像识别API）=====
-let baiduAccessToken = null;
-let baiduTokenExpireTime = 0;
-
-// 获取百度AI access_token
-async function getBaiduAccessToken() {
+// ===== 智谱GLM-4V视觉语言模型（用于计数）=====
+async function fetchZhipuObjectDetection(imageUri) {
   try {
-    // 如果token未过期，直接返回
-    if (baiduAccessToken && Date.now() < baiduTokenExpireTime) {
-      return baiduAccessToken;
-    }
-    
-    const res = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`
-    });
-    
-    const json = await res.json();
-    console.log('[BaiduAI] Token响应:', JSON.stringify(json));
-    
-    if (json.access_token) {
-      baiduAccessToken = json.access_token;
-      baiduTokenExpireTime = Date.now() + (json.expires_in - 60) * 1000; // 提前1分钟过期
-      return baiduAccessToken;
-    } else {
-      console.error('[BaiduAI] 获取Token失败:', json.error_msg);
-      return null;
-    }
-  } catch (err) {
-    console.error('[BaiduAI] 获取Token异常:', err);
-    return null;
-  }
-}
-
-// 调用百度图像多主体检测API
-async function fetchBaiduObjectDetection(imageUri) {
-  try {
-    if (!BAIDU_API_KEY || !BAIDU_SECRET_KEY) {
-      console.warn('[BaiduAI] API Key或Secret Key未配置');
-      return 0;
-    }
-    
-    // 获取access_token
-    const token = await getBaiduAccessToken();
-    if (!token) {
-      console.error('[BaiduAI] 获取Token失败');
+    const apiKey = ZHIPU_API_KEY || process.env.EXPO_PUBLIC_ZHIPU_API_KEY;
+    if (!apiKey) {
+      console.warn('[ZhipuAI] API Key未配置');
       return 0;
     }
     
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
-    console.log(`[BaiduAI] base64长度: ${base64.length}`);
+    console.log(`[ZhipuAI] base64长度: ${base64.length}`);
     
-    // 使用百度图像多主体检测API
-    const res = await fetch(`https://aip.baidubce.com/rest/2.0/image-classify/v1/multi_object_detect?access_token=${token}`, {
+    // 使用智谱GLM-4V视觉语言模型进行计数
+    const res = await fetch(ZHIPU_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `image=${encodeURIComponent(base64)}`
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4v',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64}`
+                }
+              },
+              {
+                type: 'text',
+                text: '图片中有多少个相同的物品？请只返回一个阿拉伯数字，不要回答其他内容。如果图片中没有物品或无法识别，返回0。'
+              }
+            ]
+          }
+        ],
+        max_tokens: 10,
+        temperature: 0
+      })
     });
     
     const json = await res.json();
-    console.log(`[BaiduAI] HTTP状态码: ${res.status}`);
-    console.log(`[BaiduAI] 完整响应:`, JSON.stringify(json));
+    console.log(`[ZhipuAI] HTTP状态码: ${res.status}`);
+    console.log(`[ZhipuAI] 完整响应:`, JSON.stringify(json));
     
-    if (json.error_code) {
-      console.error(`[BaiduAI] API调用失败: ${json.error_msg} (错误码: ${json.error_code})`);
+    if (json.error) {
+      console.error('[ZhipuAI] API调用失败:', json.error.message);
       return 0;
     }
     
-    // 图像多主体检测API返回result数组，每个元素是一个独立检测到的物体
-    const objects = json.result || [];
-    const totalCount = objects.length;
-    console.log(`[BaiduAI] 检测到的物体总数: ${totalCount}`);
+    // 提取返回的数字
+    const content = json.choices?.[0]?.message?.content || '';
+    console.log(`[ZhipuAI] 原始回答: ${content}`);
     
-    // 如果检测到物体，输出详细信息
-    if (totalCount > 0) {
-      console.log('[BaiduAI] 物体详情:');
-      objects.forEach((obj, idx) => {
-        console.log(`${idx + 1}. name: ${obj.name}, score: ${obj.score}`);
-      });
-      
-      // 按类别统计数量（便于调试）
-      const categoryCount = {};
-      objects.forEach(obj => {
-        categoryCount[obj.name] = (categoryCount[obj.name] || 0) + 1;
-      });
-      console.log('[BaiduAI] 按类别统计:', JSON.stringify(categoryCount));
-      
-      // 返回所有检测到的物体数量（每个物体都是独立的实例）
-      console.log(`[BaiduAI] 最终计数结果: ${totalCount}`);
-    }
+    // 从回答中提取数字
+    const numMatch = content.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    console.log(`[ZhipuAI] 提取的数字: ${count}`);
     
-    return totalCount;
+    return count;
   } catch (err) {
-    console.error('[BaiduAI] 识别异常:', err);
+    console.error('[ZhipuAI] 识别异常:', err);
     return 0;
   }
+}
+
+// 兼容旧函数名
+async function fetchBaiduObjectDetection(imageUri) {
+  return await fetchZhipuObjectDetection(imageUri);
 }
 
 // ===== 日报/周报/月报计算 =====
