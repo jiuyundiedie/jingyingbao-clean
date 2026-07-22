@@ -229,75 +229,66 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
   }
 }
 
-// ===== 百度AI图像识别 =====
-let BAIDU_ACCESS_TOKEN = null;
-let BAIDU_TOKEN_EXPIRE_TIME = 0;
-
-async function getBaiduAccessToken() {
-  try {
-    const now = Date.now();
-    if (BAIDU_ACCESS_TOKEN && now < BAIDU_TOKEN_EXPIRE_TIME) {
-      return BAIDU_ACCESS_TOKEN;
-    }
-    
-    if (!BAIDU_API_KEY || !BAIDU_SECRET_KEY) {
-      console.warn('[BaiduAI] API Key或Secret Key未配置');
-      return null;
-    }
-    
-    const res = await fetch(`https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    const json = await res.json();
-    if (json.access_token) {
-      BAIDU_ACCESS_TOKEN = json.access_token;
-      BAIDU_TOKEN_EXPIRE_TIME = now + (json.expires_in || 2592000) * 1000;
-      console.log('[BaiduAI] Token获取成功');
-      return BAIDU_ACCESS_TOKEN;
-    } else {
-      console.error('[BaiduAI] Token获取失败:', json);
-      return null;
-    }
-  } catch (err) {
-    console.error('[BaiduAI] Token获取异常:', err);
-    return null;
-  }
-}
-
+// ===== 百度AI图像识别（使用千帆视觉大模型）=====
 async function fetchBaiduObjectDetection(imageUri) {
   try {
-    const token = await getBaiduAccessToken();
-    if (!token) {
-      console.warn('[BaiduAI] Token无效');
+    if (!BAIDU_API_KEY) {
+      console.warn('[BaiduAI] API Key未配置');
       return 0;
     }
     
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
     console.log(`[BaiduAI] base64长度: ${base64.length}`);
     
-    // 使用图像多主体检测API，检测图片中多个相同物体并统计数量
-    const res = await fetch(`https://aip.baidubce.com/rest/2.0/image-classify/v1/multi_object_detect?access_token=${token}`, {
+    // 使用百度千帆ERNIE-ViLG视觉大模型进行计数
+    const res = await fetch('https://qianfan.baidubce.com/v2/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `image=${encodeURIComponent(base64)}`
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BAIDU_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "ernie-vilg",
+        messages: [
+          {
+            role: "system",
+            content: "你是一个专业的物品计数助手。你的任务是数图片中有多少个相同的物品。"
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64}`
+                }
+              },
+              {
+                type: "text",
+                text: "请数一下图片中有多少个相同的物品。严格按照以下规则：1.不要识别物品名称，不要描述任何物品；2.不要回答任何问题，不要解释；3.只返回一个阿拉伯数字；4.如果图片中没有物品，返回0。"
+              }
+            ]
+          }
+        ],
+        max_tokens: 10,
+        temperature: 0
+      })
     });
     
     const json = await res.json();
     console.log(`[BaiduAI] HTTP状态码: ${res.status}`);
     console.log(`[BaiduAI] 完整响应:`, JSON.stringify(json));
     
-    if (json.error_code) {
-      console.error('[BaiduAI] API调用失败:', json.error_msg);
-      BAIDU_ACCESS_TOKEN = null;
+    if (json.error) {
+      console.error('[BaiduAI] API调用失败:', json.error.message);
       return 0;
     }
     
-    // 图像多主体检测返回多个物体的位置框，统计检测到的物体数量
-    const objects = json.objects || [];
-    const count = objects.length || 0;
-    console.log(`[BaiduAI] 检测到的物体数量: ${count}`);
+    // 提取返回的数字
+    const content = json.choices?.[0]?.message?.content || '';
+    const numMatch = content.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    console.log(`[BaiduAI] 识别到的物品数量: ${count}`);
     return count;
   } catch (err) {
     console.error('[BaiduAI] 识别异常:', err);
@@ -2352,7 +2343,7 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 使用百度AI进行物体识别计数
+          // 使用百度千帆视觉大模型进行计数
           const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
           console.log(`[AI计数] 第${i+1}张识别结果:`, result);
           
