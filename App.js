@@ -85,8 +85,6 @@ const ZHIPU_MODEL = "glm-4-flash";
 // 百度AI配置（从环境变量读取，使用EXPO_PUBLIC_前缀）
 const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
 const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
-let BAIDU_ACCESS_TOKEN = null;
-let BAIDU_TOKEN_EXPIRE_TIME = 0;
 
 // ===== 日期工具 =====
 const getTodayStr = () => {
@@ -232,10 +230,47 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
 }
 
 // ===== 百度AI图像识别 =====
+let BAIDU_ACCESS_TOKEN = null;
+let BAIDU_TOKEN_EXPIRE_TIME = 0;
+
+async function getBaiduAccessToken() {
+  try {
+    const now = Date.now();
+    if (BAIDU_ACCESS_TOKEN && now < BAIDU_TOKEN_EXPIRE_TIME) {
+      return BAIDU_ACCESS_TOKEN;
+    }
+    
+    if (!BAIDU_API_KEY || !BAIDU_SECRET_KEY) {
+      console.warn('[BaiduAI] API Key或Secret Key未配置');
+      return null;
+    }
+    
+    const res = await fetch(`https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const json = await res.json();
+    if (json.access_token) {
+      BAIDU_ACCESS_TOKEN = json.access_token;
+      BAIDU_TOKEN_EXPIRE_TIME = now + (json.expires_in || 2592000) * 1000;
+      console.log('[BaiduAI] Token获取成功，有效期:', json.expires_in);
+      return BAIDU_ACCESS_TOKEN;
+    } else {
+      console.error('[BaiduAI] Token获取失败:', json);
+      return null;
+    }
+  } catch (err) {
+    console.error('[BaiduAI] Token获取异常:', err);
+    return null;
+  }
+}
+
 async function fetchBaiduObjectDetection(imageUri) {
   try {
-    if (!BAIDU_API_KEY || BAIDU_API_KEY === 'your_baidu_api_key') {
-      console.warn('[BaiduAI] API Key未配置');
+    const token = await getBaiduAccessToken();
+    if (!token) {
+      console.warn('[BaiduAI] Token无效');
       return 0;
     }
     
@@ -243,12 +278,9 @@ async function fetchBaiduObjectDetection(imageUri) {
     console.log(`[BaiduAI] base64长度: ${base64.length}`);
     
     // 使用图像多主体检测API，可以检测图片中多个相同物体并统计数量
-    const res = await fetch('https://aip.baidubce.com/rest/2.0/image-classify/v1/image_multi_object_detect', {
+    const res = await fetch(`https://aip.baidubce.com/rest/2.0/image-classify/v1/multi_object_detect?access_token=${token}`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Bearer ${BAIDU_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `image=${encodeURIComponent(base64)}`
     });
     
@@ -258,6 +290,8 @@ async function fetchBaiduObjectDetection(imageUri) {
     
     if (json.error_code) {
       console.error('[BaiduAI] API调用失败:', json.error_msg);
+      // 清除过期token
+      BAIDU_ACCESS_TOKEN = null;
       return 0;
     }
     
