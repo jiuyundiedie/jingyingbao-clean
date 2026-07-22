@@ -242,8 +242,8 @@ async function fetchBaiduObjectDetection(imageUri) {
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
     console.log(`[BaiduAI] base64长度: ${base64.length}`);
     
-    // 百度智能云新平台API调用方式
-    const res = await fetch('https://aip.baidubce.com/rest/2.0/image-classify/v2/advanced_general', {
+    // 使用图像多主体检测API，可以检测图片中多个相同物体并统计数量
+    const res = await fetch('https://aip.baidubce.com/rest/2.0/image-classify/v1/image_multi_object_detect', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -261,10 +261,11 @@ async function fetchBaiduObjectDetection(imageUri) {
       return 0;
     }
     
-    // 通用物体识别返回结果列表，统计识别到的物品数量
-    const result_num = json.result_num || 0;
-    console.log(`[BaiduAI] 识别到的物品数量: ${result_num}`);
-    return result_num;
+    // 图像多主体检测返回多个物体的位置框，统计检测到的物体数量
+    const objects = json.objects || [];
+    const count = objects.length || 0;
+    console.log(`[BaiduAI] 检测到的物体数量: ${count}`);
+    return count;
   } catch (err) {
     console.error('[BaiduAI] 识别异常:', err);
     return 0;
