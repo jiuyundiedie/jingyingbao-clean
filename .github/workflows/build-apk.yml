@@ -47,6 +47,11 @@ jobs:
       - name: Clear Metro bundler cache
         run: rm -rf /tmp/metro-bundler-cache-* /tmp/haste-map-*
 
+      - name: Create .env file with environment variables
+        run: |
+          echo "EXPO_PUBLIC_BAIDU_API_KEY=${{ secrets.BAIDU_API_KEY }}" > .env
+          echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=${{ secrets.BAIDU_SECRET_KEY }}" >> .env
+
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
 
@@ -59,5 +64,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-v4.6
+          name: app-release-v4.7
           path: android/app/build/outputs/apk/release/*.apk

@@ -82,9 +82,9 @@ const ZHIPU_API_KEY = "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
-// 百度AI配置
-const BAIDU_API_KEY = "your_baidu_api_key";
-const BAIDU_SECRET_KEY = "your_baidu_secret_key";
+// 百度AI配置（从环境变量读取，使用EXPO_PUBLIC_前缀）
+const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
+const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
 let BAIDU_ACCESS_TOKEN = null;
 let BAIDU_TOKEN_EXPIRE_TIME = 0;
 
@@ -232,61 +232,24 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
 }
 
 // ===== 百度AI图像识别 =====
-async function getBaiduAccessToken() {
-  try {
-    const now = Date.now();
-    if (BAIDU_ACCESS_TOKEN && now < BAIDU_TOKEN_EXPIRE_TIME) {
-      return BAIDU_ACCESS_TOKEN;
-    }
-    
-    if (!BAIDU_API_KEY || BAIDU_API_KEY === 'your_baidu_api_key') {
-      console.warn('[BaiduAI] API Key未配置');
-      return null;
-    }
-    
-    const res = await fetch(`https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${BAIDU_API_KEY}&client_secret=${BAIDU_SECRET_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    const json = await res.json();
-    if (json.access_token) {
-      BAIDU_ACCESS_TOKEN = json.access_token;
-      BAIDU_TOKEN_EXPIRE_TIME = now + (json.expires_in || 2592000) * 1000;
-      console.log('[BaiduAI] Token获取成功');
-      return BAIDU_ACCESS_TOKEN;
-    } else {
-      console.error('[BaiduAI] Token获取失败:', json);
-      return null;
-    }
-  } catch (err) {
-    console.error('[BaiduAI] Token获取异常:', err);
-    return null;
-  }
-}
-
 async function fetchBaiduObjectDetection(imageUri) {
   try {
-    const token = await getBaiduAccessToken();
-    if (!token) {
-      console.warn('[BaiduAI] Token无效，使用智谱API作为备用');
-      // 使用智谱API作为备用
-      const prompt = '请数一下图片中有多少个物品。只返回一个数字。';
-      const reply = await fetchZhipuVision(imageUri, prompt);
-      if (reply && reply !== 'aborted') {
-        const numMatch = reply.match(/\d+/);
-        return numMatch ? parseInt(numMatch[0]) : 0;
-      }
+    if (!BAIDU_API_KEY || BAIDU_API_KEY === 'your_baidu_api_key') {
+      console.warn('[BaiduAI] API Key未配置');
       return 0;
     }
     
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
     console.log(`[BaiduAI] base64长度: ${base64.length}`);
     
+    // 百度智能云新平台API调用方式
     const res = await fetch('https://aip.baidubce.com/rest/2.0/image-classify/v2/advanced_general', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `image=${encodeURIComponent(base64)}&access_token=${token}`
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${BAIDU_API_KEY}`
+      },
+      body: `image=${encodeURIComponent(base64)}`
     });
     
     const json = await res.json();
