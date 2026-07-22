@@ -64,7 +64,7 @@ jobs:
 
       - name: Clear CMake cache (fixes multi-arch build conflicts)
         run: |
-          rm -rf node_modules/expo-modules-core/android/.cxx
+          find node_modules -type d -name ".cxx" -exec rm -rf {} + 2>/dev/null || true
           rm -rf android/app/.cxx
 
       - name: Build APK (only arm64-v8a for faster build)
