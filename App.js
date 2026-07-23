@@ -276,15 +276,37 @@ function parseCountResult(text) {
   };
 }
 
-// 计数指令：让模型准确数出物品数量并返回坐标
-const COUNT_PROMPT = '请仔细逐个清点图片中所有相同物品的总数量。注意：要数每一个单独的物品，不是数物品种类。请认真计数，不要漏数或多数。同时请返回每个物品的位置坐标（使用百分比，格式为{x1,y1,x2,y2}，范围0-100）。返回JSON格式：{"count":数量,"items":[{"id":序号,"bbox":[x1,y1,x2,y2]}]}。只返回JSON，不要其他文字。';
+// 解析坐标响应的辅助函数 - 更健壮的JSON解析
+function parseCoordsResult(text) {
+  try {
+    // 尝试移除markdown代码块标记（处理各种格式）
+    let cleanText = text.trim();
+    // 移除 ```json 和 ``` 标记（包括多行情况）
+    cleanText = cleanText.replace(/^```\s*json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+    // 移除可能存在的其他前后缀
+    cleanText = cleanText.replace(/^json\s*/i, '');
+    
+    const result = JSON.parse(cleanText);
+    return result.items || [];
+  } catch (e) {
+    console.log('[坐标解析] JSON解析失败:', e.message);
+    return [];
+  }
+}
 
-// 1. 阿里云百炼 Qwen-VL（国内可用）
+// 计数指令：简化版本，只问数量
+const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。逐个计数，不要漏数。只返回一个阿拉伯数字，不要其他文字。';
+
+// 获取坐标指令 - 明确要求百分比坐标
+const GET_COORDS_PROMPT = (count) => `图片中有${count}个物品，请为每个物品返回位置坐标。坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比。例如图片中某个物品左上角在20%宽度、30%高度位置，右下角在40%宽度、50%高度位置，则bbox为[20,30,40,50]。返回JSON格式：{"items":[{"id":序号,"bbox":[x1,y1,x2,y2]}]}。只返回JSON字符串，不要包含markdown代码块标记。`;
+
+// 1. 阿里云百炼 Qwen-VL（国内可用）- 两步策略
 async function countWithAlibaba(base64) {
   if (!ALIBABA_API_KEY) return null;
   try {
     console.log('[Alibaba] 开始识别...');
-    const res = await fetch(ALIBABA_URL, {
+    // 第一步：计数
+    const res1 = await fetch(ALIBABA_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -296,31 +318,93 @@ async function countWithAlibaba(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_PROMPT }
+            { type: 'text', text: COUNT_ONLY_PROMPT }
           ]
         }],
-        max_tokens: 200,
+        max_tokens: 20,
         temperature: 0
       })
     });
-    const json = await res.json();
-    console.log('[Alibaba] 响应:', JSON.stringify(json).substring(0, 300));
-    if (json.error) { console.error('[Alibaba] 错误:', json.error); return null; }
-    const text = json.choices?.[0]?.message?.content || '';
-    console.log('[Alibaba] 回答:', text);
-    return parseCountResult(text);
+    const json1 = await res1.json();
+    console.log('[Alibaba] 计数响应:', JSON.stringify(json1).substring(0, 300));
+    if (json1.error) { console.error('[Alibaba] 计数错误:', json1.error); return null; }
+    const text1 = json1.choices?.[0]?.message?.content || '';
+    console.log('[Alibaba] 计数回答:', text1);
+    const numMatch = text1.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    if (count <= 0) { return null; }
+    
+    // 第二步：获取坐标
+    const res2 = await fetch(ALIBABA_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ALIBABA_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'qwen-plus',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: GET_COORDS_PROMPT(count) }
+          ]
+        }],
+        max_tokens: 300,
+        temperature: 0
+      })
+    });
+    const json2 = await res2.json();
+    console.log('[Alibaba] 坐标响应:', JSON.stringify(json2).substring(0, 300));
+    const text2 = json2.choices?.[0]?.message?.content || '';
+    
+    const items = parseCoordsResult(text2);
+    console.log('[Alibaba] 解析到', items.length, '个物品坐标');
+    
+    return { count, items };
   } catch (err) {
     console.error('[Alibaba] 失败:', err.message);
     return null;
   }
 }
 
-// 2. 硅基流动 SiliconFlow API（OpenAI兼容格式）
+// 2. 硅基流动 SiliconFlow API（OpenAI兼容格式）- 使用32B模型
 async function countWithSiliconFlow(base64) {
   if (!SILICONFLOW_API_KEY) return null;
   try {
     console.log('[SiliconFlow] 开始识别...');
-    const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+    // 第一步：使用32B模型计数（更准确）
+    const res1 = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'Qwen/Qwen3-VL-32B-Instruct',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: COUNT_ONLY_PROMPT }
+          ]
+        }],
+        max_tokens: 20,
+        temperature: 0
+      })
+    });
+    const json1 = await res1.json();
+    console.log('[SiliconFlow] 计数响应:', JSON.stringify(json1).substring(0, 300));
+    if (json1.error) { console.error('[SiliconFlow] 计数错误:', json1.error); return null; }
+    const text1 = json1.choices?.[0]?.message?.content || '';
+    console.log('[SiliconFlow] 计数回答:', text1);
+    const numMatch = text1.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    if (count <= 0) { return null; }
+    
+    // 第二步：使用8B模型获取坐标（32B太慢，8B足够返回坐标）
+    console.log('[SiliconFlow] 获取坐标...');
+    const res2 = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -332,31 +416,36 @@ async function countWithSiliconFlow(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_PROMPT }
+            { type: 'text', text: GET_COORDS_PROMPT(count) }
           ]
         }],
-        max_tokens: 200,
+        max_tokens: 300,
         temperature: 0
       })
     });
-    const json = await res.json();
-    console.log('[SiliconFlow] 响应:', JSON.stringify(json).substring(0, 300));
-    if (json.error) { console.error('[SiliconFlow] 错误:', json.error); return null; }
-    const text = json.choices?.[0]?.message?.content || '';
-    console.log('[SiliconFlow] 回答:', text);
-    return parseCountResult(text);
+    const json2 = await res2.json();
+    console.log('[SiliconFlow] 坐标响应:', JSON.stringify(json2).substring(0, 300));
+    const text2 = json2.choices?.[0]?.message?.content || '';
+    console.log('[SiliconFlow] 坐标回答:', text2);
+    
+    // 解析坐标
+    const items = parseCoordsResult(text2);
+    console.log('[SiliconFlow] 解析到', items.length, '个物品坐标');
+    
+    return { count, items };
   } catch (err) {
     console.error('[SiliconFlow] 失败:', err.message);
     return null;
   }
 }
 
-// 3. 豆包AI（火山引擎，国内可用）
+// 3. 豆包AI（火山引擎，国内可用）- 两步策略
 async function countWithDoubao(base64) {
   if (!DOUBAO_API_KEY) return null;
   try {
     console.log('[Doubao] 开始识别...');
-    const res = await fetch(DOUBAO_URL, {
+    // 第一步：计数
+    const res1 = await fetch(DOUBAO_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -368,31 +457,63 @@ async function countWithDoubao(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_PROMPT }
+            { type: 'text', text: COUNT_ONLY_PROMPT }
           ]
         }],
-        max_tokens: 200,
+        max_tokens: 20,
         temperature: 0
       })
     });
-    const json = await res.json();
-    console.log('[Doubao] 响应:', JSON.stringify(json).substring(0, 300));
-    if (json.error) { console.error('[Doubao] 错误:', json.error); return null; }
-    const text = json.choices?.[0]?.message?.content || '';
-    console.log('[Doubao] 回答:', text);
-    return parseCountResult(text);
+    const json1 = await res1.json();
+    console.log('[Doubao] 计数响应:', JSON.stringify(json1).substring(0, 300));
+    if (json1.error) { console.error('[Doubao] 计数错误:', json1.error); return null; }
+    const text1 = json1.choices?.[0]?.message?.content || '';
+    console.log('[Doubao] 计数回答:', text1);
+    const numMatch = text1.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    if (count <= 0) { return null; }
+    
+    // 第二步：获取坐标
+    const res2 = await fetch(DOUBAO_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DOUBAO_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'doubao-vision-pro',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: GET_COORDS_PROMPT(count) }
+          ]
+        }],
+        max_tokens: 300,
+        temperature: 0
+      })
+    });
+    const json2 = await res2.json();
+    console.log('[Doubao] 坐标响应:', JSON.stringify(json2).substring(0, 300));
+    const text2 = json2.choices?.[0]?.message?.content || '';
+    
+    const items = parseCoordsResult(text2);
+    console.log('[Doubao] 解析到', items.length, '个物品坐标');
+    
+    return { count, items };
   } catch (err) {
     console.error('[Doubao] 失败:', err.message);
     return null;
   }
 }
 
-// 4. 智谱GLM-4V API
+// 4. 智谱GLM-4V API - 两步策略
 async function countWithZhipu(base64) {
   if (!ZHIPU_API_KEY) return null;
   try {
     console.log('[ZhipuAI] 开始识别...');
-    const res = await fetch(ZHIPU_URL, {
+    // 第一步：计数
+    const res1 = await fetch(ZHIPU_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -404,19 +525,50 @@ async function countWithZhipu(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_PROMPT }
+            { type: 'text', text: COUNT_ONLY_PROMPT }
           ]
         }],
-        max_tokens: 200,
+        max_tokens: 20,
         temperature: 0
       })
     });
-    const json = await res.json();
-    console.log('[ZhipuAI] 响应:', JSON.stringify(json).substring(0, 300));
-    if (json.error) { console.error('[ZhipuAI] 错误:', json.error); return null; }
-    const text = json.choices?.[0]?.message?.content || '';
-    console.log('[ZhipuAI] 回答:', text);
-    return parseCountResult(text);
+    const json1 = await res1.json();
+    console.log('[ZhipuAI] 计数响应:', JSON.stringify(json1).substring(0, 300));
+    if (json1.error) { console.error('[ZhipuAI] 计数错误:', json1.error); return null; }
+    const text1 = json1.choices?.[0]?.message?.content || '';
+    console.log('[ZhipuAI] 计数回答:', text1);
+    const numMatch = text1.match(/(\d+)/);
+    const count = numMatch ? parseInt(numMatch[1]) : 0;
+    if (count <= 0) { return null; }
+    
+    // 第二步：获取坐标
+    const res2 = await fetch(ZHIPU_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ZHIPU_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4v',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: GET_COORDS_PROMPT(count) }
+          ]
+        }],
+        max_tokens: 300,
+        temperature: 0
+      })
+    });
+    const json2 = await res2.json();
+    console.log('[ZhipuAI] 坐标响应:', JSON.stringify(json2).substring(0, 300));
+    const text2 = json2.choices?.[0]?.message?.content || '';
+    
+    const items = parseCoordsResult(text2);
+    console.log('[ZhipuAI] 解析到', items.length, '个物品坐标');
+    
+    return { count, items };
   } catch (err) {
     console.error('[ZhipuAI] 失败:', err.message);
     return null;
@@ -429,10 +581,10 @@ async function fetchBaiduObjectDetection(imageUri) {
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
     console.log(`[AI计数] base64长度: ${base64.length}`);
 
-    // 按优先级顺序尝试：阿里云百炼 → 硅基流动 → 豆包AI → 智谱
+    // 按优先级顺序尝试：硅基流动(32B模型) → 阿里云百炼 → 豆包AI → 智谱
     const apis = [
+      { name: 'SiliconFlow(32B)', fn: () => countWithSiliconFlow(base64) },
       { name: '阿里云百炼', fn: () => countWithAlibaba(base64) },
-      { name: 'SiliconFlow', fn: () => countWithSiliconFlow(base64) },
       { name: '豆包AI', fn: () => countWithDoubao(base64) },
       { name: 'ZhipuAI', fn: () => countWithZhipu(base64) },
     ];
