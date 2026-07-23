@@ -277,15 +277,40 @@ function parseCountResult(text) {
 }
 
 // 解析坐标响应的辅助函数 - 更健壮的JSON解析
-// 自动检测并转换像素坐标为百分比
+// 自动检测并转换像素坐标为百分比 - 增强版
 function parseCoordsResult(text, imageWidth, imageHeight) {
   try {
+    if (!text || typeof text !== 'string') {
+      console.log('[坐标解析] 输入为空或非字符串');
+      return [];
+    }
+    
     let cleanText = text.trim();
+    console.log('[坐标解析] 原始文本:', cleanText.substring(0, 200));
+    
+    // 移除markdown代码块标记
     cleanText = cleanText.replace(/^```\s*json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
     cleanText = cleanText.replace(/^json\s*/i, '');
     
+    // 尝试提取JSON对象（处理AI返回的文字描述中夹杂JSON的情况）
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanText = jsonMatch[0];
+      console.log('[坐标解析] 提取到JSON:', cleanText.substring(0, 200));
+    }
+    
     const result = JSON.parse(cleanText);
     let items = result.items || [];
+    
+    // 如果没有items但有bbox数组，兼容处理
+    if (!Array.isArray(items) && result.bbox && Array.isArray(result.bbox)) {
+      items = [{ id: 1, bbox: result.bbox }];
+    }
+    
+    // 如果是二维数组格式 [[x1,y1,x2,y2], ...]
+    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
+      items = result.map((bbox, idx) => ({ id: idx + 1, bbox }));
+    }
     
     // 转换像素坐标为百分比
     if (imageWidth && imageHeight) {
@@ -297,10 +322,10 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
             return {
               ...item,
               bbox: [
-                (x1 / imageWidth) * 100,
-                (y1 / imageHeight) * 100,
-                (x2 / imageWidth) * 100,
-                (y2 / imageHeight) * 100
+                Math.min(100, Math.max(0, (x1 / imageWidth) * 100)),
+                Math.min(100, Math.max(0, (y1 / imageHeight) * 100)),
+                Math.min(100, Math.max(0, (x2 / imageWidth) * 100)),
+                Math.min(100, Math.max(0, (y2 / imageHeight) * 100))
               ]
             };
           }
@@ -309,9 +334,17 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
       });
     }
     
+    // 过滤无效坐标
+    items = items.filter(item => {
+      if (!item.bbox || item.bbox.length !== 4) return false;
+      const [x1, y1, x2, y2] = item.bbox;
+      return x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1 && x2 <= 100 && y2 <= 100;
+    });
+    
+    console.log('[坐标解析] 成功解析到', items.length, '个有效坐标');
     return items;
   } catch (e) {
-    console.log('[坐标解析] JSON解析失败:', e.message);
+    console.log('[坐标解析] JSON解析失败:', e.message, '原始文本:', text.substring(0, 100));
     return [];
   }
 }
@@ -319,8 +352,16 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
 // 计数指令：简化版本，只问数量
 const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。逐个计数，不要漏数。只返回一个阿拉伯数字，不要其他文字。';
 
-// 获取坐标指令 - 明确要求百分比坐标
-const GET_COORDS_PROMPT = (count) => `图片中有${count}个物品，请为每个物品返回位置坐标。坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比。例如图片中某个物品左上角在20%宽度、30%高度位置，右下角在40%宽度、50%高度位置，则bbox为[20,30,40,50]。返回JSON格式：{"items":[{"id":序号,"bbox":[x1,y1,x2,y2]}]}。只返回JSON字符串，不要包含markdown代码块标记。`;
+// 获取坐标指令 - 明确要求百分比坐标（强化版）
+const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。图片中有${count}个物品，请为每个物品返回精确的位置坐标。
+
+要求：
+1. 坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比
+2. 每个物品必须有一个bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
+3. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
+4. 格式示例：{"items":[{"id":1,"bbox":[10,10,30,30]},{"id":2,"bbox":[50,20,70,40]}]}
+
+只返回JSON，不要其他任何内容！`;
 
 // 1. 阿里云百炼 Qwen-VL（国内可用）- 两步策略
 async function countWithAlibaba(base64, width, height) {
@@ -2532,6 +2573,7 @@ const StockManage = () => {
 
   const handleAICount = async () => {
     console.log('[新版点数神器] handleAICount triggered - 新版代码已生效');
+    Alert.alert('调试信息', '新版点数神器代码已生效！');
     setAiCountPhotos([]);
     setAiCountResult(null);
     setAiCountModalVisible(true);
@@ -2682,13 +2724,18 @@ const StockManage = () => {
           
           // 使用AI视觉模型进行计数（传递图片信息对象）
           const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
-          console.log(`[AI计数] 第${i+1}张识别结果:`, result);
+          console.log(`[AI计数] 第${i+1}张识别结果:`, JSON.stringify(result));
           
           if (result && result.count > 0 && result.count < 10000) {
             count = result.count;
             success = true;
             items = result.items || [];
             rawReply = `识别到${count}个物品`;
+            if (items.length === 0) {
+              showToast(`⚠️ 第${i+1}张图片坐标获取失败，仅显示数量`);
+            } else {
+              showToast(`✅ 第${i+1}张识别${count}个，已标记${items.length}处`);
+            }
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
