@@ -2531,10 +2531,11 @@ const StockManage = () => {
   };
 
   const handleAICount = async () => {
+    console.log('[新版点数神器] handleAICount triggered - 新版代码已生效');
     setAiCountPhotos([]);
     setAiCountResult(null);
     setAiCountModalVisible(true);
-    showToast('点击拍照按钮开始识别物品数量');
+    showToast('✅ 新版点数神器已启动！');
   };
 
   const handleAIGoodsRecognition = async () => {
