@@ -250,6 +250,35 @@ function extractNumber(text) {
   return numMatch ? parseInt(numMatch[1]) : 0;
 }
 
+// 解析计数结果（支持JSON格式和纯数字格式）
+function parseCountResult(text) {
+  if (!text) return { count: 0, items: [] };
+  try {
+    // 清理可能的markdown标记
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // 尝试解析JSON
+    const result = JSON.parse(cleanText);
+    if (result.count !== undefined) {
+      return {
+        count: parseInt(result.count) || 0,
+        items: result.items || []
+      };
+    }
+  } catch (e) {
+    console.log('[解析] JSON解析失败，尝试提取数字:', e.message);
+  }
+  
+  // 回退到纯数字提取
+  return {
+    count: extractNumber(text),
+    items: []
+  };
+}
+
+// 计数指令：让模型准确数出物品数量并返回坐标
+const COUNT_PROMPT = '请仔细逐个清点图片中所有相同物品的总数量。注意：要数每一个单独的物品，不是数物品种类。请认真计数，不要漏数或多数。同时请返回每个物品的位置坐标（使用百分比，格式为{x1,y1,x2,y2}，范围0-100）。返回JSON格式：{"count":数量,"items":[{"id":序号,"bbox":[x1,y1,x2,y2]}]}。只返回JSON，不要其他文字。';
+
 // 1. 阿里云百炼 Qwen-VL（国内可用）
 async function countWithAlibaba(base64) {
   if (!ALIBABA_API_KEY) return null;
@@ -267,19 +296,19 @@ async function countWithAlibaba(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+            { type: 'text', text: COUNT_PROMPT }
           ]
         }],
-        max_tokens: 10,
+        max_tokens: 200,
         temperature: 0
       })
     });
     const json = await res.json();
-    console.log('[Alibaba] 响应:', JSON.stringify(json).substring(0, 200));
+    console.log('[Alibaba] 响应:', JSON.stringify(json).substring(0, 300));
     if (json.error) { console.error('[Alibaba] 错误:', json.error); return null; }
     const text = json.choices?.[0]?.message?.content || '';
     console.log('[Alibaba] 回答:', text);
-    return extractNumber(text);
+    return parseCountResult(text);
   } catch (err) {
     console.error('[Alibaba] 失败:', err.message);
     return null;
@@ -303,19 +332,19 @@ async function countWithSiliconFlow(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+            { type: 'text', text: COUNT_PROMPT }
           ]
         }],
-        max_tokens: 10,
+        max_tokens: 200,
         temperature: 0
       })
     });
     const json = await res.json();
-    console.log('[SiliconFlow] 响应:', JSON.stringify(json).substring(0, 200));
+    console.log('[SiliconFlow] 响应:', JSON.stringify(json).substring(0, 300));
     if (json.error) { console.error('[SiliconFlow] 错误:', json.error); return null; }
     const text = json.choices?.[0]?.message?.content || '';
     console.log('[SiliconFlow] 回答:', text);
-    return extractNumber(text);
+    return parseCountResult(text);
   } catch (err) {
     console.error('[SiliconFlow] 失败:', err.message);
     return null;
@@ -339,19 +368,19 @@ async function countWithDoubao(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+            { type: 'text', text: COUNT_PROMPT }
           ]
         }],
-        max_tokens: 10,
+        max_tokens: 200,
         temperature: 0
       })
     });
     const json = await res.json();
-    console.log('[Doubao] 响应:', JSON.stringify(json).substring(0, 200));
+    console.log('[Doubao] 响应:', JSON.stringify(json).substring(0, 300));
     if (json.error) { console.error('[Doubao] 错误:', json.error); return null; }
     const text = json.choices?.[0]?.message?.content || '';
     console.log('[Doubao] 回答:', text);
-    return extractNumber(text);
+    return parseCountResult(text);
   } catch (err) {
     console.error('[Doubao] 失败:', err.message);
     return null;
@@ -375,19 +404,19 @@ async function countWithZhipu(base64) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+            { type: 'text', text: COUNT_PROMPT }
           ]
         }],
-        max_tokens: 10,
+        max_tokens: 200,
         temperature: 0
       })
     });
     const json = await res.json();
-    console.log('[ZhipuAI] 响应:', JSON.stringify(json).substring(0, 200));
+    console.log('[ZhipuAI] 响应:', JSON.stringify(json).substring(0, 300));
     if (json.error) { console.error('[ZhipuAI] 错误:', json.error); return null; }
     const text = json.choices?.[0]?.message?.content || '';
     console.log('[ZhipuAI] 回答:', text);
-    return extractNumber(text);
+    return parseCountResult(text);
   } catch (err) {
     console.error('[ZhipuAI] 失败:', err.message);
     return null;
@@ -410,18 +439,18 @@ async function fetchBaiduObjectDetection(imageUri) {
 
     for (const api of apis) {
       const result = await api.fn();
-      if (result !== null && result > 0 && result < 10000) {
-        console.log(`[AI计数] ${api.name} 识别成功: ${result}`);
+      if (result !== null && result.count > 0 && result.count < 10000) {
+        console.log(`[AI计数] ${api.name} 识别成功: ${result.count} 个物品`);
         return result;
       }
       console.log(`[AI计数] ${api.name} 未返回有效结果，尝试下一个API`);
     }
 
     console.log('[AI计数] 所有API均未返回有效结果');
-    return 0;
+    return { count: 0, items: [] };
   } catch (err) {
     console.error('[AI计数] 识别异常:', err);
-    return 0;
+    return { count: 0, items: [] };
   }
 }
 
@@ -2469,22 +2498,24 @@ const StockManage = () => {
         let count = 0;
         let success = false;
         let rawReply = '';
+        let items = [];
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 使用百度千帆视觉大模型进行计数
+          // 使用AI视觉模型进行计数
           const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
           console.log(`[AI计数] 第${i+1}张识别结果:`, result);
           
-          if (result > 0 && result < 10000) {
-            count = result;
+          if (result && result.count > 0 && result.count < 10000) {
+            count = result.count;
             success = true;
-            rawReply = `识别到${result}个物品`;
+            items = result.items || [];
+            rawReply = `识别到${count}个物品`;
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
         }
-        newDetails.push({ photoIndex: i + 1, count, success, manualAdjust: 0, marks: [], rawReply });
+        newDetails.push({ photoIndex: i + 1, count, success, manualAdjust: 0, marks: [], rawReply, items });
         const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
@@ -2908,29 +2939,57 @@ const StockManage = () => {
             <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>📸 拍摄物品照片，AI自动识别数量，支持连拍累计</Text>
             
             <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 120 }} showsHorizontalScrollIndicator={false}>
-              {aiCountPhotos.map((uri, idx) => (
-                <View key={idx} style={{ position: 'relative', marginRight: 8 }}>
-                  <Image source={{ uri }} style={{ width: 90, height: 90, borderRadius: 10 }} />
-                  {aiCountResult?.details?.[idx] && (
-                    <View style={{ position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{aiCountResult.details[idx].count + aiCountResult.details[idx].manualAdjust}</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={{ position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }}
-                    onPress={() => {
-                      setAiCountPhotos(prev => prev.filter((_, i) => i !== idx));
-                      if (aiCountResult && aiCountResult.details) {
-                        const newDetails = aiCountResult.details.filter((_, i) => i !== idx);
-                        const newTotal = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
-                        setAiCountResult({ ...aiCountResult, total: newTotal, details: newDetails, photos: newDetails.length });
-                      }
-                    }}
-                  >
-                    <Ionicons name="close" size={14} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {aiCountPhotos.map((uri, idx) => {
+                const detail = aiCountResult?.details?.[idx];
+                return (
+                  <View key={idx} style={{ position: 'relative', marginRight: 8 }}>
+                    <Image source={{ uri }} style={{ width: 90, height: 90, borderRadius: 10 }} />
+                    {/* AI识别的物品标注框 */}
+                    {detail?.items?.map((item, itemIdx) => {
+                      if (!item.bbox || item.bbox.length < 4) return null;
+                      const [x1, y1, x2, y2] = item.bbox;
+                      return (
+                        <View
+                          key={itemIdx}
+                          style={{
+                            position: 'absolute',
+                            left: (x1 / 100) * 90,
+                            top: (y1 / 100) * 90,
+                            width: ((x2 - x1) / 100) * 90,
+                            height: ((y2 - y1) / 100) * 90,
+                            borderWidth: 2,
+                            borderColor: '#4CAF50',
+                            borderRadius: 4,
+                            backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                          }}
+                        >
+                          <View style={{ position: 'absolute', top: -14, left: 0, backgroundColor: '#4CAF50', borderRadius: 4, paddingHorizontal: 4 }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                    {detail && (
+                      <View style={{ position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{detail.count + detail.manualAdjust}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={{ position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }}
+                      onPress={() => {
+                        setAiCountPhotos(prev => prev.filter((_, i) => i !== idx));
+                        if (aiCountResult && aiCountResult.details) {
+                          const newDetails = aiCountResult.details.filter((_, i) => i !== idx);
+                          const newTotal = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+                          setAiCountResult({ ...aiCountResult, total: newTotal, details: newDetails, photos: newDetails.length });
+                        }
+                      }}
+                    >
+                      <Ionicons name="close" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
               {aiCountPhotos.length === 0 && (
                 <View style={{ width: 90, height: 90, borderRadius: 10, backgroundColor: '#F5F7FA', justifyContent: 'center', alignItems: 'center' }}>
                   <Ionicons name="camera-outline" size={32} color={TEXT_THIRD} />
