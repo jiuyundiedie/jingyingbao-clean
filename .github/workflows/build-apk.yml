@@ -80,5 +80,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-v5.8
+          name: app-release-v5.9
           path: android/app/build/outputs/apk/release/*.apk

@@ -40,3 +40,4 @@ app-example
 
 # test files containing API keys
 test-*.js
+test-siliconflow.js

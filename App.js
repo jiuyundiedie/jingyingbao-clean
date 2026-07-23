@@ -298,7 +298,7 @@ async function countWithSiliconFlow(base64) {
         'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+        model: 'Qwen/Qwen3-VL-8B-Instruct',
         messages: [{
           role: 'user',
           content: [
