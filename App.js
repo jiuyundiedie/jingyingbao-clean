@@ -84,7 +84,7 @@ const ALIBABA_API_KEY = process.env.EXPO_PUBLIC_ALIBABA_API_KEY || "";
 const ALIBABA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 // 2. 硅基流动 SiliconFlow（国内平台，新用户送14元）
-const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "";
+const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "sk-bevcesyyysluduherrbpqezjsazawntlspvmqattomtmaxik";
 
 // 3. 豆包AI（火山引擎，国内可用，新用户有免费额度）
 const DOUBAO_API_KEY = process.env.EXPO_PUBLIC_DOUBAO_API_KEY || "";
