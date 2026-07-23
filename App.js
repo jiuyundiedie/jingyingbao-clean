@@ -79,17 +79,22 @@ const SHADOW = {
 };
 
 // ===== AI视觉模型配置（多API自动切换）=====
-// 1. Google Gemini（免费1500次/天，推荐）
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || "";
+// 1. 阿里云百炼（国内可用，新用户送7000万Tokens）
+const ALIBABA_API_KEY = process.env.EXPO_PUBLIC_ALIBABA_API_KEY || "";
+const ALIBABA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 // 2. 硅基流动 SiliconFlow（国内平台，新用户送14元）
 const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "";
 
-// 3. 智谱AI（备用）
+// 3. 豆包AI（火山引擎，国内可用，新用户有免费额度）
+const DOUBAO_API_KEY = process.env.EXPO_PUBLIC_DOUBAO_API_KEY || "";
+const DOUBAO_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+
+// 4. 智谱AI（备用）
 const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
-// 4. 百度AI（备用）
+// 5. 百度AI（备用）
 const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
 const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
 
@@ -245,31 +250,38 @@ function extractNumber(text) {
   return numMatch ? parseInt(numMatch[1]) : 0;
 }
 
-// 1. Google Gemini API（免费1500次/天）
-async function countWithGemini(base64) {
-  if (!GEMINI_API_KEY) return null;
+// 1. 阿里云百炼 Qwen-VL（国内可用）
+async function countWithAlibaba(base64) {
+  if (!ALIBABA_API_KEY) return null;
   try {
-    console.log('[Gemini] 开始识别...');
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    console.log('[Alibaba] 开始识别...');
+    const res = await fetch(ALIBABA_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ALIBABA_API_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' },
-            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+        model: 'qwen-plus',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
           ]
         }],
-        generationConfig: { temperature: 0, maxOutputTokens: 10 }
+        max_tokens: 10,
+        temperature: 0
       })
     });
     const json = await res.json();
-    console.log('[Gemini] 响应:', JSON.stringify(json).substring(0, 200));
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    console.log('[Gemini] 回答:', text);
+    console.log('[Alibaba] 响应:', JSON.stringify(json).substring(0, 200));
+    if (json.error) { console.error('[Alibaba] 错误:', json.error); return null; }
+    const text = json.choices?.[0]?.message?.content || '';
+    console.log('[Alibaba] 回答:', text);
     return extractNumber(text);
   } catch (err) {
-    console.error('[Gemini] 失败:', err.message);
+    console.error('[Alibaba] 失败:', err.message);
     return null;
   }
 }
@@ -310,7 +322,43 @@ async function countWithSiliconFlow(base64) {
   }
 }
 
-// 3. 智谱GLM-4V API
+// 3. 豆包AI（火山引擎，国内可用）
+async function countWithDoubao(base64) {
+  if (!DOUBAO_API_KEY) return null;
+  try {
+    console.log('[Doubao] 开始识别...');
+    const res = await fetch(DOUBAO_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DOUBAO_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'doubao-vision-pro',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'text', text: '请数一下图片中有多少个相同的物品。只返回一个阿拉伯数字，不要回答其他任何内容。如果没有物品返回0。' }
+          ]
+        }],
+        max_tokens: 10,
+        temperature: 0
+      })
+    });
+    const json = await res.json();
+    console.log('[Doubao] 响应:', JSON.stringify(json).substring(0, 200));
+    if (json.error) { console.error('[Doubao] 错误:', json.error); return null; }
+    const text = json.choices?.[0]?.message?.content || '';
+    console.log('[Doubao] 回答:', text);
+    return extractNumber(text);
+  } catch (err) {
+    console.error('[Doubao] 失败:', err.message);
+    return null;
+  }
+}
+
+// 4. 智谱GLM-4V API
 async function countWithZhipu(base64) {
   if (!ZHIPU_API_KEY) return null;
   try {
@@ -352,10 +400,11 @@ async function fetchBaiduObjectDetection(imageUri) {
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
     console.log(`[AI计数] base64长度: ${base64.length}`);
 
-    // 按优先级顺序尝试：Gemini → SiliconFlow → 智谱
+    // 按优先级顺序尝试：阿里云百炼 → 硅基流动 → 豆包AI → 智谱
     const apis = [
-      { name: 'Gemini', fn: () => countWithGemini(base64) },
+      { name: '阿里云百炼', fn: () => countWithAlibaba(base64) },
       { name: 'SiliconFlow', fn: () => countWithSiliconFlow(base64) },
+      { name: '豆包AI', fn: () => countWithDoubao(base64) },
       { name: 'ZhipuAI', fn: () => countWithZhipu(base64) },
     ];
 
