@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -4934,50 +4934,50 @@ const MerchantAssistant = () => {
     return ['今天生意怎么样？', '有什么经营建议？', '帮我分析数据', '生成一份报表', '怎么提高利润？'];
   };
 
-  const quickReplies = getQuickReplies();
+  // 使用useMemo确保快捷短语响应行业变化
+  const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
   useEffect(() => {
-    if (messages.length === 0) {
-      if (industry !== '待识别') {
-        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-        dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-      } else if (shopName) {
-        AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
-          if (storedShopInfo) {
-            try {
-              const parsed = JSON.parse(storedShopInfo);
-              if (parsed.industry && parsed.industry !== '待识别') {
-                dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
-                const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-                dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-                return;
-              }
-            } catch (e) {}
-          }
-          const abortController = new AbortController();
-          fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
-            .then(async result => {
-              let detectedIndustry = '餐饮类';
-              if (result.includes('服务类')) detectedIndustry = '服务类';
-              else if (result.includes('企业类')) detectedIndustry = '企业类';
-              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-              try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+    // 每次industry变化时重新生成欢迎语
+    if (industry !== '待识别') {
+      const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+      dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+    } else if (shopName) {
+      AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
+        if (storedShopInfo) {
+          try {
+            const parsed = JSON.parse(storedShopInfo);
+            if (parsed.industry && parsed.industry !== '待识别') {
+              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
               dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-            })
-            .catch(() => {
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-            });
-        }).catch(() => {
-          const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-          dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-        });
-      } else {
-        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              return;
+            }
+          } catch (e) {}
+        }
+        const abortController = new AbortController();
+        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
+          .then(async result => {
+            let detectedIndustry = '餐饮类';
+            if (result.includes('服务类')) detectedIndustry = '服务类';
+            else if (result.includes('企业类')) detectedIndustry = '企业类';
+            const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+            dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+            try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+            const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+            dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+          })
+          .catch(() => {
+            const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+            dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+          });
+      }).catch(() => {
+        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
         dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-      }
+      });
+    } else {
+      const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+      dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     }
   }, [industry, shopName, userName]);
 
