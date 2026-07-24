@@ -1268,7 +1268,20 @@ const LoginScreen = () => {
       console.log('Validation passed');
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
-      const shopInfo = { shopName, phone, industry: '餐饮类' };
+      
+      // 根据店铺名称自动识别行业类型
+      let industry = '餐饮类';
+      if (shopName.includes('服务') || shopName.includes('美容') || shopName.includes('美发') || shopName.includes('健身') || 
+          shopName.includes('洗浴') || shopName.includes('按摩') || shopName.includes('KTV') || shopName.includes('娱乐') ||
+          shopName.includes('教育') || shopName.includes('培训') || shopName.includes('家政') || shopName.includes('保洁')) {
+        industry = '服务类';
+      } else if (shopName.includes('公司') || shopName.includes('企业') || shopName.includes('科技') || 
+                 shopName.includes('咨询') || shopName.includes('贸易') || shopName.includes('物流') || 
+                 shopName.includes('批发') || shopName.includes('零售') || shopName.includes('制造')) {
+        industry = '企业类';
+      }
+      
+      const shopInfo = { shopName, phone, industry };
 
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
@@ -3222,7 +3235,7 @@ const StockManage = () => {
         <View style={styles.modalMask}>
           <View style={[styles.voiceModal, { maxHeight: '92%', width: '94%', borderRadius: 16 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>🔢 点数神器</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>🔢 AI智能计数</Text>
               <TouchableOpacity onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
                 <Ionicons name="close-circle-outline" size={24} color={TEXT_THIRD} />
               </TouchableOpacity>
@@ -3357,12 +3370,24 @@ const StockManage = () => {
         </View>
       </Modal>
       
-      {/* 图片放大预览弹窗 */}
+      {/* 图片放大预览弹窗 - 修复版 */}
       <Modal visible={!!aiCountPreview} transparent animationType="fade">
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setAiCountPreview(null)}>
-          <View style={{ position: 'relative', maxWidth: '90%', maxHeight: '80%' }}>
-            <Image source={{ uri: aiCountPreview?.photo?.uri }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-            {/* 放大后的标注框 */}
+        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+          {/* 关闭按钮 */}
+          <TouchableOpacity 
+            style={{ position: 'absolute', top: 40, right: 20, zIndex: 100 }} 
+            onPress={() => setAiCountPreview(null)}
+          >
+            <Ionicons name="close-circle" size={40} color="#fff" />
+          </TouchableOpacity>
+          
+          {/* 图片和标记 */}
+          <View style={{ position: 'relative', maxWidth: '100%', maxHeight: '80%' }}>
+            <Image 
+              source={{ uri: aiCountPreview?.photo?.uri }} 
+              style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+            />
+            {/* 放大后的标注框 - 使用精确的百分比定位 */}
             {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
               if (!item.bbox || item.bbox.length < 4) return null;
               const [x1, y1, x2, y2] = item.bbox;
@@ -3377,24 +3402,34 @@ const StockManage = () => {
                     height: `${y2 - y1}%`,
                     borderWidth: 3,
                     borderColor: '#4CAF50',
-                    borderRadius: 6,
-                    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(76, 175, 80, 0.15)',
                   }}
                 >
-                  <View style={{ position: 'absolute', top: -24, left: 0, backgroundColor: '#4CAF50', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                  {/* 数字标记 */}
+                  <View style={{ 
+                    position: 'absolute', 
+                    top: -20, 
+                    left: 0, 
+                    backgroundColor: '#4CAF50', 
+                    borderRadius: 4, 
+                    paddingHorizontal: 6, 
+                    paddingVertical: 1,
+                    minWidth: 24,
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
                   </View>
                 </View>
               );
             })}
           </View>
-          <View style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 10 }}>
-            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>共 {aiCountPreview?.detail?.count || 0} 件物品</Text>
+          
+          {/* 底部统计信息 */}
+          <View style={{ position: 'absolute', bottom: 60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>共识别 {aiCountPreview?.detail?.count || 0} 件物品</Text>
           </View>
-          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20 }} onPress={() => setAiCountPreview(null)}>
-            <Ionicons name="close-circle" size={36} color="#fff" />
-          </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -4903,6 +4938,7 @@ const MerchantAssistant = () => {
   const getQuickReplies = () => {
     if (industry === '餐饮类') {
       return [
+        // 通用餐饮
         '今天生意怎么样？',
         '今日总营收是多少？',
         '哪些菜卖得最好？',
@@ -4911,24 +4947,80 @@ const MerchantAssistant = () => {
         '本周食材采购建议',
         '差评预警情况',
         '生成一份爆款海报',
+        // 餐厅类
+        '帮我设计餐厅促销活动',
+        '菜品定价策略建议',
+        '周末客流预测',
+        '员工培训方案',
+        // 小吃类
+        '小吃摊选址建议',
+        '夜市摆摊攻略',
+        '爆款小吃配方',
+        '外卖平台运营技巧',
+        // 饮品店
+        '新品饮品开发',
+        '奶茶店营销方案',
+        '会员积分体系',
       ];
     } else if (industry === '服务类') {
       return [
+        // 通用服务
         '今日服务订单量是多少？',
         '怎么提升客户满意度？',
         '员工排班表怎么安排？',
         '本月服务收入目标',
         '帮我生成服务推广话术',
         '客户复购率分析',
+        // 美容美发
+        '美容项目定价方案',
+        '会员储值活动设计',
+        '美发沙龙营销',
+        '技师绩效激励方案',
+        // 家政保洁
+        '家政服务推广',
+        '保洁套餐设计',
+        '上门服务流程优化',
+        '客户满意度调查',
+        // 教育培训
+        '课程促销活动',
+        '学员续费率提升',
+        '师资团队管理',
+        '招生渠道拓展',
+        // 健身娱乐
+        '健身房会员增长',
+        '私教课程定价',
+        '活动策划方案',
+        '场馆运营优化',
       ];
     } else if (industry === '企业类') {
       return [
+        // 通用企业
         '今日销售业绩如何？',
         '团队协作效率提升',
         '项目汇报模板',
         '员工绩效怎么考核？',
         '本月招聘计划',
         '客户转化率分析',
+        // 零售批发
+        '库存管理优化',
+        '批发客户开发',
+        '促销活动策划',
+        '供应链管理',
+        // 科技互联网
+        '产品迭代计划',
+        '用户增长策略',
+        '技术方案评审',
+        '融资路演PPT',
+        // 制造业
+        '生产流程优化',
+        '成本控制方案',
+        '质量管控体系',
+        '供应商管理',
+        // 商务服务
+        '企业宣传文案',
+        '招投标方案',
+        '商务谈判技巧',
+        '品牌形象升级',
       ];
     }
     return ['今天生意怎么样？', '有什么经营建议？', '帮我分析数据', '生成一份报表', '怎么提高利润？'];
