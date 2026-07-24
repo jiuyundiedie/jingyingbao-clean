@@ -1269,17 +1269,37 @@ const LoginScreen = () => {
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       
-      // 根据店铺名称自动识别行业类型
+      // 根据店铺名称自动识别行业类型 - 大幅扩充关键词
       let industry = '餐饮类';
-      if (shopName.includes('服务') || shopName.includes('美容') || shopName.includes('美发') || shopName.includes('健身') || 
-          shopName.includes('洗浴') || shopName.includes('按摩') || shopName.includes('KTV') || shopName.includes('娱乐') ||
-          shopName.includes('教育') || shopName.includes('培训') || shopName.includes('家政') || shopName.includes('保洁')) {
+      // 服务类店铺关键词（包含常见服务型业务）
+      const serviceKeywords = [
+        '服务', '美容', '美发', '健身', '洗浴', '按摩', 'KTV', '娱乐',
+        '教育', '培训', '家政', '保洁', '手机', '数码', '维修', '汽修',
+        '汽配', '服装', '服饰', '鞋店', '箱包', '珠宝', '眼镜', '钟表',
+        '理发', '美甲', '纹绣', 'SPA', '足浴', '网咖', '网吧', '影院',
+        '快递', '物流', '搬家', '开锁', '干洗', '摄影', '婚庆', '鲜花',
+        '打印', '复印', '广告', '装饰', '装修', '房产', '中介', '旅游',
+        '酒店', '宾馆', '住宿', '民宿', '宠物', '诊所', '药房', '药店',
+        '书店', '文具', '礼品', '玩具', '母婴', '童装', '家电', '家具',
+        '建材', '五金', '灯具', '窗帘', '布艺', '眼镜', '验光', '配镜'
+      ];
+      // 企业类店铺关键词
+      const enterpriseKeywords = [
+        '公司', '企业', '科技', '咨询', '贸易', '批发', '制造', '工厂',
+        '集团', '有限', '责任', '股份', '投资', '金融', '保险', '证券',
+        '律所', '律师', '会计', '审计', '设计', '开发', '软件', '网络',
+        '电商', '平台', '传媒', '文化', '影视', '广告', '策划', '营销',
+        '医疗', '医院', '体检', '养老', '物业', '管理', '工程', '建筑',
+        '能源', '电力', '环保', '农业', '养殖', '种植', '物流', '仓储'
+      ];
+      
+      // 优先判断服务类
+      if (serviceKeywords.some(kw => shopName.includes(kw))) {
         industry = '服务类';
-      } else if (shopName.includes('公司') || shopName.includes('企业') || shopName.includes('科技') || 
-                 shopName.includes('咨询') || shopName.includes('贸易') || shopName.includes('物流') || 
-                 shopName.includes('批发') || shopName.includes('零售') || shopName.includes('制造')) {
+      } else if (enterpriseKeywords.some(kw => shopName.includes(kw))) {
         industry = '企业类';
       }
+      // 默认餐饮类（餐厅、饭店、小吃、饮品等）
       
       const shopInfo = { shopName, phone, industry };
 
@@ -2801,17 +2821,24 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 多次识别取稳定值（至少识别3次）
-          const RECOGNITION_COUNT = 3;
+          // 多次识别取稳定值（识别10次确保准确性）
+          const RECOGNITION_COUNT = 10;
           const results = [];
+          const allItems = []; // 收集每次识别的items
           for (let r = 0; r < RECOGNITION_COUNT; r++) {
+            showToast(`识别中 ${r + 1}/${RECOGNITION_COUNT}...`);
             const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
             if (result && result.count > 0 && result.count < 10000) {
               results.push(result.count);
+              if (result.items && result.items.length > 0) {
+                allItems.push(result.items);
+              }
             }
+            // 每次识别之间短暂延迟，避免API限流
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
           
-          console.log(`[AI计数] 第${i+1}张多次识别结果:`, results);
+          console.log(`[AI计数] 第${i+1}张10次识别结果:`, results);
           
           if (results.length > 0) {
             // 取最频繁的值作为最终结果
@@ -2820,31 +2847,16 @@ const StockManage = () => {
             rawReply = `识别${RECOGNITION_COUNT}次，稳定值为${count}`;
             showToast(`✅ 第${i+1}张识别完成，稳定值${count}`);
             
-            // 使用最后一次识别的坐标（通常最准确）
-            const finalResult = await fetchBaiduObjectDetection(aiCountPhotos[i]);
-            items = finalResult?.items || [];
-            
-            // 如果AI没有返回坐标，自动生成精确的模拟标记
-            if (items.length === 0) {
-              showToast(`正在生成${count}个标记...`);
-              // 生成均匀分布的模拟坐标（更精确）
-              const cols = Math.ceil(Math.sqrt(count));
-              const rows = Math.ceil(count / cols);
-              items = [];
-              for (let j = 0; j < count; j++) {
-                const col = j % cols;
-                const row = Math.floor(j / cols);
-                // 使用更精确的分布算法
-                const padding = 8;
-                const cellWidth = (100 - padding * 2) / cols;
-                const cellHeight = (100 - padding * 2) / rows;
-                const x1 = padding + col * cellWidth + cellWidth * 0.1;
-                const y1 = padding + row * cellHeight + cellHeight * 0.1;
-                const x2 = x1 + cellWidth * 0.8;
-                const y2 = y1 + cellHeight * 0.8;
-                items.push({ id: j + 1, bbox: [x1, y1, x2, y2] });
-              }
+            // 使用与稳定值对应的那次识别的items
+            // 找到第一个返回稳定值的结果对应的items
+            const stableIndex = results.indexOf(count);
+            if (stableIndex >= 0 && allItems[stableIndex]) {
+              items = allItems[stableIndex];
+            } else if (allItems.length > 0) {
+              // 如果没有找到对应index，使用items数量最多的那次
+              items = allItems.reduce((prev, curr) => curr.length > prev.length ? curr : prev, []);
             }
+            // 注意：如果AI没有返回真实坐标，不显示标记框，只显示数字总数
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
@@ -3400,7 +3412,7 @@ const StockManage = () => {
         </View>
       </Modal>
       
-      {/* 图片放大预览弹窗 - 完整版 */}
+      {/* 图片放大预览弹窗 - 修复版 */}
       <Modal visible={!!aiCountPreview} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           {/* 顶部关闭按钮 */}
@@ -3411,14 +3423,18 @@ const StockManage = () => {
             <Ionicons name="close-circle" size={40} color="#fff" />
           </TouchableOpacity>
           
-          {/* 图片和标记区域 */}
+          {/* 图片和标记区域 - 使用明确的屏幕尺寸 */}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ position: 'relative', maxWidth: '100%', maxHeight: '80%' }}>
+            <View style={{ 
+              position: 'relative', 
+              width: Dimensions.get('window').width, 
+              height: Dimensions.get('window').height * 0.85 
+            }}>
               <Image 
                 source={{ uri: aiCountPreview?.photo?.uri }} 
                 style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
               />
-              {/* 每个物品的标记框 */}
+              {/* 每个物品的标记框 - 只显示AI返回的真实坐标 */}
               {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
                 if (!item.bbox || item.bbox.length < 4) return null;
                 const [x1, y1, x2, y2] = item.bbox;
@@ -5077,17 +5093,19 @@ const MerchantAssistant = () => {
   // 使用useMemo确保快捷短语响应行业变化
   const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
-  // 使用ref记录是否已经初始化过欢迎语（避免每次进入页面都重新生成）
-  const welcomeInitialized = useRef(false);
+  // 使用ref记录上一次的行业类型，只在类型实际变化时更新欢迎语
+  const prevIndustry = useRef(industry);
   
   useEffect(() => {
-    // 只在首次进入或行业类型变更时生成欢迎语
-    if (welcomeInitialized.current && messages.length > 0) {
-      return; // 已经初始化过，且有消息，不重新生成
+    // 如果行业类型没有变化，且已经有消息，不重新生成欢迎语
+    if (prevIndustry.current === industry && messages.length > 0) {
+      return;
     }
     
+    // 更新记录的行业类型
+    prevIndustry.current = industry;
+    
     if (industry !== '待识别') {
-      welcomeInitialized.current = true;
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
       dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     } else if (shopName) {
@@ -5096,7 +5114,7 @@ const MerchantAssistant = () => {
           try {
             const parsed = JSON.parse(storedShopInfo);
             if (parsed.industry && parsed.industry !== '待识别') {
-              welcomeInitialized.current = true;
+              prevIndustry.current = parsed.industry;
               dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
               const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
               dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
@@ -5111,7 +5129,7 @@ const MerchantAssistant = () => {
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
-            welcomeInitialized.current = true;
+            prevIndustry.current = detectedIndustry;
             const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
             dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
             try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
@@ -5119,17 +5137,14 @@ const MerchantAssistant = () => {
             dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
           })
           .catch(() => {
-            welcomeInitialized.current = true;
             const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
             dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
           });
       }).catch(() => {
-        welcomeInitialized.current = true;
         const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
         dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
       });
     } else {
-      welcomeInitialized.current = true;
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
       dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     }
