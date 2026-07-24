@@ -58,13 +58,10 @@ jobs:
           echo "EXPO_PUBLIC_ALIBABA_API_KEY=${{ secrets.ALIBABA_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_DOUBAO_API_KEY=${{ secrets.DOUBAO_API_KEY }}" >> .env
 
-      - name: Prebuild Android (only if android directory missing)
+      - name: Prebuild Android (always rebuild for version updates)
         run: |
-          if [ ! -d "android" ]; then
-            npx expo prebuild --platform android
-          else
-            echo "Android directory already exists, skipping prebuild"
-          fi
+          npx expo prebuild --platform android --clean
+          echo "Prebuild completed successfully"
 
       - name: Clear CMake cache (fixes multi-arch build conflicts)
         run: |
