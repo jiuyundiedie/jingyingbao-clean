@@ -2349,6 +2349,7 @@ const StockManage = () => {
   const [aiCountPhotos, setAiCountPhotos] = useState([]); // 改为包含尺寸的对象数组
   const [aiCountResult, setAiCountResult] = useState(null);
   const [aiCountLoading, setAiCountLoading] = useState(false);
+  const [aiCountPreview, setAiCountPreview] = useState(null);
   const [aiGoodsModalVisible, setAiGoodsModalVisible] = useState(false);
   const [aiGoodsPhoto, setAiGoodsPhoto] = useState(null);
   const [aiGoodsResult, setAiGoodsResult] = useState(null);
@@ -3228,12 +3229,17 @@ const StockManage = () => {
             </View>
             <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>📸 拍摄物品照片，AI自动识别数量，支持连拍累计</Text>
             
-            <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 120 }} showsHorizontalScrollIndicator={false}>
+            {/* 照片预览区域 - 支持点击放大 */}
+            <ScrollView horizontal style={{ marginBottom: 12, maxHeight: 140 }} showsHorizontalScrollIndicator={false}>
               {aiCountPhotos.map((photo, idx) => {
                 const detail = aiCountResult?.details?.[idx];
                 return (
-                  <View key={idx} style={{ position: 'relative', marginRight: 8 }}>
-                    <Image source={{ uri: photo.uri }} style={{ width: 90, height: 90, borderRadius: 10 }} />
+                  <TouchableOpacity 
+                    key={idx} 
+                    style={{ position: 'relative', marginRight: 8 }}
+                    onPress={() => setAiCountPreview({ photo, detail, index: idx })}
+                  >
+                    <Image source={{ uri: photo.uri }} style={{ width: 100, height: 100, borderRadius: 10 }} />
                     {/* AI识别的物品标注框 */}
                     {detail?.items?.map((item, itemIdx) => {
                       if (!item.bbox || item.bbox.length < 4) return null;
@@ -3243,10 +3249,10 @@ const StockManage = () => {
                           key={itemIdx}
                           style={{
                             position: 'absolute',
-                            left: (x1 / 100) * 90,
-                            top: (y1 / 100) * 90,
-                            width: ((x2 - x1) / 100) * 90,
-                            height: ((y2 - y1) / 100) * 90,
+                            left: (x1 / 100) * 100,
+                            top: (y1 / 100) * 100,
+                            width: ((x2 - x1) / 100) * 100,
+                            height: ((y2 - y1) / 100) * 100,
                             borderWidth: 2,
                             borderColor: '#4CAF50',
                             borderRadius: 4,
@@ -3261,32 +3267,34 @@ const StockManage = () => {
                     })}
                     {detail && (
                       <View style={{ position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{detail.count + detail.manualAdjust}</Text>
+                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{detail.count}件</Text>
                       </View>
                     )}
                     <TouchableOpacity
                       style={{ position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }}
-                      onPress={() => {
+                      onPress={(e) => {
+                        e.stopPropagation();
                         setAiCountPhotos(prev => prev.filter((_, i) => i !== idx));
                         if (aiCountResult && aiCountResult.details) {
                           const newDetails = aiCountResult.details.filter((_, i) => i !== idx);
-                          const newTotal = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+                          const newTotal = newDetails.reduce((sum, d) => sum + d.count, 0);
                           setAiCountResult({ ...aiCountResult, total: newTotal, details: newDetails, photos: newDetails.length });
                         }
                       }}
                     >
                       <Ionicons name="close" size={14} color="#fff" />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
               {aiCountPhotos.length === 0 && (
-                <View style={{ width: 90, height: 90, borderRadius: 10, backgroundColor: '#F5F7FA', justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ width: 100, height: 100, borderRadius: 10, backgroundColor: '#F5F7FA', justifyContent: 'center', alignItems: 'center' }}>
                   <Ionicons name="camera-outline" size={32} color={TEXT_THIRD} />
                 </View>
               )}
             </ScrollView>
             
+            {/* 统计信息 */}
             {aiCountPhotos.length > 0 && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: '#E8F5E9', borderRadius: 10, marginBottom: 12 }}>
                 <View>
@@ -3300,6 +3308,7 @@ const StockManage = () => {
               </View>
             )}
             
+            {/* 操作按钮 */}
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }} onPress={aiCountAddPhoto}>
                 <Ionicons name="camera-outline" size={20} color="#fff" />
@@ -3311,56 +3320,81 @@ const StockManage = () => {
               </TouchableOpacity>
             </View>
             
+            {/* 识别详情 - 简化版 */}
             {aiCountResult && aiCountResult.details.length > 0 && (
               <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 10, marginBottom: 12 }}>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>📊 识别详情</Text>
-                <View style={{ maxHeight: 220, overflow: 'auto' }}>
-                  {aiCountResult.details.map((d, idx) => {
-                    const finalCount = d.count + d.manualAdjust;
-                    return (
-                      <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                          <Image source={{ uri: aiCountPhotos[idx]?.uri }} style={{ width: 50, height: 50, borderRadius: 8 }} />
-                          <View>
-                            <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN }}>照片 {d.photoIndex}</Text>
-                            {d.success ? (
-                              <Text style={{ fontSize: 11, color: SUCCESS_COLOR }}>✓ AI识别成功</Text>
-                            ) : (
-                              <Text style={{ fontSize: 11, color: DANGER_COLOR }}>✗ 识别失败</Text>
-                            )}
-                          </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFE0E0', justifyContent: 'center', alignItems: 'center' }} onPress={() => adjustAiCount(idx, -1)}>
-                            <Text style={{ color: DANGER_COLOR, fontSize: 20, fontWeight: 'bold', lineHeight: 28 }}>-</Text>
-                          </TouchableOpacity>
-                          <View style={{ minWidth: 50, textAlign: 'center' }}>
-                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN }}>{finalCount}</Text>
-                            {d.manualAdjust !== 0 && (
-                              <Text style={{ fontSize: 10, color: '#FF6B6B' }}>{d.manualAdjust > 0 ? `+${d.manualAdjust}` : d.manualAdjust}</Text>
-                            )}
-                          </View>
-                          <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center' }} onPress={() => adjustAiCount(idx, 1)}>
-                            <Text style={{ color: SUCCESS_COLOR, fontSize: 20, fontWeight: 'bold', lineHeight: 28 }}>+</Text>
-                          </TouchableOpacity>
+                <View style={{ maxHeight: 180, overflow: 'auto' }}>
+                  {aiCountResult.details.map((d, idx) => (
+                    <TouchableOpacity 
+                      key={idx} 
+                      style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}
+                      onPress={() => setAiCountPreview({ photo: aiCountPhotos[idx], detail: d, index: idx })}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Image source={{ uri: aiCountPhotos[idx]?.uri }} style={{ width: 50, height: 50, borderRadius: 8 }} />
+                        <View>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN }}>照片 {d.photoIndex}</Text>
+                          {d.success ? (
+                            <Text style={{ fontSize: 11, color: SUCCESS_COLOR }}>✓ AI识别成功</Text>
+                          ) : (
+                            <Text style={{ fontSize: 11, color: DANGER_COLOR }}>✗ 识别失败</Text>
+                          )}
                         </View>
                       </View>
-                    );
-                  })}
+                      <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{d.count}件</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
             
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F0F0F0', borderRadius: 10 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
-                <Text style={{ textAlign: 'center', color: TEXT_SECOND, fontSize: 15, fontWeight: '600' }}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: aiCountResult?.total > 0 ? PRIMARY_COLOR : '#ccc', borderRadius: 10 }} onPress={aiCountSubmit} disabled={!(aiCountResult?.total > 0)}>
-                <Text style={{ textAlign: 'center', color: '#fff', fontSize: 15, fontWeight: '600' }}>确认数量 ({aiCountResult?.total || 0})</Text>
-              </TouchableOpacity>
-            </View>
+            {/* 底部按钮 - 只保留关闭 */}
+            <TouchableOpacity style={{ padding: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 10 }} onPress={() => { setAiCountModalVisible(false); setAiCountPhotos([]); setAiCountResult(null); }}>
+              <Text style={{ textAlign: 'center', color: '#fff', fontSize: 15, fontWeight: '600' }}>关闭</Text>
+            </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+      
+      {/* 图片放大预览弹窗 */}
+      <Modal visible={!!aiCountPreview} transparent animationType="fade">
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setAiCountPreview(null)}>
+          <View style={{ position: 'relative', maxWidth: '90%', maxHeight: '80%' }}>
+            <Image source={{ uri: aiCountPreview?.photo?.uri }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+            {/* 放大后的标注框 */}
+            {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
+              if (!item.bbox || item.bbox.length < 4) return null;
+              const [x1, y1, x2, y2] = item.bbox;
+              return (
+                <View
+                  key={itemIdx}
+                  style={{
+                    position: 'absolute',
+                    left: `${x1}%`,
+                    top: `${y1}%`,
+                    width: `${x2 - x1}%`,
+                    height: `${y2 - y1}%`,
+                    borderWidth: 3,
+                    borderColor: '#4CAF50',
+                    borderRadius: 6,
+                    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                  }}
+                >
+                  <View style={{ position: 'absolute', top: -24, left: 0, backgroundColor: '#4CAF50', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+          <View style={{ position: 'absolute', bottom: 40, backgroundColor: 'rgba(0,0,0,0.6)', padding: 12, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>共 {aiCountPreview?.detail?.count || 0} 件物品</Text>
+          </View>
+          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20 }} onPress={() => setAiCountPreview(null)}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
