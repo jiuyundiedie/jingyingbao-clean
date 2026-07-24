@@ -1540,6 +1540,8 @@ const SettingDrawer = ({ visible, onClose }) => {
   const [timePickerType, setTimePickerType] = useState('start');
   const [showHourPicker, setShowHourPicker] = useState(null);
   const [showMinutePicker, setShowMinutePicker] = useState(null);
+  const [selectedIndustry, setSelectedIndustry] = useState(shopInfo.industry || '餐饮类');
+  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
   const translateX = useRef(new Animated.Value(width)).current;
 
   useEffect(() => {
@@ -1560,7 +1562,7 @@ const SettingDrawer = ({ visible, onClose }) => {
 
   const saveShop = () => {
     if (isEmployee) { showToast('员工无权修改'); return; }
-    const industry = detectIndustry(shopName);
+    const industry = selectedIndustry;
     const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
@@ -1753,8 +1755,10 @@ const SettingDrawer = ({ visible, onClose }) => {
       visible={showEditModal} 
       onClose={() => setShowEditModal(false)} 
       shopName={shopName} 
-      onSave={(name) => {
+      industry={selectedIndustry}
+      onSave={(name, industry) => {
         setShopName(name);
+        setSelectedIndustry(industry);
         saveShop();
       }} 
     />
@@ -1966,37 +1970,83 @@ const SettingDrawer = ({ visible, onClose }) => {
   );
 };
 
-const EditShopNameModal = ({ visible, onClose, shopName, onSave }) => {
+const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => {
   const [editInput, setEditInput] = useState(shopName);
+  const [selectedIndustry, setSelectedIndustry] = useState(industry || '餐饮类');
+  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
+  const industries = ['餐饮类', '服务类', '企业类'];
+  
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店名称</Text>
-          <TextInput
-            style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 16, color: TEXT_MAIN }}
-            value={editInput}
-            onChangeText={setEditInput}
-            placeholder="请输入门店名称"
-            autoFocus
-          />
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
-            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={onClose}>
-              <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店信息</Text>
+            <TextInput
+              style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 16, color: TEXT_MAIN, marginBottom: 12 }}
+              value={editInput}
+              onChangeText={setEditInput}
+              placeholder="请输入门店名称"
+              autoFocus
+            />
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, marginBottom: 20 }}
+              onPress={() => setShowIndustryPicker(true)}
+            >
+              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>门店类型</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '500' }}>{selectedIndustry}</Text>
+                <Ionicons name="chevron-down" size={18} color={TEXT_THIRD} style={{ marginLeft: 8 }} />
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
-              if (editInput && editInput.trim()) {
-                onSave(editInput.trim());
-              }
-              onClose();
-            }}>
-              <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={onClose}>
+                <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
+                if (editInput && editInput.trim()) {
+                  onSave(editInput.trim(), selectedIndustry);
+                }
+                onClose();
+              }}>
+                <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+      
+      <Modal visible={showIndustryPicker} transparent animationType="slide" onRequestClose={() => setShowIndustryPicker(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowIndustryPicker(false)}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>选择门店类型</Text>
+            {industries.map((item) => (
+              <TouchableOpacity 
+                key={item} 
+                style={{ 
+                  flexDirection: 'row', alignItems: 'center', paddingVertical: 16, 
+                  borderBottomWidth: 1, borderBottomColor: BORDER_COLOR,
+                  backgroundColor: selectedIndustry === item ? LIGHT_PRIMARY : 'transparent'
+                }}
+                onPress={() => {
+                  setSelectedIndustry(item);
+                  setShowIndustryPicker(false);
+                }}
+              >
+                <Text style={{ flex: 1, fontSize: 16, color: TEXT_MAIN }}>{item}</Text>
+                {selectedIndustry === item && (
+                  <Ionicons name="checkmark-circle" size={20} color={PRIMARY_COLOR} />
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={{ paddingVertical: 16, marginTop: 8 }} onPress={() => setShowIndustryPicker(false)}>
+              <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center' }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 };
 
@@ -2731,8 +2781,23 @@ const StockManage = () => {
             success = true;
             items = result.items || [];
             rawReply = `识别到${count}个物品`;
+            
+            // 如果AI没有返回坐标，自动生成模拟标记（确保用户能看到标记效果）
             if (items.length === 0) {
-              showToast(`⚠️ 第${i+1}张图片坐标获取失败，仅显示数量`);
+              showToast(`⚠️ 第${i+1}张坐标获取失败，已生成模拟标记`);
+              // 生成均匀分布的模拟坐标
+              const cols = Math.ceil(Math.sqrt(count));
+              const rows = Math.ceil(count / cols);
+              items = [];
+              for (let j = 0; j < count; j++) {
+                const col = j % cols;
+                const row = Math.floor(j / cols);
+                const x1 = 10 + (col / cols) * 70;
+                const y1 = 10 + (row / rows) * 70;
+                const x2 = x1 + (70 / cols) * 0.8;
+                const y2 = y1 + (70 / rows) * 0.8;
+                items.push({ id: j + 1, bbox: [x1, y1, x2, y2] });
+              }
             } else {
               showToast(`✅ 第${i+1}张识别${count}个，已标记${items.length}处`);
             }
@@ -4985,7 +5050,41 @@ const MerchantAssistant = () => {
 
       if (shouldGenImage) {
         try {
-          const fullPrompt = `${text}。设计要求：高品质商业海报风格，采用当前${industry}行业最流行的视觉设计趋势，构图精美、色彩搭配高级、光影效果出色、细节丰富细腻，具有强烈的视觉冲击力和品牌质感，适合社交媒体传播和线下宣传使用，分辨率高、画面清晰、专业摄影级别的视觉效果。`;
+          // 根据行业类型生成针对性的高级图片prompt
+          const industryStyleMap = {
+            '餐饮类': '美食餐饮行业，高端美食摄影风格，专业商业菜品拍摄，诱人的食物特写，精致摆盘，暖色调灯光，高级餐厅氛围，专业美食摄影师水准，色彩鲜艳饱满，让人垂涎欲滴',
+            '服务类': '服务行业，高端会所/SPA/美容风格，奢华优雅的视觉设计，精致的服务场景，柔和温暖的灯光，专业商业摄影，高品质服务环境展示，优雅大气的视觉效果',
+            '企业类': '企业商务风格，现代简约商务设计，专业企业宣传素材，简洁大气的视觉语言，商务办公场景，专业商业摄影，高端企业形象展示，科技感与专业感并重'
+          };
+          
+          const styleDesc = industryStyleMap[industry] || industryStyleMap['餐饮类'];
+          
+          const fullPrompt = `基于以下需求生成高品质商业图片：${text}
+
+【设计风格要求】
+${styleDesc}
+
+【视觉质量标准】
+- 专业级商业摄影水准，高清画质，8K分辨率级别
+- 极致光影效果，专业布光，层次感分明
+- 高级色彩搭配，色彩心理学应用，视觉冲击力强
+- 精致细节处理，每个元素都经过精心设计
+- 符合当前主流社交媒体（小红书、抖音、微信朋友圈）的爆款视觉风格
+- 参考国际顶级广告公司（奥美、麦肯光明、智威汤逊）的创意水准
+- 融入2024-2025年度最流行的设计趋势（极简主义、新复古、有机形态、流体渐变）
+- 品牌调性统一，视觉语言专业
+
+【构图与布局】
+- 黄金比例构图或三分法构图，视觉焦点突出
+- 留白恰到好处，不拥挤不空洞
+- 文字与图形完美融合，信息层次清晰
+
+【适用场景】
+- 社交媒体推广（小红书、抖音、微信）
+- 线下宣传物料（海报、易拉宝、灯箱）
+- 电商平台主图（美团、大众点评、抖音商城）
+
+请生成一张具有强烈视觉吸引力、专业级别的商业图片，让观众一眼就被吸引！`;
           const imageResult = await fetchZhipuImage(fullPrompt, abortControllerRef.current.signal);
           if (!abortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
