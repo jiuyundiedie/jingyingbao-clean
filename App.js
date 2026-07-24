@@ -353,15 +353,16 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
 const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。逐个计数，不要漏数。只返回一个阿拉伯数字，不要其他文字。';
 
 // 获取坐标指令 - 明确要求百分比坐标（强化版）
-const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。图片中有${count}个物品，请为每个物品返回精确的位置坐标。
+const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。图片中有${count}个物品，请识别并返回每个物品的精确位置坐标。
 
 要求：
 1. 坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比
 2. 每个物品必须有一个bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
-3. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
-4. 格式示例：{"items":[{"id":1,"bbox":[10,10,30,30]},{"id":2,"bbox":[50,20,70,40]}]}
+3. 对于密集排列的小物品（如棉签、筷子、硬币等），请仔细识别每个物品的边界
+4. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
+5. 格式示例：{"items":[{"id":1,"bbox":[10,10,30,30]},{"id":2,"bbox":[50,20,70,40]}]}
 
-只返回JSON，不要其他任何内容！`;
+重要：必须返回${count}个物品的坐标，不能少也不能多！只返回JSON，不要其他任何内容！`;
 
 // 1. 阿里云百炼 Qwen-VL（国内可用）- 两步策略
 async function countWithAlibaba(base64, width, height) {
@@ -862,6 +863,14 @@ function appReducer(state, action) {
     }
     case 'REMOVE_STAFF_MEMBER': {
       return { ...state, staffMemberList: (state.staffMemberList || []).filter(item => item.phone !== action.payload) };
+    }
+    case 'MARK_STAFF_VIEWED': {
+      // 标记所有pending状态的员工申请为已查看
+      const list = state.staffMemberList || [];
+      const newList = list.map(item => 
+        item.status === 'pending' ? { ...item, viewed: true } : item
+      );
+      return { ...state, staffMemberList: newList };
     }
     case 'UPDATE_STAFF_STATUS': {
       const list = state.staffMemberList || [];
@@ -3683,14 +3692,46 @@ const CustomerService = () => {
     setSelectedImages(newList);
   };
 
-  const quickReplies = [
-    '您好，请问有什么可以帮助您？',
-    '稍等，我帮您查询一下',
-    '感谢您的反馈，我们会尽快处理',
-    '欢迎下次光临！',
-    '请问您需要什么帮助？',
-    '请问您贵姓，方便称呼吗？',
-  ];
+  // 根据店铺类型动态生成快捷话术
+  const industry = state.shopInfo?.industry || '餐饮类';
+  const quickReplies = useMemo(() => {
+    if (industry === '餐饮类') {
+      return [
+        '您好，请问想了解我们的菜品吗？',
+        '请问需要堂食还是外卖？',
+        '我们的招牌菜是...',
+        '营业时间是...',
+        '请问有忌口或过敏的食材吗？',
+        '感谢您的光临，期待下次再见！',
+      ];
+    } else if (industry === '服务类') {
+      return [
+        '您好，请问想预约什么服务？',
+        '服务时间是...',
+        '我们的服务项目有...',
+        '请问方便告知您的联系方式吗？',
+        '感谢您的信任，我们会竭诚服务！',
+        '服务价格是...',
+      ];
+    } else if (industry === '企业类') {
+      return [
+        '您好，请问有什么可以帮到您？',
+        '我们的产品/服务介绍...',
+        '商务合作请联系...',
+        '工作时间是...',
+        '感谢您的咨询，期待与您合作！',
+        '批量采购有优惠哦！',
+      ];
+    }
+    return [
+      '您好，请问有什么可以帮助您？',
+      '稍等，我帮您查询一下',
+      '感谢您的反馈，我们会尽快处理',
+      '欢迎下次光临！',
+      '请问您需要什么帮助？',
+      '请问您贵姓，方便称呼吗？',
+    ];
+  }, [industry]);
 
   const addTag = () => {
     if (!selectedPhone) { showToast('请先选择顾客'); return; }
@@ -5150,14 +5191,78 @@ const MerchantAssistant = () => {
     }
   }, [industry, shopName, userName]);
 
+  // 收集所有经营数据用于报告生成
+  const collectBusinessDataForReport = () => {
+    const orders = state.globalOrderRecord || [];
+    const goods = state.goodsList || [];
+    const stockRecords = state.globalStockRecord || [];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const thisMonth = todayStr.substring(0, 7);
+    
+    // 今日数据
+    const todayOrders = orders.filter(o => o.time?.startsWith(todayStr));
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    
+    // 本周数据（过去7天）
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekOrders = orders.filter(o => o.time && new Date(o.time) >= weekAgo);
+    const weekRevenue = weekOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    
+    // 本月数据
+    const monthOrders = orders.filter(o => o.time?.startsWith(thisMonth));
+    const monthRevenue = monthOrders.reduce((sum, o) => sum + (o.couponPrice || 0), 0);
+    
+    // 各平台数据
+    const platformStats = {};
+    orders.forEach(o => {
+      if (o.platform) {
+        if (!platformStats[o.platform]) platformStats[o.platform] = { count: 0, revenue: 0 };
+        platformStats[o.platform].count++;
+        platformStats[o.platform].revenue += o.couponPrice || 0;
+      }
+    });
+    
+    // 库存数据
+    const totalStock = goods.reduce((sum, g) => sum + (g.stock || 0), 0);
+    const lowStockItems = goods.filter(g => (g.stock || 0) < 10);
+    
+    // 成本与利润数据
+    const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+    const purchaseCost = Number(costCache.purchaseCost) || 0;
+    const fixedCost = Number(costCache.fixedCost) || 0;
+    const lastBusinessInput = state.lastBusinessInput || {};
+    const loss = Number(lastBusinessInput.loss) || 0;
+    const otherCost = Number(lastBusinessInput.otherCost) || 0;
+    const totalCost = purchaseCost + fixedCost + loss + otherCost;
+    const profit = todayRevenue - totalCost;
+    const profitRate = todayRevenue === 0 ? 0 : Number((profit / todayRevenue * 100).toFixed(2));
+    
+    return {
+      shopName, industry, userName,
+      todayOrders: todayOrders.length, todayRevenue,
+      weekOrders: weekOrders.length, weekRevenue,
+      monthOrders: monthOrders.length, monthRevenue,
+      totalOrders: orders.length, totalRevenue: orders.reduce((sum, o) => sum + (o.couponPrice || 0), 0),
+      totalGoods: goods.length, totalStock, lowStockItems: lowStockItems.map(g => `${g.name}(库存:${g.stock})`),
+      platformStats,
+      purchaseCost, fixedCost, loss, otherCost, totalCost, profit, profitRate,
+      badReviewCount: state.badReviewCount || 0,
+      staffCount: (state.staffMemberList || []).filter(s => s.status === 'approved').length,
+    };
+  };
+
   const handleMarketing = (type) => {
+    const data = collectBusinessDataForReport();
+    const platformData = Object.entries(data.platformStats).map(([p, s]) => `${p}：${s.count}单 ¥${s.revenue}`).join('，') || '暂无';
+    
     const prompts = {
       '文案': `帮我写一条关于${shopName}的${industry}爆款营销文案，要求有吸引力、适合社交平台传播`,
       '海报': `帮我设计一张${shopName}${industry}店铺的宣传海报文字描述，要求突出卖点`,
       '广告语': `帮我写3条${shopName}${industry}店铺的简短有力广告语`,
-      '日报': `根据我的经营数据生成今日日报`,
-      '周报': `根据我的经营数据生成本周周报`,
-      '月报': `根据我的经营数据生成本月月报`,
+      '日报': `【${shopName}今日经营日报】\n\n店铺类型：${industry}\n今日订单：${data.todayOrders}单\n今日营收：¥${data.todayRevenue}\n各平台销售：${platformData}\n采购成本：¥${data.purchaseCost}\n固定成本：¥${data.fixedCost}\n损耗金额：¥${data.loss}\n其他成本：¥${data.otherCost}\n总成本：¥${data.totalCost}\n利润：¥${data.profit}\n利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n差评数：${data.badReviewCount}\n\n请基于以上真实数据，结合${industry}行业全网销售情况，为我生成一份专业的日报，包含：\n1. 今日经营数据分析\n2. 与行业平均水平对比\n3. 利润优化建议\n4. 库存管理建议\n5. 明日经营策略`,
+      '周报': `【${shopName}本周经营周报】\n\n店铺类型：${industry}\n本周订单：${data.weekOrders}单\n本周营收：¥${data.weekRevenue}\n日均订单：${Number(data.weekOrders / 7).toFixed(1)}单\n日均营收：¥${Number(data.weekRevenue / 7).toFixed(2)}\n各平台销售：${platformData}\n本周采购成本：¥${data.purchaseCost}\n本周固定成本：¥${data.fixedCost}\n本周损耗：¥${data.loss}\n本周利润：¥${data.profit}\n本周利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n\n请基于以上真实数据，结合${industry}行业本周销售趋势，为我生成一份专业的周报，包含：\n1. 本周经营数据汇总\n2. 每日数据趋势分析\n3. 与上周对比变化\n4. 各平台表现分析\n5. 利润构成分析\n6. 下周经营优化建议`,
+      '月报': `【${shopName}本月经营月报】\n\n店铺类型：${industry}\n本月订单：${data.monthOrders}单\n本月营收：¥${data.monthRevenue}\n日均订单：${Number(data.monthOrders / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(1)}单\n日均营收：¥${Number(data.monthRevenue / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(2)}\n各平台销售：${platformData}\n采购成本：¥${data.purchaseCost}\n固定成本：¥${data.fixedCost}\n损耗金额：¥${data.loss}\n其他成本：¥${data.otherCost}\n总成本：¥${data.totalCost}\n总利润：¥${data.profit}\n利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n\n请基于以上真实数据，结合${industry}行业本月市场情况，为我生成一份专业的月报，包含：\n1. 本月经营数据全面汇总\n2. 各周数据趋势分析\n3. 成本结构分析\n4. 利润变化原因分析\n5. 库存周转分析\n6. 与上月对比总结\n7. 下月经营规划建议`,
     };
     setInputText(prompts[type] || '');
     if (type === '海报' || type === '广告语') setShowImageGen(true);
@@ -5909,8 +6014,8 @@ const HomePage = () => {
       return internalMsgs.filter(m => m && m.fromPhone !== user.phone && !m.read).length;
     }
     if (key === 'StaffManage' && !isEmployee) {
-      // 员工管理（商家）：待审核的入职申请
-      return (state.staffMemberList || []).filter(s => s.status === 'pending').length;
+      // 员工管理（商家）：待审核且未查看的入职申请
+      return (state.staffMemberList || []).filter(s => s.status === 'pending' && !s.viewed).length;
     }
     if (key === 'MerchantAssistant' && (state.badReviewCount || 0) > 0) {
       return state.badReviewCount;
@@ -6690,6 +6795,14 @@ const StaffManage = () => {
   const staffMemberList = state.staffMemberList || [];
   const pendingList = staffMemberList.filter(s => s.status === 'pending');
   const approvedList = staffMemberList.filter(s => s.status === 'approved');
+  
+  // 进入页面时标记所有pending申请为已查看，消除红点
+  useEffect(() => {
+    const hasUnviewedPending = pendingList.some(s => !s.viewed);
+    if (hasUnviewedPending) {
+      dispatch({ type: 'MARK_STAFF_VIEWED' });
+    }
+  }, []);
 
   const handleAddStaff = () => {
     if (!name.trim()) { showToast('请输入员工姓名'); return; }
