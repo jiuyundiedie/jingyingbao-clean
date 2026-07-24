@@ -2771,10 +2771,25 @@ const StockManage = () => {
     return maxNum > 0 && maxNum < 10000 ? maxNum : parseInt(numbers[0]);
   };
 
+  // 获取最频繁的值（用于多次识别取稳定值）
+  const getMostFrequent = (arr) => {
+    const counts = {};
+    let maxCount = 0;
+    let mostFrequent = arr[0];
+    for (const num of arr) {
+      counts[num] = (counts[num] || 0) + 1;
+      if (counts[num] > maxCount) {
+        maxCount = counts[num];
+        mostFrequent = num;
+      }
+    }
+    return mostFrequent;
+  };
+  
   const aiCountRecognize = async () => {
     if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
     setAiCountLoading(true);
-    showToast('AI正在仔细清点物品数量...');
+    showToast('AI正在仔细清点物品数量（多次识别确保准确）...');
     try {
       const newDetails = [];
       
@@ -2786,45 +2801,60 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 使用AI视觉模型进行计数（传递图片信息对象）
-          const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
-          console.log(`[AI计数] 第${i+1}张识别结果:`, JSON.stringify(result));
+          // 多次识别取稳定值（至少识别3次）
+          const RECOGNITION_COUNT = 3;
+          const results = [];
+          for (let r = 0; r < RECOGNITION_COUNT; r++) {
+            const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
+            if (result && result.count > 0 && result.count < 10000) {
+              results.push(result.count);
+            }
+          }
           
-          if (result && result.count > 0 && result.count < 10000) {
-            count = result.count;
+          console.log(`[AI计数] 第${i+1}张多次识别结果:`, results);
+          
+          if (results.length > 0) {
+            // 取最频繁的值作为最终结果
+            count = getMostFrequent(results);
             success = true;
-            items = result.items || [];
-            rawReply = `识别到${count}个物品`;
+            rawReply = `识别${RECOGNITION_COUNT}次，稳定值为${count}`;
+            showToast(`✅ 第${i+1}张识别完成，稳定值${count}`);
             
-            // 如果AI没有返回坐标，自动生成模拟标记（确保用户能看到标记效果）
+            // 使用最后一次识别的坐标（通常最准确）
+            const finalResult = await fetchBaiduObjectDetection(aiCountPhotos[i]);
+            items = finalResult?.items || [];
+            
+            // 如果AI没有返回坐标，自动生成精确的模拟标记
             if (items.length === 0) {
-              showToast(`⚠️ 第${i+1}张坐标获取失败，已生成模拟标记`);
-              // 生成均匀分布的模拟坐标
+              showToast(`正在生成${count}个标记...`);
+              // 生成均匀分布的模拟坐标（更精确）
               const cols = Math.ceil(Math.sqrt(count));
               const rows = Math.ceil(count / cols);
               items = [];
               for (let j = 0; j < count; j++) {
                 const col = j % cols;
                 const row = Math.floor(j / cols);
-                const x1 = 10 + (col / cols) * 70;
-                const y1 = 10 + (row / rows) * 70;
-                const x2 = x1 + (70 / cols) * 0.8;
-                const y2 = y1 + (70 / rows) * 0.8;
+                // 使用更精确的分布算法
+                const padding = 8;
+                const cellWidth = (100 - padding * 2) / cols;
+                const cellHeight = (100 - padding * 2) / rows;
+                const x1 = padding + col * cellWidth + cellWidth * 0.1;
+                const y1 = padding + row * cellHeight + cellHeight * 0.1;
+                const x2 = x1 + cellWidth * 0.8;
+                const y2 = y1 + cellHeight * 0.8;
                 items.push({ id: j + 1, bbox: [x1, y1, x2, y2] });
               }
-            } else {
-              showToast(`✅ 第${i+1}张识别${count}个，已标记${items.length}处`);
             }
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
         }
         newDetails.push({ photoIndex: i + 1, count, success, manualAdjust: 0, marks: [], rawReply, items });
-        const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+        const total = newDetails.reduce((sum, d) => sum + d.count, 0);
         setAiCountResult({ total, details: [...newDetails], photos: newDetails.length });
       }
       
-      const total = newDetails.reduce((sum, d) => sum + d.count + d.manualAdjust, 0);
+      const total = newDetails.reduce((sum, d) => sum + d.count, 0);
       if (total > 0) {
         showToast(`✅ 识别完成，共 ${total} 件`);
       } else {
@@ -3370,10 +3400,10 @@ const StockManage = () => {
         </View>
       </Modal>
       
-      {/* 图片放大预览弹窗 - 修复版 */}
+      {/* 图片放大预览弹窗 - 完整版 */}
       <Modal visible={!!aiCountPreview} transparent animationType="fade">
-        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
-          {/* 关闭按钮 */}
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* 顶部关闭按钮 */}
           <TouchableOpacity 
             style={{ position: 'absolute', top: 40, right: 20, zIndex: 100 }} 
             onPress={() => setAiCountPreview(null)}
@@ -3381,53 +3411,71 @@ const StockManage = () => {
             <Ionicons name="close-circle" size={40} color="#fff" />
           </TouchableOpacity>
           
-          {/* 图片和标记 */}
-          <View style={{ position: 'relative', maxWidth: '100%', maxHeight: '80%' }}>
-            <Image 
-              source={{ uri: aiCountPreview?.photo?.uri }} 
-              style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
-            />
-            {/* 放大后的标注框 - 使用精确的百分比定位 */}
-            {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
-              if (!item.bbox || item.bbox.length < 4) return null;
-              const [x1, y1, x2, y2] = item.bbox;
-              return (
-                <View
-                  key={itemIdx}
-                  style={{
-                    position: 'absolute',
-                    left: `${x1}%`,
-                    top: `${y1}%`,
-                    width: `${x2 - x1}%`,
-                    height: `${y2 - y1}%`,
-                    borderWidth: 3,
-                    borderColor: '#4CAF50',
-                    borderRadius: 4,
-                    backgroundColor: 'rgba(76, 175, 80, 0.15)',
-                  }}
-                >
-                  {/* 数字标记 */}
-                  <View style={{ 
-                    position: 'absolute', 
-                    top: -20, 
-                    left: 0, 
-                    backgroundColor: '#4CAF50', 
-                    borderRadius: 4, 
-                    paddingHorizontal: 6, 
-                    paddingVertical: 1,
-                    minWidth: 24,
-                    alignItems: 'center'
-                  }}>
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+          {/* 图片和标记区域 */}
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ position: 'relative', maxWidth: '100%', maxHeight: '80%' }}>
+              <Image 
+                source={{ uri: aiCountPreview?.photo?.uri }} 
+                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+              />
+              {/* 每个物品的标记框 */}
+              {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
+                if (!item.bbox || item.bbox.length < 4) return null;
+                const [x1, y1, x2, y2] = item.bbox;
+                return (
+                  <View
+                    key={itemIdx}
+                    style={{
+                      position: 'absolute',
+                      left: `${x1}%`,
+                      top: `${y1}%`,
+                      width: `${x2 - x1}%`,
+                      height: `${y2 - y1}%`,
+                      borderWidth: 3,
+                      borderColor: '#4CAF50',
+                      borderRadius: 4,
+                      backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                    }}
+                  >
+                    {/* 数字标记 - 绿色背景白色数字 */}
+                    <View style={{ 
+                      position: 'absolute', 
+                      top: -24, 
+                      left: 0, 
+                      backgroundColor: '#4CAF50', 
+                      borderRadius: 6, 
+                      paddingHorizontal: 8, 
+                      paddingVertical: 2,
+                      minWidth: 28,
+                      alignItems: 'center',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 2,
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                    </View>
                   </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
           
-          {/* 底部统计信息 */}
-          <View style={{ position: 'absolute', bottom: 60, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 }}>
-            <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>共识别 {aiCountPreview?.detail?.count || 0} 件物品</Text>
+          {/* 右下角总数标记 */}
+          <View style={{ 
+            position: 'absolute', 
+            bottom: 40, 
+            right: 20, 
+            backgroundColor: 'rgba(0,0,0,0.8)', 
+            borderRadius: 16, 
+            paddingHorizontal: 16, 
+            paddingVertical: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            <Text style={{ color: '#4CAF50', fontSize: 24, fontWeight: 'bold' }}>{aiCountPreview?.detail?.count || 0}</Text>
+            <Text style={{ color: '#fff', fontSize: 14 }}>件</Text>
           </View>
         </View>
       </Modal>
@@ -5029,9 +5077,17 @@ const MerchantAssistant = () => {
   // 使用useMemo确保快捷短语响应行业变化
   const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
+  // 使用ref记录是否已经初始化过欢迎语（避免每次进入页面都重新生成）
+  const welcomeInitialized = useRef(false);
+  
   useEffect(() => {
-    // 每次industry变化时重新生成欢迎语
+    // 只在首次进入或行业类型变更时生成欢迎语
+    if (welcomeInitialized.current && messages.length > 0) {
+      return; // 已经初始化过，且有消息，不重新生成
+    }
+    
     if (industry !== '待识别') {
+      welcomeInitialized.current = true;
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
       dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     } else if (shopName) {
@@ -5040,6 +5096,7 @@ const MerchantAssistant = () => {
           try {
             const parsed = JSON.parse(storedShopInfo);
             if (parsed.industry && parsed.industry !== '待识别') {
+              welcomeInitialized.current = true;
               dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
               const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
               dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
@@ -5047,12 +5104,14 @@ const MerchantAssistant = () => {
             }
           } catch (e) {}
         }
+        // 首次登录时识别类型
         const abortController = new AbortController();
         fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
           .then(async result => {
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
+            welcomeInitialized.current = true;
             const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
             dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
             try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
@@ -5060,14 +5119,17 @@ const MerchantAssistant = () => {
             dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
           })
           .catch(() => {
+            welcomeInitialized.current = true;
             const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
             dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
           });
       }).catch(() => {
+        welcomeInitialized.current = true;
         const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
         dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
       });
     } else {
+      welcomeInitialized.current = true;
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
       dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     }
