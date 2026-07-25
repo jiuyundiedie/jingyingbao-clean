@@ -1002,6 +1002,8 @@ function appReducer(state, action) {
         pushConfig: r.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
         menuVisibility: { ...defaultState.menuVisibility, ...(r.menuVisibility || {}) },
         aiChatMessages: Array.isArray(r.aiChatMessages) ? r.aiChatMessages : [],
+        dailyReportConfig: r.dailyReportConfig || { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
+        newMessageRedDots: r.newMessageRedDots || { '客服': false, '内部': false, 'AI助手': false },
       };
     }
     case 'ADD_AI_MESSAGE': {
@@ -1057,6 +1059,8 @@ const saveAllData = async (state) => {
       pushConfig: state.pushConfig || { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
       menuVisibility: state.menuVisibility || {},
       aiChatMessages: state.aiChatMessages || [],
+      dailyReportConfig: state.dailyReportConfig || { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
+      newMessageRedDots: state.newMessageRedDots || { '客服': false, '内部': false, 'AI助手': false },
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -1267,23 +1271,34 @@ const LoginScreen = () => {
     if (loading) return;
     setLoading(true);
     try {
-      console.log('Login started');
+      console.log('[Login] Login started');
+      console.log('[Login] phone:', phone, 'code:', code, 'shopName:', shopName, 'role:', role, 'employeeName:', employeeName);
+      
       if (phone.length !== 11) { 
+        console.log('[Login] Error: phone length invalid');
         showToast('请输入11位手机号'); 
         setLoading(false); 
         return; 
       }
       if (code !== '123456') { 
+        console.log('[Login] Error: code invalid');
         showToast('验证码错误'); 
         setLoading(false); 
         return; 
       }
       if (!shopName.trim()) { 
+        console.log('[Login] Error: shopName empty');
         showToast('请输入店铺名称'); 
         setLoading(false); 
         return; 
       }
-      console.log('Validation passed');
+      if (role === '员工' && !employeeName.trim()) {
+        console.log('[Login] Error: employeeName empty');
+        showToast('请输入员工姓名');
+        setLoading(false);
+        return;
+      }
+      console.log('[Login] Validation passed');
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       
@@ -1320,9 +1335,14 @@ const LoginScreen = () => {
       // 默认餐饮类（餐厅、饭店、小吃、饮品等）
       
       const shopInfo = { shopName, phone, industry };
+      
+      console.log('[Login] user:', JSON.stringify(user));
+      console.log('[Login] shopInfo:', JSON.stringify(shopInfo));
 
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+      
+      console.log('[Login] AsyncStorage set successfully');
 
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
       dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
@@ -1340,9 +1360,15 @@ const LoginScreen = () => {
       }
 
       setLoading(false);
-      navigation.replace('RootTabs');
+      console.log('[Login] Navigation to RootTabs');
+      if (navigationRef.current) {
+        navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
+      } else {
+        navigation.replace('RootTabs');
+      }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('[Login] Login error:', error);
+      console.error('[Login] Error stack:', error.stack);
       Alert.alert('登录失败', `错误: ${error.message || String(error)}`);
       setLoading(false);
     }
