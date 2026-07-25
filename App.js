@@ -1361,11 +1361,22 @@ const LoginScreen = () => {
 
       setLoading(false);
       console.log('[Login] Navigation to RootTabs');
-      if (navigationRef.current) {
-        navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
-      } else {
-        navigation.replace('RootTabs');
-      }
+      
+      // 延迟导航，确保状态已更新完成
+      setTimeout(() => {
+        try {
+          if (navigationRef.current) {
+            console.log('[Login] Using navigationRef to reset');
+            navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
+          } else {
+            console.log('[Login] Using navigation.replace');
+            navigation.replace('RootTabs');
+          }
+        } catch (navError) {
+          console.error('[Login] Navigation error:', navError);
+          Alert.alert('导航失败', '请重试登录');
+        }
+      }, 100);
     } catch (error) {
       console.error('[Login] Login error:', error);
       console.error('[Login] Error stack:', error.stack);
@@ -6217,9 +6228,20 @@ const HomePage = () => {
   }, [navigation]);
 
   const getReportData = () => {
-    if (reportType === 'daily') return latestReport;
-    if (reportType === 'weekly') return generateWeekReport(state);
-    return generateMonthReport(state);
+    try {
+      if (reportType === 'daily') {
+        return latestReport && typeof latestReport === 'object' ? latestReport : null;
+      }
+      if (reportType === 'weekly') {
+        const result = generateWeekReport(state);
+        return result && typeof result === 'object' ? result : null;
+      }
+      const result = generateMonthReport(state);
+      return result && typeof result === 'object' ? result : null;
+    } catch (e) {
+      console.error('[getReportData] Error:', e);
+      return null;
+    }
   };
   const reportData = getReportData();
 
@@ -6235,8 +6257,8 @@ const HomePage = () => {
       </SafeAreaView>
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{user?.name || (isEmployee ? '员工' : '老板')}</Text>
-            <Text style={{ color: TEXT_SECOND }}>店铺：{(state.shopInfo || {}).shopName || '未设置'}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{typeof user?.name === 'string' ? user.name : (isEmployee ? '员工' : '老板')}</Text>
+            <Text style={{ color: TEXT_SECOND }}>店铺：{typeof (state.shopInfo || {}).shopName === 'string' ? ((state.shopInfo || {}).shopName || '未设置') : '未设置'}</Text>
             
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
           </View>
@@ -6285,31 +6307,31 @@ const HomePage = () => {
             </View>
               {reportData ? (
                 <>
-                  {reportType === 'daily' && (
+                  {reportType === 'daily' && reportData && (
                     <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{reportData.date}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate}%</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{reportData.date || '-'}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate || 0}%</Text></View>
                     </>
                   )}
-                  {reportType === 'weekly' && (
+                  {reportType === 'weekly' && reportData && (
                     <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>周期</Text><Text style={styles.reportValue}>{reportData.startDate} ~ {reportData.endDate}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>周期</Text><Text style={styles.reportValue}>{reportData.startDate || '-'} ~ {reportData.endDate || '-'}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome || 0}</Text></View>
                     </>
                   )}
-                  {reportType === 'monthly' && (
+                  {reportType === 'monthly' && reportData && (
                     <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>月份</Text><Text style={styles.reportValue}>{reportData.yearMonth}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>有效天数</Text><Text style={styles.reportValue}>{reportData.dayCount}天</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>月份</Text><Text style={styles.reportValue}>{reportData.yearMonth || '-'}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>有效天数</Text><Text style={styles.reportValue}>{reportData.dayCount || 0}天</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
                     </>
                   )}
                 </>
@@ -6320,7 +6342,6 @@ const HomePage = () => {
               )}
               <TouchableOpacity style={styles.exportBtn} onPress={exportData}><Text style={styles.exportBtnText}>📤 导出CSV</Text></TouchableOpacity>
             </View>
-          )}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
