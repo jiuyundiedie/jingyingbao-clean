@@ -357,13 +357,15 @@ const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。
 
 要求：
 1. 坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比
-2. 每个物品必须有一个bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
-3. 对于密集排列的小物品（如棉签、筷子、牙签、纽扣、药片、圆珠等）：
-   - 仔细识别每个物品的边界，不要遗漏任何一个
-   - 即使物品重叠，也要为每个物品标注独立的边界框
+2. 每个物品必须有一个独立的bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
+3. **关键要求**：必须为${count}个物品分别标注，每个物品一个边界框，绝对不能只返回一个大框包含所有物品！
+4. 对于密集排列的小物品（如棉签头、筷子、牙签、纽扣、药片、圆珠、球体等）：
+   - 仔细识别每个物品的边界，逐个标注，不要遗漏任何一个
+   - 即使物品重叠或紧密排列，也要为每个物品标注独立的边界框
    - 边界框大小要与物品实际大小相匹配，不要过大或过小
-4. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
-5. 格式示例：{"items":[{"id":1,"bbox":[10,10,30,30]},{"id":2,"bbox":[50,20,70,40]}]}
+   - 每个小圆球/小物品都要有自己的边界框
+5. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
+6. 格式示例：{"items":[{"id":1,"bbox":[10,10,18,18]},{"id":2,"bbox":[20,10,28,18]},{"id":3,"bbox":[10,20,18,28]}]}
 
 重要：必须返回${count}个物品的坐标，不能少也不能多！只返回JSON，不要其他任何内容！`;
 
@@ -6180,6 +6182,15 @@ const HomePage = () => {
 
   const handleMenuPress = (item) => {
     try {
+      // 如果是内部沟通，先标记所有消息为已读
+      if (item.key === 'InternalChat') {
+        dispatch({ type: 'MARK_GROUP_MESSAGES_READ', payload: { chatId: 'internal' } });
+        Object.keys(state.privateChatMessages || {}).forEach(phone => {
+          dispatch({ type: 'MARK_PRIVATE_MESSAGES_READ', payload: { phone } });
+        });
+        dispatch({ type: 'CLEAR_RED_DOT', payload: { tab: '内部' } });
+      }
+      
       if (item.internal) {
         navigation.navigate(item.screen);
       } else {
@@ -6732,6 +6743,10 @@ const PrivateChat = ({ route, navigation }) => {
   const scrollViewRef = useRef(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
+  
+  // 当前用户信息
+  const currentUser = state.user;
+  const isEmployee = currentUser?.role === '员工';
 
   useEffect(() => {
     const savedMessages = state.privateChatMessages[phone] || [];
@@ -6877,20 +6892,23 @@ const PrivateChat = ({ route, navigation }) => {
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
         {messages.map(msg => {
-          const isSelf = msg.from === 'staff';
+          // 使用fromPhone判断是否是自己发送的消息
+          const isSelf = msg.fromPhone === currentUser?.phone;
+          // 判断对方角色：如果是员工端，对方是老板；如果是商家端，对方是员工
+          const isBoss = phone === state.shopInfo?.phone;
           return (
             <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
               {/* 对方头像 */}
               {!isSelf && (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || '?').substring(0, 1)}</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
                 </View>
               )}
               <View style={[styles.chatBubble, isSelf ? styles.bubbleRight : styles.bubbleLeft]}>
                 {/* 对方信息（非自己发送时显示） */}
                 {!isSelf && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500' }}>{msg.fromName || name || '对方'}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500' }}>{msg.fromName || name || (isBoss ? '老板' : '员工')}</Text>
                     {msg.fromPhone && <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.fromPhone}</Text>}
                   </View>
                 )}
@@ -6903,8 +6921,8 @@ const PrivateChat = ({ route, navigation }) => {
               </View>
               {/* 自己头像 */}
               {isSelf && (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.user?.name || '?').substring(0, 1)}</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isEmployee ? '#FF9800' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(currentUser?.name || '?').substring(0, 1)}</Text>
                 </View>
               )}
             </View>
