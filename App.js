@@ -902,12 +902,23 @@ function appReducer(state, action) {
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
       const existing = state.privateChatMessages[phone] || [];
-      const isCustomerMessage = message.from !== 'staff' && message.from !== state.user?.phone;
-      const shouldShowRedDot = isCustomerMessage && !state.newMessageRedDots?.['客服'];
+      const isOtherMessage = message.from !== 'staff' && message.from !== state.user?.phone;
+      const newDots = { ...state.newMessageRedDots };
+      
+      if (isOtherMessage) {
+        if (message.platform === 'private') {
+          // 员工/老板之间的私聊消息，在内部页面显示红点
+          newDots['内部'] = true;
+        } else if (message.platform && message.platform !== 'private') {
+          // 顾客消息，在客服页面显示红点
+          newDots['客服'] = true;
+        }
+      }
+      
       return { 
         ...state, 
         privateChatMessages: { ...state.privateChatMessages, [phone]: [...existing, message] },
-        newMessageRedDots: shouldShowRedDot ? { ...state.newMessageRedDots, '客服': true } : state.newMessageRedDots
+        newMessageRedDots: newDots
       };
     }
     case 'SET_CUSTOMER_TAG': {
@@ -942,6 +953,12 @@ function appReducer(state, action) {
       const existing = state.groupChatMessages[chatId] || [];
       const updated = existing.map(m => ({ ...m, read: true }));
       return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: updated } };
+    }
+    case 'MARK_PRIVATE_MESSAGES_READ': {
+      const { phone } = action.payload;
+      const existing = state.privateChatMessages[phone] || [];
+      const updated = existing.map(m => ({ ...m, read: true }));
+      return { ...state, privateChatMessages: { ...state.privateChatMessages, [phone]: updated } };
     }
     case 'ADD_BUSINESS_REPORT':
       return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
@@ -1359,24 +1376,26 @@ const LoginScreen = () => {
         showToast('入职申请已发送，请等待商家审核');
       }
 
-      setLoading(false);
       console.log('[Login] Navigation to RootTabs');
       
-      // 延迟导航，确保状态已更新完成
-      setTimeout(() => {
-        try {
-          if (navigationRef.current) {
-            console.log('[Login] Using navigationRef to reset');
-            navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
-          } else {
-            console.log('[Login] Using navigation.replace');
-            navigation.replace('RootTabs');
-          }
-        } catch (navError) {
-          console.error('[Login] Navigation error:', navError);
-          Alert.alert('导航失败', '请重试登录');
+      // 使用reset直接重置导航栈，避免闪过两个首页
+      try {
+        if (navigationRef.current) {
+          console.log('[Login] Using navigationRef to reset');
+          navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
+        } else {
+          console.log('[Login] Using navigation.replace');
+          navigation.replace('RootTabs');
         }
-      }, 100);
+      } catch (navError) {
+        console.error('[Login] Navigation error:', navError);
+        Alert.alert('导航失败', '请重试登录');
+      }
+      
+      // 在导航完成后再设置loading为false
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     } catch (error) {
       console.error('[Login] Login error:', error);
       console.error('[Login] Error stack:', error.stack);
@@ -1393,7 +1412,12 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      navigation.replace('RootTabs');
+      // 使用reset直接重置导航栈，避免闪过两个首页
+      if (navigationRef.current) {
+        navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
+      } else {
+        navigation.replace('RootTabs');
+      }
     } catch (error) {
       showToast('切换失败');
     }
@@ -3539,9 +3563,10 @@ const StockManage = () => {
               width: Dimensions.get('window').width, 
               height: Dimensions.get('window').height * 0.85 
             }}>
+              {/* 使用cover模式确保图片填满容器，标记坐标才能准确对应 */}
               <Image 
                 source={{ uri: aiCountPreview?.photo?.uri }} 
-                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
+                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
               />
               {/* 每个物品的标记框 - 只显示AI返回的真实坐标 */}
               {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
@@ -4100,6 +4125,10 @@ const InternalChat = () => {
   // 进入页面时标记所有消息为已读，消除红点
   useEffect(() => {
     dispatch({ type: 'MARK_GROUP_MESSAGES_READ', payload: { chatId } });
+    // 标记所有私聊消息为已读
+    Object.keys(state.privateChatMessages || {}).forEach(phone => {
+      dispatch({ type: 'MARK_PRIVATE_MESSAGES_READ', payload: { phone } });
+    });
   }, []);
   
   let chatStaffList = [];
@@ -6103,10 +6132,14 @@ const HomePage = () => {
   const calcMenuUnread = (key) => {
     if (!user) return 0;
     if (key === 'CustomerService') {
-      // 客服消息：未读顾客消息 + 待商家处理的通知
+      // 客服消息：只计算顾客消息（有platform属性且不是private），不计算员工/老板之间的私聊
       let count = 0;
       Object.values(state.privateChatMessages || {}).forEach(msgs => {
-        msgs.forEach(m => { if (m && m.fromPhone !== user.phone && !m.read) count++; });
+        msgs.forEach(m => {
+          if (m && m.fromPhone !== user.phone && !m.read && m.platform && m.platform !== 'private') {
+            count++;
+          }
+        });
       });
       if (!isEmployee) {
         count += (state.bossNotifications || []).filter(n => !n.handled).length;
@@ -6114,9 +6147,21 @@ const HomePage = () => {
       return count;
     }
     if (key === 'InternalChat') {
-      // 内部沟通：未读的群消息
+      // 内部沟通：未读的群消息 + 员工/老板之间的私聊消息
+      let count = 0;
       const internalMsgs = state.groupChatMessages?.internal || [];
-      return internalMsgs.filter(m => m && m.fromPhone !== user.phone && !m.read).length;
+      count += internalMsgs.filter(m => m && m.fromPhone !== user.phone && !m.read).length;
+      
+      // 员工/老板之间的私聊消息未读数
+      Object.values(state.privateChatMessages || {}).forEach(msgs => {
+        msgs.forEach(m => {
+          if (m && m.fromPhone !== user.phone && !m.read && m.platform === 'private') {
+            count++;
+          }
+        });
+      });
+      
+      return count;
     }
     if (key === 'StaffManage' && !isEmployee) {
       // 员工管理（商家）：待审核且未查看的入职申请
@@ -6693,6 +6738,11 @@ const PrivateChat = ({ route, navigation }) => {
     setMessages(savedMessages);
   }, [phone]);
 
+  // 进入私聊页面时标记消息为已读
+  useEffect(() => {
+    dispatch({ type: 'MARK_PRIVATE_MESSAGES_READ', payload: { phone } });
+  }, [phone]);
+
   const sendMessage = async (type = 'text') => {
     try {
       let text = inputText.trim();
@@ -6709,8 +6759,11 @@ const PrivateChat = ({ route, navigation }) => {
           text: text || '图片消息',
           image: images[0],
           from: 'staff',
+          fromName: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
           platform: 'private',
           time: new Date().toISOString(),
+          read: false,
         };
         setMessages(prev => [...prev, msg]);
         dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
@@ -6726,8 +6779,11 @@ const PrivateChat = ({ route, navigation }) => {
         text,
         image: null,
         from: 'staff',
+        fromName: state.user?.name || '我',
+        fromPhone: state.user?.phone || '',
         platform: 'private',
         time: new Date().toISOString(),
+        read: false,
       };
       setMessages(prev => [...prev, msg]);
       dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
@@ -6820,16 +6876,40 @@ const PrivateChat = ({ route, navigation }) => {
         contentContainerStyle={{ paddingTop: 12, paddingBottom: 80 }}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        {messages.map(msg => (
-          <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
-            {msg.image ? (
-              <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-            ) : (
-              <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-            )}
-            <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
-          </View>
-        ))}
+        {messages.map(msg => {
+          const isSelf = msg.from === 'staff';
+          return (
+            <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
+              {/* 对方头像 */}
+              {!isSelf && (
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || '?').substring(0, 1)}</Text>
+                </View>
+              )}
+              <View style={[styles.chatBubble, isSelf ? styles.bubbleRight : styles.bubbleLeft]}>
+                {/* 对方信息（非自己发送时显示） */}
+                {!isSelf && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500' }}>{msg.fromName || name || '对方'}</Text>
+                    {msg.fromPhone && <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.fromPhone}</Text>}
+                  </View>
+                )}
+                {msg.image ? (
+                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                ) : (
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                )}
+                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4, textAlign: isSelf ? 'right' : 'left' }}>{formatTime(msg.time)}</Text>
+              </View>
+              {/* 自己头像 */}
+              {isSelf && (
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#4CAF50', justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.user?.name || '?').substring(0, 1)}</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
         {messages.length === 0 && (
           <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>开始与 {name || '对方'} 对话</Text>
         )}
