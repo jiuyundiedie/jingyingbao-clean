@@ -6798,7 +6798,9 @@ const StaffManage = () => {
   
   // 进入页面时标记所有pending申请为已查看，消除红点
   useEffect(() => {
-    const hasUnviewedPending = pendingList.some(s => !s.viewed);
+    // 使用state中的最新数据，避免闭包问题
+    const currentList = state.staffMemberList || [];
+    const hasUnviewedPending = currentList.some(s => s.status === 'pending' && !s.viewed);
     if (hasUnviewedPending) {
       dispatch({ type: 'MARK_STAFF_VIEWED' });
     }
