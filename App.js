@@ -350,15 +350,18 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
 }
 
 // 计数指令：简化版本，只问数量
-const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。逐个计数，不要漏数。只返回一个阿拉伯数字，不要其他文字。';
+const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。对于密集排列的小物品（如棉签、筷子、牙签、纽扣、药片等），请逐个计数，确保不漏数、不多数。只返回一个阿拉伯数字，不要其他文字。';
 
-// 获取坐标指令 - 明确要求百分比坐标（强化版）
+// 获取坐标指令 - 强化版（针对密集小物品优化）
 const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。图片中有${count}个物品，请识别并返回每个物品的精确位置坐标。
 
 要求：
 1. 坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比
 2. 每个物品必须有一个bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
-3. 对于密集排列的小物品（如棉签、筷子、硬币等），请仔细识别每个物品的边界
+3. 对于密集排列的小物品（如棉签、筷子、牙签、纽扣、药片、圆珠等）：
+   - 仔细识别每个物品的边界，不要遗漏任何一个
+   - 即使物品重叠，也要为每个物品标注独立的边界框
+   - 边界框大小要与物品实际大小相匹配，不要过大或过小
 4. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
 5. 格式示例：{"items":[{"id":1,"bbox":[10,10,30,30]},{"id":2,"bbox":[50,20,70,40]}]}
 
@@ -933,6 +936,12 @@ function appReducer(state, action) {
       const newState = { ...state };
       delete newState.groupChatMessages[chatId];
       return newState;
+    }
+    case 'MARK_GROUP_MESSAGES_READ': {
+      const { chatId } = action.payload;
+      const existing = state.groupChatMessages[chatId] || [];
+      const updated = existing.map(m => ({ ...m, read: true }));
+      return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: updated } };
     }
     case 'ADD_BUSINESS_REPORT':
       return { ...state, businessHistory: [...(state.businessHistory || []), action.payload] };
@@ -1611,6 +1620,13 @@ const SettingDrawer = ({ visible, onClose }) => {
     showToast(`门店信息已保存，类型：${industry}`);
   };
 
+  const saveEmployeeDailyReportConfig = () => {
+    const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
+    dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
+    showToast('日报推送设置已保存');
+    setShowTimePicker(false);
+  };
+
   const saveDailyReportConfig = () => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
@@ -1639,7 +1655,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   const goToProfile = () => {
     onClose();
     setTimeout(() => {
-      if (navigationRef.current) navigationRef.current.navigate('ProfileEdit');
+      if (navigationRef.current) navigationRef.current.push('ProfileEdit');
     }, 200);
   };
 
@@ -2815,6 +2831,25 @@ const StockManage = () => {
     return mostFrequent;
   };
   
+  // 计算中位数
+  const getMedian = (arr) => {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  };
+  
+  // 计算平均值（过滤异常值）
+  const getAverageFiltered = (arr) => {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    // 去掉最小和最大各10%
+    const trimCount = Math.floor(arr.length * 0.1);
+    const trimmed = sorted.slice(trimCount, arr.length - trimCount);
+    if (trimmed.length === 0) return arr[0];
+    const sum = trimmed.reduce((acc, val) => acc + val, 0);
+    return Math.round(sum / trimmed.length);
+  };
+  
   const aiCountRecognize = async () => {
     if (aiCountPhotos.length === 0) { showToast('请先拍照'); return; }
     setAiCountLoading(true);
@@ -2830,10 +2865,10 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 多次识别取稳定值（识别10次确保准确性）
-          const RECOGNITION_COUNT = 10;
+          // 增加识别次数到15次，提高准确率
+          const RECOGNITION_COUNT = 15;
           const results = [];
-          const allItems = []; // 收集每次识别的items
+          const allItems = [];
           for (let r = 0; r < RECOGNITION_COUNT; r++) {
             showToast(`识别中 ${r + 1}/${RECOGNITION_COUNT}...`);
             const result = await fetchBaiduObjectDetection(aiCountPhotos[i]);
@@ -2843,29 +2878,57 @@ const StockManage = () => {
                 allItems.push(result.items);
               }
             }
-            // 每次识别之间短暂延迟，避免API限流
             await new Promise(resolve => setTimeout(resolve, 200));
           }
           
-          console.log(`[AI计数] 第${i+1}张10次识别结果:`, results);
+          console.log(`[AI计数] 第${i+1}张${RECOGNITION_COUNT}次识别结果:`, results);
           
-          if (results.length > 0) {
-            // 取最频繁的值作为最终结果
-            count = getMostFrequent(results);
+          if (results.length >= 5) {
+            // 使用综合方法确定最终计数：最频繁值 + 中位数 + 过滤后平均值
+            const frequent = getMostFrequent(results);
+            const median = getMedian(results);
+            const avgFiltered = getAverageFiltered(results);
+            
+            console.log(`[AI计数] 统计结果 - 最频繁:${frequent}, 中位数:${median}, 过滤平均:${avgFiltered}`);
+            
+            // 如果三个值接近，使用最频繁值；否则使用中位数（更稳健）
+            const values = [frequent, median, avgFiltered];
+            const maxDiff = Math.max(...values) - Math.min(...values);
+            
+            if (maxDiff <= 5) {
+              // 值比较接近，使用最频繁值
+              count = frequent;
+            } else {
+              // 值差异较大，使用中位数（更稳健）
+              count = median;
+            }
+            
             success = true;
-            rawReply = `识别${RECOGNITION_COUNT}次，稳定值为${count}`;
+            rawReply = `识别${RECOGNITION_COUNT}次，最频繁:${frequent}, 中位数:${median}, 最终:${count}`;
             showToast(`✅ 第${i+1}张识别完成，稳定值${count}`);
             
-            // 使用与稳定值对应的那次识别的items
-            // 找到第一个返回稳定值的结果对应的items
-            const stableIndex = results.indexOf(count);
-            if (stableIndex >= 0 && allItems[stableIndex]) {
-              items = allItems[stableIndex];
+            // 使用与最终计数对应的那次识别的items
+            const bestIndex = results.indexOf(count);
+            if (bestIndex >= 0 && allItems[bestIndex]) {
+              items = allItems[bestIndex];
             } else if (allItems.length > 0) {
-              // 如果没有找到对应index，使用items数量最多的那次
+              // 优先选择items数量与count最接近的那次
+              items = allItems.reduce((prev, curr) => {
+                const prevDiff = Math.abs(prev.length - count);
+                const currDiff = Math.abs(curr.length - count);
+                return currDiff < prevDiff ? curr : prev;
+              }, allItems[0]);
+            }
+          } else if (results.length > 0) {
+            // 识别次数不足，使用现有结果的平均值
+            count = Math.round(results.reduce((a, b) => a + b, 0) / results.length);
+            success = true;
+            rawReply = `识别${results.length}次，平均值为${count}`;
+            showToast(`✅ 第${i+1}张识别完成，平均值${count}`);
+            
+            if (allItems.length > 0) {
               items = allItems.reduce((prev, curr) => curr.length > prev.length ? curr : prev, []);
             }
-            // 注意：如果AI没有返回真实坐标，不显示标记框，只显示数字总数
           }
         } catch (e) {
           console.error(`[AI计数] 第${i + 1}张识别异常:`, e);
@@ -3996,6 +4059,11 @@ const InternalChat = () => {
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
+  
+  // 进入页面时标记所有消息为已读，消除红点
+  useEffect(() => {
+    dispatch({ type: 'MARK_GROUP_MESSAGES_READ', payload: { chatId } });
+  }, []);
   
   let chatStaffList = [];
   const user = state.user;
@@ -6173,10 +6241,10 @@ const HomePage = () => {
             )}
           </View>
 
-          {!isEmployee && (
-            <View style={styles.dailyReportCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={styles.reportTitle}>📊 经营报告</Text>
+          <View style={styles.dailyReportCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.reportTitle}>📊 经营报告</Text>
+              {!isEmployee && (
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {['daily', 'weekly', 'monthly'].map(type => {
                     const label = type === 'daily' ? '日报' : type === 'weekly' ? '周报' : '月报';
@@ -6187,7 +6255,8 @@ const HomePage = () => {
                     );
                   })}
                 </View>
-              </View>
+              )}
+            </View>
               {reportData ? (
                 <>
                   {reportType === 'daily' && (
