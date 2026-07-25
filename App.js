@@ -904,7 +904,8 @@ function appReducer(state, action) {
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
       const existing = state.privateChatMessages[phone] || [];
-      const isOtherMessage = message.from !== 'staff' && message.from !== state.user?.phone;
+      // 使用fromPhone判断是否是对方发送的消息
+      const isOtherMessage = message.fromPhone !== state.user?.phone;
       const newDots = { ...state.newMessageRedDots };
       
       if (isOtherMessage) {
@@ -2928,8 +2929,8 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 增加识别次数到15次，提高准确率
-          const RECOGNITION_COUNT = 15;
+          // 优化：减少识别次数到8次，使用加权平均提高准确率
+          const RECOGNITION_COUNT = 8;
           const results = [];
           const allItems = [];
           for (let r = 0; r < RECOGNITION_COUNT; r++) {
@@ -2941,34 +2942,48 @@ const StockManage = () => {
                 allItems.push(result.items);
               }
             }
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 150));
           }
           
           console.log(`[AI计数] 第${i+1}张${RECOGNITION_COUNT}次识别结果:`, results);
           
-          if (results.length >= 5) {
-            // 使用综合方法确定最终计数：最频繁值 + 中位数 + 过滤后平均值
-            const frequent = getMostFrequent(results);
-            const median = getMedian(results);
-            const avgFiltered = getAverageFiltered(results);
+          if (results.length >= 3) {
+            // 优化算法：使用加权平均（最近的结果权重更高）+ 异常值过滤
+            // 1. 先过滤异常值（偏离平均值超过20%的视为异常）
+            const mean = results.reduce((a, b) => a + b, 0) / results.length;
+            const filteredResults = results.filter(v => Math.abs(v - mean) / mean <= 0.2);
             
-            console.log(`[AI计数] 统计结果 - 最频繁:${frequent}, 中位数:${median}, 过滤平均:${avgFiltered}`);
+            console.log(`[AI计数] 过滤前:${results}, 过滤后:${filteredResults}`);
             
-            // 如果三个值接近，使用最频繁值；否则使用中位数（更稳健）
-            const values = [frequent, median, avgFiltered];
-            const maxDiff = Math.max(...values) - Math.min(...values);
+            if (filteredResults.length === 0) {
+              // 如果全部被过滤，使用原始结果
+              filteredResults.push(...results);
+            }
             
-            if (maxDiff <= 5) {
-              // 值比较接近，使用最频繁值
+            // 2. 加权平均：最近的结果权重更高（权重系数：1, 1.1, 1.2, ...）
+            const weightedSum = filteredResults.reduce((sum, v, idx) => {
+              const weight = 1 + (idx * 0.1); // 递增权重
+              return sum + (v * weight);
+            }, 0);
+            const weightTotal = filteredResults.reduce((sum, _, idx) => sum + (1 + idx * 0.1), 0);
+            const weightedAvg = Math.round(weightedSum / weightTotal);
+            
+            // 3. 综合最频繁值和加权平均值
+            const frequent = getMostFrequent(filteredResults);
+            const median = getMedian(filteredResults);
+            
+            console.log(`[AI计数] 统计结果 - 最频繁:${frequent}, 中位数:${median}, 加权平均:${weightedAvg}`);
+            
+            // 最终选择：如果最频繁值和加权平均接近，使用最频繁值；否则使用加权平均
+            if (Math.abs(frequent - weightedAvg) <= 3) {
               count = frequent;
             } else {
-              // 值差异较大，使用中位数（更稳健）
-              count = median;
+              count = weightedAvg;
             }
             
             success = true;
-            rawReply = `识别${RECOGNITION_COUNT}次，最频繁:${frequent}, 中位数:${median}, 最终:${count}`;
-            showToast(`✅ 第${i+1}张识别完成，稳定值${count}`);
+            rawReply = `识别${RECOGNITION_COUNT}次，最频繁:${frequent}, 加权平均:${weightedAvg}, 最终:${count}`;
+            showToast(`✅ 第${i+1}张识别完成，结果${count}`);
             
             // 使用与最终计数对应的那次识别的items
             const bestIndex = results.indexOf(count);
@@ -6898,9 +6913,9 @@ const PrivateChat = ({ route, navigation }) => {
           const isBoss = phone === state.shopInfo?.phone;
           return (
             <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
-              {/* 对方头像 */}
+              {/* 对方头像 - 只有对方消息显示头像 */}
               {!isSelf && (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
                 </View>
               )}
@@ -6919,12 +6934,7 @@ const PrivateChat = ({ route, navigation }) => {
                 )}
                 <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4, textAlign: isSelf ? 'right' : 'left' }}>{formatTime(msg.time)}</Text>
               </View>
-              {/* 自己头像 */}
-              {isSelf && (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isEmployee ? '#FF9800' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginLeft: 8 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(currentUser?.name || '?').substring(0, 1)}</Text>
-                </View>
-              )}
+              {/* 自己头像 - 自己发送的消息不显示头像（参考微信聊天） */}
             </View>
           );
         })}
