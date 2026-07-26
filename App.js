@@ -19,11 +19,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
-import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// 防止开屏界面自动隐藏
-SplashScreen.preventAutoHideAsync();
 
 // ===== 工具函数 =====
 let toastHideTimer = null;
@@ -7742,9 +7738,8 @@ export default function App() {
     }
   }, [state, loading]);
 
-  // 开屏完成后隐藏系统开屏并显示主应用
-  const handleSplashComplete = async () => {
-    await SplashScreen.hideAsync();
+  // 开屏完成后显示主应用
+  const handleSplashComplete = () => {
     setShowSplash(false);
   };
 

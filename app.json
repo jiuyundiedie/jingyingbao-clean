@@ -23,10 +23,7 @@
       }
     },
     "splash": {
-      "image": "./assets/icon.png",
-      "backgroundColor": "#FFFFFF",
-      "resizeMode": "contain",
-      "duration": 0
+      "backgroundColor": "#FFFFFF"
     },
     "extra": {
       "eas": {
