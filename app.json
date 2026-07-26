@@ -3,6 +3,7 @@
     "name": "经营宝",
     "slug": "jingyingbao",
     "version": "5.36.0",
+    "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
