@@ -2929,8 +2929,8 @@ const StockManage = () => {
         try {
           showToast(`正在识别第${i + 1}/${aiCountPhotos.length}张...`);
           
-          // 优化：减少识别次数到8次，使用加权平均提高准确率
-          const RECOGNITION_COUNT = 8;
+          // 优化：减少识别次数到5次，使用更精确的算法
+          const RECOGNITION_COUNT = 5;
           const results = [];
           const allItems = [];
           for (let r = 0; r < RECOGNITION_COUNT; r++) {
@@ -2942,47 +2942,47 @@ const StockManage = () => {
                 allItems.push(result.items);
               }
             }
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
           
           console.log(`[AI计数] 第${i+1}张${RECOGNITION_COUNT}次识别结果:`, results);
           
-          if (results.length >= 3) {
-            // 优化算法：使用加权平均（最近的结果权重更高）+ 异常值过滤
-            // 1. 先过滤异常值（偏离平均值超过20%的视为异常）
+          if (results.length >= 2) {
+            // 优化算法：使用中位数+众数组合，减少异常值影响
+            // 1. 使用中位数作为基准（最稳健的统计量）
+            const median = getMedian(results);
+            
+            // 2. 使用众数作为参考
+            const frequent = getMostFrequent(results);
+            
+            // 3. 计算所有结果的标准差，评估一致性
             const mean = results.reduce((a, b) => a + b, 0) / results.length;
-            const filteredResults = results.filter(v => Math.abs(v - mean) / mean <= 0.2);
+            const variance = results.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / results.length;
+            const stdDev = Math.sqrt(variance);
+            const cv = stdDev / mean; // 变异系数
             
-            console.log(`[AI计数] 过滤前:${results}, 过滤后:${filteredResults}`);
+            console.log(`[AI计数] 统计结果 - 最频繁:${frequent}, 中位数:${median}, 标准差:${stdDev.toFixed(2)}, 变异系数:${cv.toFixed(2)}`);
             
-            if (filteredResults.length === 0) {
-              // 如果全部被过滤，使用原始结果
-              filteredResults.push(...results);
-            }
-            
-            // 2. 加权平均：最近的结果权重更高（权重系数：1, 1.1, 1.2, ...）
-            const weightedSum = filteredResults.reduce((sum, v, idx) => {
-              const weight = 1 + (idx * 0.1); // 递增权重
-              return sum + (v * weight);
-            }, 0);
-            const weightTotal = filteredResults.reduce((sum, _, idx) => sum + (1 + idx * 0.1), 0);
-            const weightedAvg = Math.round(weightedSum / weightTotal);
-            
-            // 3. 综合最频繁值和加权平均值
-            const frequent = getMostFrequent(filteredResults);
-            const median = getMedian(filteredResults);
-            
-            console.log(`[AI计数] 统计结果 - 最频繁:${frequent}, 中位数:${median}, 加权平均:${weightedAvg}`);
-            
-            // 最终选择：如果最频繁值和加权平均接近，使用最频繁值；否则使用加权平均
-            if (Math.abs(frequent - weightedAvg) <= 3) {
+            // 最终选择策略：
+            // - 如果变异系数小于0.1（结果非常一致），使用众数
+            // - 如果变异系数在0.1-0.2之间，使用中位数（更稳健）
+            // - 如果变异系数大于0.2（结果差异较大），使用加权平均
+            if (cv < 0.1) {
               count = frequent;
+            } else if (cv < 0.2) {
+              count = median;
             } else {
-              count = weightedAvg;
+              // 加权平均：最近的结果权重更高
+              const weightedSum = results.reduce((sum, v, idx) => {
+                const weight = 1 + (idx * 0.2); // 更高的递增权重
+                return sum + (v * weight);
+              }, 0);
+              const weightTotal = results.reduce((sum, _, idx) => sum + (1 + idx * 0.2), 0);
+              count = Math.round(weightedSum / weightTotal);
             }
             
             success = true;
-            rawReply = `识别${RECOGNITION_COUNT}次，最频繁:${frequent}, 加权平均:${weightedAvg}, 最终:${count}`;
+            rawReply = `识别${RECOGNITION_COUNT}次，最频繁:${frequent}, 中位数:${median}, 最终:${count}`;
             showToast(`✅ 第${i+1}张识别完成，结果${count}`);
             
             // 使用与最终计数对应的那次识别的items
@@ -2998,14 +2998,14 @@ const StockManage = () => {
               }, allItems[0]);
             }
           } else if (results.length > 0) {
-            // 识别次数不足，使用现有结果的平均值
-            count = Math.round(results.reduce((a, b) => a + b, 0) / results.length);
+            // 识别次数不足，使用现有结果
+            count = results[0];
             success = true;
-            rawReply = `识别${results.length}次，平均值为${count}`;
-            showToast(`✅ 第${i+1}张识别完成，平均值${count}`);
+            rawReply = `识别${results.length}次，结果${count}`;
+            showToast(`✅ 第${i+1}张识别完成，结果${count}`);
             
             if (allItems.length > 0) {
-              items = allItems.reduce((prev, curr) => curr.length > prev.length ? curr : prev, []);
+              items = allItems[0];
             }
           }
         } catch (e) {
@@ -3573,31 +3573,57 @@ const StockManage = () => {
             <Ionicons name="close-circle" size={40} color="#fff" />
           </TouchableOpacity>
           
-          {/* 图片和标记区域 - 使用明确的屏幕尺寸 */}
+          {/* 图片和标记区域 - 使用contain模式并正确计算坐标 */}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ 
               position: 'relative', 
               width: Dimensions.get('window').width, 
               height: Dimensions.get('window').height * 0.85 
             }}>
-              {/* 使用cover模式确保图片填满容器，标记坐标才能准确对应 */}
+              {/* 使用contain模式确保图片完整显示 */}
               <Image 
                 source={{ uri: aiCountPreview?.photo?.uri }} 
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
               />
-              {/* 每个物品的标记框 - 只显示AI返回的真实坐标 */}
+              {/* 每个物品的标记框 - 根据图片比例计算正确坐标 */}
               {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
                 if (!item.bbox || item.bbox.length < 4) return null;
                 const [x1, y1, x2, y2] = item.bbox;
+                
+                // 计算图片在容器中的实际位置（contain模式）
+                const imgRatio = (aiCountPreview?.photo?.width || 1) / (aiCountPreview?.photo?.height || 1);
+                const containerRatio = Dimensions.get('window').width / (Dimensions.get('window').height * 0.85);
+                let scale = 1;
+                let offsetX = 0;
+                let offsetY = 0;
+                
+                if (imgRatio > containerRatio) {
+                  // 图片更宽，水平居中，上下留白
+                  scale = Dimensions.get('window').width / (aiCountPreview?.photo?.width || 1);
+                  const imgHeight = (aiCountPreview?.photo?.height || 1) * scale;
+                  offsetY = (Dimensions.get('window').height * 0.85 - imgHeight) / 2;
+                } else {
+                  // 图片更高，垂直居中，左右留白
+                  scale = (Dimensions.get('window').height * 0.85) / (aiCountPreview?.photo?.height || 1);
+                  const imgWidth = (aiCountPreview?.photo?.width || 1) * scale;
+                  offsetX = (Dimensions.get('window').width - imgWidth) / 2;
+                }
+                
+                // 计算标记框的实际位置和大小
+                const left = offsetX + (x1 / 100) * (aiCountPreview?.photo?.width || 1) * scale;
+                const top = offsetY + (y1 / 100) * (aiCountPreview?.photo?.height || 1) * scale;
+                const width = ((x2 - x1) / 100) * (aiCountPreview?.photo?.width || 1) * scale;
+                const height = ((y2 - y1) / 100) * (aiCountPreview?.photo?.height || 1) * scale;
+                
                 return (
                   <View
                     key={itemIdx}
                     style={{
                       position: 'absolute',
-                      left: `${x1}%`,
-                      top: `${y1}%`,
-                      width: `${x2 - x1}%`,
-                      height: `${y2 - y1}%`,
+                      left: left,
+                      top: top,
+                      width: width,
+                      height: height,
                       borderWidth: 3,
                       borderColor: '#4CAF50',
                       borderRadius: 4,
@@ -6233,7 +6259,7 @@ const HomePage = () => {
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
-  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending');
+  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && s.shopName === state.shopInfo?.shopName);
 
   const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
 
@@ -6913,20 +6939,17 @@ const PrivateChat = ({ route, navigation }) => {
           const isBoss = phone === state.shopInfo?.phone;
           return (
             <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
-              {/* 对方头像 - 只有对方消息显示头像 */}
+              {/* 对方头像和信息 - 只有对方消息显示，姓名和手机号放在头像上方 */}
               {!isSelf && (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
+                <View style={{ flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
+                  <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500', marginBottom: 4 }}>{msg.fromName || name || (isBoss ? '老板' : '员工')}</Text>
+                  {msg.fromPhone && <Text style={{ fontSize: 10, color: TEXT_THIRD, marginBottom: 4 }}>{msg.fromPhone}</Text>}
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
+                  </View>
                 </View>
               )}
               <View style={[styles.chatBubble, isSelf ? styles.bubbleRight : styles.bubbleLeft]}>
-                {/* 对方信息（非自己发送时显示） */}
-                {!isSelf && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500' }}>{msg.fromName || name || (isBoss ? '老板' : '员工')}</Text>
-                    {msg.fromPhone && <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.fromPhone}</Text>}
-                  </View>
-                )}
                 {msg.image ? (
                   <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                 ) : (
