@@ -3575,7 +3575,9 @@ const StockManage = () => {
                     {detail?.items?.map((item, itemIdx) => {
                       // 优先使用中心点坐标格式
                       if (item.x !== undefined && item.y !== undefined) {
-                        const size = (item.radius || 2) * 2 * (100 / 100); // 缩放到100x100预览图
+                        // 缩小标记点，半径最大不超过3像素
+                        const baseRadius = Math.min(item.radius || 1.5, 2);
+                        const size = baseRadius * 2 * (100 / 100); // 缩放到100x100预览图
                         return (
                           <View
                             key={itemIdx}
@@ -3586,23 +3588,15 @@ const StockManage = () => {
                               width: size,
                               height: size,
                               borderRadius: size / 2,
-                              backgroundColor: 'rgba(76, 175, 80, 0.3)',
-                              borderWidth: 2,
-                              borderColor: '#4CAF50',
+                              backgroundColor: '#4CAF50',
+                              borderWidth: 1,
+                              borderColor: '#fff',
+                              justifyContent: 'center',
+                              alignItems: 'center',
                             }}
                           >
-                            <View style={{ 
-                              position: 'absolute', 
-                              top: -14, 
-                              left: 0, 
-                              backgroundColor: '#4CAF50', 
-                              borderRadius: 4, 
-                              paddingHorizontal: 4,
-                              minWidth: 20,
-                              alignItems: 'center'
-                            }}>
-                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
-                            </View>
+                            {/* 序号放在标记内部 */}
+                            <Text style={{ color: '#fff', fontSize: Math.max(6, size / 2), fontWeight: 'bold' }}>{itemIdx + 1}</Text>
                           </View>
                         );
                       }
@@ -3768,10 +3762,13 @@ const StockManage = () => {
                 
                 // 优先使用中心点坐标格式
                 if (item.x !== undefined && item.y !== undefined) {
-                  const radius = item.radius || 2;
-                  const size = radius * 2 * (aiCountPreview?.photo?.width || 1) * scale / 100;
-                  const left = offsetX + (item.x / 100) * (aiCountPreview?.photo?.width || 1) * scale - size / 2;
-                  const top = offsetY + (item.y / 100) * (aiCountPreview?.photo?.height || 1) * scale - size / 2;
+                  // 缩小标记点，半径最大不超过6像素
+                  const baseRadius = Math.min(item.radius || 1.5, 2.5);
+                  const size = baseRadius * 2 * (aiCountPreview?.photo?.width || 1) * scale / 100;
+                  // 确保最小尺寸
+                  const finalSize = Math.max(size, 8);
+                  const left = offsetX + (item.x / 100) * (aiCountPreview?.photo?.width || 1) * scale - finalSize / 2;
+                  const top = offsetY + (item.y / 100) * (aiCountPreview?.photo?.height || 1) * scale - finalSize / 2;
                   
                   return (
                     <View
@@ -3780,35 +3777,21 @@ const StockManage = () => {
                         position: 'absolute',
                         left: left,
                         top: top,
-                        width: size,
-                        height: size,
-                        borderRadius: size / 2,
-                        backgroundColor: 'rgba(76, 175, 80, 0.25)',
-                        borderWidth: 3,
-                        borderColor: '#4CAF50',
+                        width: finalSize,
+                        height: finalSize,
+                        borderRadius: finalSize / 2,
+                        backgroundColor: '#4CAF50',
+                        borderWidth: 2,
+                        borderColor: '#fff',
+                        justifyContent: 'center',
+                        alignItems: 'center',
                       }}
                     >
-                      {/* 数字标记 - 绿色背景白色数字 */}
-                      <View style={{ 
-                        position: 'absolute', 
-                        top: -28, 
-                        left: -10, 
-                        backgroundColor: '#4CAF50', 
-                      borderRadius: 6, 
-                      paddingHorizontal: 8, 
-                      paddingVertical: 2,
-                      minWidth: 28,
-                      alignItems: 'center',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 2,
-                    }}>
-                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                      {/* 序号放在标记内部 */}
+                      <Text style={{ color: '#fff', fontSize: Math.max(8, finalSize / 2.5), fontWeight: 'bold' }}>{itemIdx + 1}</Text>
                     </View>
-                  </View>
-                );
-              }
+                  );
+                }
               
               // 兼容旧格式：bbox数组
               if (!item.bbox || item.bbox.length < 4) return null;
@@ -4377,6 +4360,8 @@ const InternalChat = () => {
     Object.keys(state.privateChatMessages || {}).forEach(phone => {
       dispatch({ type: 'MARK_PRIVATE_MESSAGES_READ', payload: { phone } });
     });
+    // 清除内部页面的红点
+    dispatch({ type: 'CLEAR_RED_DOT', payload: { tab: '内部' } });
   }, []);
   
   let chatStaffList = [];
@@ -7157,7 +7142,10 @@ const PrivateChat = ({ route, navigation }) => {
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>
-          <Text style={styles.pageTitle}>{name || '私聊'}</Text>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.pageTitle}>{name || '私聊'}</Text>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{phone}</Text>
+          </View>
           <View style={{ width: 24 }} />
         </View>
       </SafeAreaView>
@@ -7191,11 +7179,9 @@ const PrivateChat = ({ route, navigation }) => {
           const isBoss = phone === state.shopInfo?.phone;
           return (
             <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
-              {/* 对方头像和信息 - 只有对方消息显示，姓名和手机号放在头像上方 */}
+              {/* 对方头像 - 只有对方消息显示 */}
               {!isSelf && (
                 <View style={{ flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
-                  <Text style={{ fontSize: 12, color: TEXT_SECOND, fontWeight: '500', marginBottom: 4 }}>{msg.fromName || name || (isBoss ? '老板' : '员工')}</Text>
-                  {msg.fromPhone && <Text style={{ fontSize: 10, color: TEXT_THIRD, marginBottom: 4 }}>{msg.fromPhone}</Text>}
                   <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
                   </View>
@@ -7209,7 +7195,14 @@ const PrivateChat = ({ route, navigation }) => {
                 )}
                 <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4, textAlign: isSelf ? 'right' : 'left' }}>{formatTime(msg.time)}</Text>
               </View>
-              {/* 自己头像 - 自己发送的消息不显示头像（参考微信聊天） */}
+              {/* 自己头像 - 自己发送的消息显示头像 */}
+              {isSelf && (
+                <View style={{ flexDirection: 'column', alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isEmployee ? '#FF9800' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(currentUser?.name || '我').substring(0, 1)}</Text>
+                  </View>
+                </View>
+              )}
             </View>
           );
         })}
