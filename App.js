@@ -19,7 +19,11 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// 防止开屏界面自动隐藏
+SplashScreen.preventAutoHideAsync();
 
 // ===== 工具函数 =====
 let toastHideTimer = null;
@@ -1009,8 +1013,8 @@ function appReducer(state, action) {
       
       if (isOtherMessage) {
         if (message.platform === 'private') {
-          // 员工/老板之间的私聊消息，在内部页面显示红点
-          newDots['内部'] = true;
+          // 员工/老板之间的私聊消息，在首页私聊入口显示红点（已在首页单独处理）
+          // 不设置内部页面红点，私聊和内部沟通是独立的
         } else if (message.platform && message.platform !== 'private') {
           // 顾客消息，在客服页面显示红点
           newDots['客服'] = true;
@@ -1768,6 +1772,87 @@ const ProfileEditScreen = ({ navigation }) => {
   );
 };
 
+// ================== 编辑门店信息 Modal ==================
+const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => {
+  const [editInput, setEditInput] = useState(shopName);
+  const [selectedIndustry, setSelectedIndustry] = useState(industry || '餐饮类');
+  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
+  const industries = ['餐饮类', '服务类', '企业类'];
+  
+  if (!visible) return null;
+  return (
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店信息</Text>
+            <TextInput
+              style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 16, color: TEXT_MAIN, marginBottom: 12 }}
+              value={editInput}
+              onChangeText={setEditInput}
+              placeholder="请输入门店名称"
+              autoFocus
+            />
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, marginBottom: 20 }}
+              onPress={() => setShowIndustryPicker(true)}
+            >
+              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>门店类型</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '500' }}>{selectedIndustry}</Text>
+                <Ionicons name="chevron-down" size={18} color={TEXT_THIRD} style={{ marginLeft: 8 }} />
+              </View>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={onClose}>
+                <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
+                if (editInput && editInput.trim()) {
+                  onSave(editInput.trim(), selectedIndustry);
+                }
+                onClose();
+              }}>
+                <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      <Modal visible={showIndustryPicker} transparent animationType="slide" onRequestClose={() => setShowIndustryPicker(false)}>
+        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowIndustryPicker(false)}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>选择门店类型</Text>
+            {industries.map((item) => (
+              <TouchableOpacity 
+                key={item} 
+                style={{ 
+                  flexDirection: 'row', alignItems: 'center', paddingVertical: 16, 
+                  borderBottomWidth: 1, borderBottomColor: BORDER_COLOR,
+                  backgroundColor: selectedIndustry === item ? LIGHT_PRIMARY : 'transparent'
+                }}
+                onPress={() => {
+                  setSelectedIndustry(item);
+                  setShowIndustryPicker(false);
+                }}
+              >
+                <Text style={{ flex: 1, fontSize: 16, color: TEXT_MAIN }}>{item}</Text>
+                {selectedIndustry === item && (
+                  <Ionicons name="checkmark-circle" size={20} color={PRIMARY_COLOR} />
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={{ paddingVertical: 16, marginTop: 8 }} onPress={() => setShowIndustryPicker(false)}>
+              <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center' }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+};
+
 // ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const { state, dispatch } = useApp();
@@ -2248,85 +2333,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   );
 };
 
-const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => {
-  const [editInput, setEditInput] = useState(shopName);
-  const [selectedIndustry, setSelectedIndustry] = useState(industry || '餐饮类');
-  const [showIndustryPicker, setShowIndustryPicker] = useState(false);
-  const industries = ['餐饮类', '服务类', '企业类'];
-  
-  if (!visible) return null;
-  return (
-    <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ width: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>编辑门店信息</Text>
-            <TextInput
-              style={{ backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, fontSize: 16, color: TEXT_MAIN, marginBottom: 12 }}
-              value={editInput}
-              onChangeText={setEditInput}
-              placeholder="请输入门店名称"
-              autoFocus
-            />
-            <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, marginBottom: 20 }}
-              onPress={() => setShowIndustryPicker(true)}
-            >
-              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>门店类型</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '500' }}>{selectedIndustry}</Text>
-                <Ionicons name="chevron-down" size={18} color={TEXT_THIRD} style={{ marginLeft: 8 }} />
-              </View>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, alignItems: 'center' }} onPress={onClose}>
-                <Text style={{ color: TEXT_MAIN, fontSize: 16 }}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => {
-                if (editInput && editInput.trim()) {
-                  onSave(editInput.trim(), selectedIndustry);
-                }
-                onClose();
-              }}>
-                <Text style={{ color: '#fff', fontSize: 16 }}>保存</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      
-      <Modal visible={showIndustryPicker} transparent animationType="slide" onRequestClose={() => setShowIndustryPicker(false)}>
-        <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowIndustryPicker(false)}>
-          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>选择门店类型</Text>
-            {industries.map((item) => (
-              <TouchableOpacity 
-                key={item} 
-                style={{ 
-                  flexDirection: 'row', alignItems: 'center', paddingVertical: 16, 
-                  borderBottomWidth: 1, borderBottomColor: BORDER_COLOR,
-                  backgroundColor: selectedIndustry === item ? LIGHT_PRIMARY : 'transparent'
-                }}
-                onPress={() => {
-                  setSelectedIndustry(item);
-                  setShowIndustryPicker(false);
-                }}
-              >
-                <Text style={{ flex: 1, fontSize: 16, color: TEXT_MAIN }}>{item}</Text>
-                {selectedIndustry === item && (
-                  <Ionicons name="checkmark-circle" size={20} color={PRIMARY_COLOR} />
-                )}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={{ paddingVertical: 16, marginTop: 8 }} onPress={() => setShowIndustryPicker(false)}>
-              <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center' }}>取消</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
-  );
-};
+
 
 // ================== 切换账号页面（保留兼容性） ==================
 const SwitchAccountScreen = ({ navigation }) => {
@@ -2364,9 +2371,10 @@ const SwitchAccountPage = ({ navigation }) => {
           }
         });
         
-        if (hasUnreadPrivate) {
-          dispatch({ type: 'SET_RED_DOT', payload: { tab: '内部', hasNew: true } });
-        }
+        // 私聊消息红点已在首页私聊入口单独处理，不需要设置内部页面红点
+        // if (hasUnreadPrivate) {
+        //   dispatch({ type: 'SET_RED_DOT', payload: { tab: '内部', hasNew: true } });
+        // }
       }, 300);
       
       showToast(`已切换到 ${account.phone}`);
@@ -6462,19 +6470,10 @@ const HomePage = () => {
       return count;
     }
     if (key === 'InternalChat') {
-      // 内部沟通：未读的群消息 + 员工/老板之间的私聊消息
+      // 内部沟通：只显示群聊消息的未读数（私聊消息在首页私聊入口单独显示红点）
       let count = 0;
       const internalMsgs = state.groupChatMessages?.internal || [];
       count += internalMsgs.filter(m => m && m.fromPhone !== user.phone && !m.read).length;
-      
-      // 员工/老板之间的私聊消息未读数
-      Object.values(state.privateChatMessages || {}).forEach(msgs => {
-        msgs.forEach(m => {
-          if (m && m.fromPhone !== user.phone && !m.read && m.platform === 'private') {
-            count++;
-          }
-        });
-      });
       
       return count;
     }
@@ -7640,10 +7639,70 @@ function AppStack() {
   );
 }
 
+// ================== 开屏界面组件 ==================
+const SplashScreenComponent = ({ onComplete }) => {
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // 入场动画
+    Animated.parallel([
+      Animated.spring(logoScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 1000,
+        delay: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // 3秒后退出开屏
+    setTimeout(() => {
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => {
+        onComplete();
+      });
+    }, 3000);
+  }, [onComplete]);
+
+  return (
+    <Animated.View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', opacity: containerOpacity }}>
+      {/* Logo 动画 */}
+      <Animated.View style={{ transform: [{ scale: logoScale }] }}>
+        <View style={{ width: 120, height: 120, borderRadius: 30, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }}>
+          <Text style={{ color: '#fff', fontSize: 48, fontWeight: 'bold' }}>经</Text>
+        </View>
+      </Animated.View>
+      
+      {/* 应用名称 */}
+      <Animated.View style={{ marginTop: 24, opacity: textOpacity }}>
+        <Text style={{ fontSize: 28, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+        <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginTop: 8 }}>智能经营管理助手</Text>
+      </Animated.View>
+
+      {/* 底部版本号 */}
+      <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.36.0</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+};
+
 // ================== App 容器 ==================
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -7683,6 +7742,18 @@ export default function App() {
     }
   }, [state, loading]);
 
+  // 开屏完成后隐藏系统开屏并显示主应用
+  const handleSplashComplete = async () => {
+    await SplashScreen.hideAsync();
+    setShowSplash(false);
+  };
+
+  // 显示开屏界面
+  if (showSplash) {
+    return <SplashScreenComponent onComplete={handleSplashComplete} />;
+  }
+
+  // 数据加载中
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

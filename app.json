@@ -2,7 +2,7 @@
   "expo": {
     "name": "经营宝",
     "slug": "jingyingbao",
-    "version": "5.35.0",
+    "version": "5.36.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.xxx.jingyingbao",
-      "versionCode": 68,
+      "versionCode": 69,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -24,8 +24,9 @@
     },
     "splash": {
       "image": "./assets/icon.png",
-      "backgroundColor": "#1A5F8B",
-      "resizeMode": "contain"
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain",
+      "duration": 0
     },
     "extra": {
       "eas": {
