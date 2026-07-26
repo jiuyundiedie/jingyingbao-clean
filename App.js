@@ -276,8 +276,8 @@ function parseCountResult(text) {
   };
 }
 
-// 解析坐标响应的辅助函数 - 更健壮的JSON解析
-// 自动检测并转换像素坐标为百分比 - 增强版
+// 解析坐标响应的辅助函数 - 支持中心点坐标格式
+// 自动检测并转换像素坐标为百分比 - 终极版
 function parseCoordsResult(text, imageWidth, imageHeight) {
   try {
     if (!text || typeof text !== 'string') {
@@ -315,6 +315,37 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
     // 转换像素坐标为百分比
     if (imageWidth && imageHeight) {
       items = items.map(item => {
+        // 新格式：中心点坐标 {x, y, radius}
+        if (item.x !== undefined && item.y !== undefined) {
+          let x = item.x;
+          let y = item.y;
+          let radius = item.radius || 2;
+          
+          // 判断是否为像素坐标（值大于100）
+          if (x > 100 || y > 100) {
+            x = Math.min(100, Math.max(0, (x / imageWidth) * 100));
+            y = Math.min(100, Math.max(0, (y / imageHeight) * 100));
+            if (radius > 10) {
+              radius = Math.min(5, (radius / Math.min(imageWidth, imageHeight)) * 100);
+            }
+          }
+          
+          return {
+            ...item,
+            x: x,
+            y: y,
+            radius: radius,
+            // 同时生成兼容的bbox格式
+            bbox: [
+              Math.max(0, x - radius),
+              Math.max(0, y - radius),
+              Math.min(100, x + radius),
+              Math.min(100, y + radius)
+            ]
+          };
+        }
+        
+        // 旧格式：bbox数组
         if (item.bbox && item.bbox.length === 4) {
           const [x1, y1, x2, y2] = item.bbox;
           // 判断是否为像素坐标（值大于100）
@@ -326,7 +357,11 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
                 Math.min(100, Math.max(0, (y1 / imageHeight) * 100)),
                 Math.min(100, Math.max(0, (x2 / imageWidth) * 100)),
                 Math.min(100, Math.max(0, (y2 / imageHeight) * 100))
-              ]
+              ],
+              // 生成中心点坐标
+              x: ((x1 + x2) / 2 / imageWidth) * 100,
+              y: ((y1 + y2) / 2 / imageHeight) * 100,
+              radius: Math.min(5, ((x2 - x1 + y2 - y1) / 4 / Math.min(imageWidth, imageHeight)) * 100)
             };
           }
         }
@@ -336,9 +371,16 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
     
     // 过滤无效坐标
     items = items.filter(item => {
-      if (!item.bbox || item.bbox.length !== 4) return false;
-      const [x1, y1, x2, y2] = item.bbox;
-      return x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1 && x2 <= 100 && y2 <= 100;
+      // 新格式验证
+      if (item.x !== undefined && item.y !== undefined) {
+        return item.x >= 0 && item.x <= 100 && item.y >= 0 && item.y <= 100 && item.radius > 0;
+      }
+      // 旧格式验证
+      if (item.bbox && item.bbox.length === 4) {
+        const [x1, y1, x2, y2] = item.bbox;
+        return x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1 && x2 <= 100 && y2 <= 100;
+      }
+      return false;
     });
     
     console.log('[坐标解析] 成功解析到', items.length, '个有效坐标');
@@ -352,20 +394,25 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
 // 计数指令：简化版本，只问数量
 const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。对于密集排列的小物品（如棉签、筷子、牙签、纽扣、药片等），请逐个计数，确保不漏数、不多数。只返回一个阿拉伯数字，不要其他文字。';
 
-// 获取坐标指令 - 强化版（针对密集小物品优化）
-const GET_COORDS_PROMPT = (count) => `你是一个精确的物品定位助手。图片中有${count}个物品，请识别并返回每个物品的精确位置坐标。
+// 获取坐标指令 - 终极版（针对密集小物品优化，参考专业计数工具）
+const GET_COORDS_PROMPT = (count) => `你是一个专业的物品计数定位助手，使用精确的计算机视觉算法定位每个物品。
+图片中有${count}个小圆球/小圆柱体/小物品，请为每个物品标注精确的中心点坐标。
 
-要求：
-1. 坐标使用百分比格式，范围0-100，表示相对于图片宽高的百分比
-2. 每个物品必须有一个独立的bbox数组，包含四个值：[左上角x, 左上角y, 右下角x, 右下角y]
-3. **关键要求**：必须为${count}个物品分别标注，每个物品一个边界框，绝对不能只返回一个大框包含所有物品！
-4. 对于密集排列的小物品（如棉签头、筷子、牙签、纽扣、药片、圆珠、球体等）：
-   - 仔细识别每个物品的边界，逐个标注，不要遗漏任何一个
-   - 即使物品重叠或紧密排列，也要为每个物品标注独立的边界框
-   - 边界框大小要与物品实际大小相匹配，不要过大或过小
-   - 每个小圆球/小物品都要有自己的边界框
-5. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
-6. 格式示例：{"items":[{"id":1,"bbox":[10,10,18,18]},{"id":2,"bbox":[20,10,28,18]},{"id":3,"bbox":[10,20,18,28]}]}
+核心要求：
+1. 坐标格式：使用百分比格式，范围0-100，表示相对于图片宽高的百分比
+2. 每个物品必须有独立的位置数据：{"x":中心点x百分比, "y":中心点y百分比, "radius":半径百分比}
+3. **绝对禁止**：只返回一个大框包含所有物品！每个物品必须单独标注！
+4. 对于密集排列的小物品（圆珠、球体、圆柱体、棉签头、药片、纽扣等）：
+   - 使用网格扫描法：将图片分成多个小格子，逐个格子计数
+   - 使用局部最大值检测：找到每个暗色区域的中心点
+   - 即使物品紧密排列或部分重叠，也要识别每个独立个体
+   - 半径应根据物品实际大小设置，一般为1-5%
+5. 识别策略：
+   - 从左上角开始，逐行扫描到右下角
+   - 遇到暗色圆形/椭圆形区域即为一个物品
+   - 记录每个物品的精确中心位置
+6. 严格返回JSON格式，不要任何文字解释，不要markdown代码块
+7. 格式示例：{"items":[{"id":1,"x":15,"y":15,"radius":2},{"id":2,"x":25,"y":15,"radius":2},{"id":3,"x":15,"y":25,"radius":2}]}
 
 重要：必须返回${count}个物品的坐标，不能少也不能多！只返回JSON，不要其他任何内容！`;
 
@@ -1171,8 +1218,9 @@ const styles = StyleSheet.create({
   homeTitle: { fontSize: 22, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 0.5 },
   container: { flex: 1, backgroundColor: BG_PAGE },
   chatScroll: { flex: 1, paddingHorizontal: 12 },
-  bubbleLeft: { backgroundColor: BG_CARD, padding: 14, borderRadius: 18, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-start', ...SHADOW },
-  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 14, borderRadius: 18, marginVertical: 4, maxWidth: '78%', alignSelf: 'flex-end', ...SHADOW },
+  chatRow: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 8 },
+  bubbleLeft: { backgroundColor: BG_CARD, padding: 14, borderRadius: 18, maxWidth: '78%', ...SHADOW },
+  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 14, borderRadius: 18, maxWidth: '78%', ...SHADOW },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2193,6 +2241,26 @@ const SwitchAccountPage = ({ navigation }) => {
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+      
+      // 检查是否有未读的私聊消息，触发红点提示
+      setTimeout(() => {
+        const privateChatMessages = state.privateChatMessages || {};
+        const allPhones = Object.keys(privateChatMessages);
+        let hasUnreadPrivate = false;
+        
+        allPhones.forEach(phone => {
+          const msgs = privateChatMessages[phone] || [];
+          const unreadCount = msgs.filter(m => m.platform === 'private' && m.fromPhone !== account.phone && !m.read).length;
+          if (unreadCount > 0) {
+            hasUnreadPrivate = true;
+          }
+        });
+        
+        if (hasUnreadPrivate) {
+          dispatch({ type: 'SET_RED_DOT', payload: { tab: '内部', hasNew: true } });
+        }
+      }, 300);
+      
       showToast(`已切换到 ${account.phone}`);
       navigation.goBack();
     } catch (error) {
@@ -3445,8 +3513,42 @@ const StockManage = () => {
                     onPress={() => setAiCountPreview({ photo, detail, index: idx })}
                   >
                     <Image source={{ uri: photo.uri }} style={{ width: 100, height: 100, borderRadius: 10 }} />
-                    {/* AI识别的物品标注框 */}
+                    {/* AI识别的物品标注框 - 支持中心点坐标格式 */}
                     {detail?.items?.map((item, itemIdx) => {
+                      // 优先使用中心点坐标格式
+                      if (item.x !== undefined && item.y !== undefined) {
+                        const size = (item.radius || 2) * 2 * (100 / 100); // 缩放到100x100预览图
+                        return (
+                          <View
+                            key={itemIdx}
+                            style={{
+                              position: 'absolute',
+                              left: (item.x / 100) * 100 - size / 2,
+                              top: (item.y / 100) * 100 - size / 2,
+                              width: size,
+                              height: size,
+                              borderRadius: size / 2,
+                              backgroundColor: 'rgba(76, 175, 80, 0.3)',
+                              borderWidth: 2,
+                              borderColor: '#4CAF50',
+                            }}
+                          >
+                            <View style={{ 
+                              position: 'absolute', 
+                              top: -14, 
+                              left: 0, 
+                              backgroundColor: '#4CAF50', 
+                              borderRadius: 4, 
+                              paddingHorizontal: 4,
+                              minWidth: 20,
+                              alignItems: 'center'
+                            }}>
+                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                            </View>
+                          </View>
+                        );
+                      }
+                      // 兼容旧格式：bbox数组
                       if (!item.bbox || item.bbox.length < 4) return null;
                       const [x1, y1, x2, y2] = item.bbox;
                       return (
@@ -3585,11 +3687,8 @@ const StockManage = () => {
                 source={{ uri: aiCountPreview?.photo?.uri }} 
                 style={{ width: '100%', height: '100%', resizeMode: 'contain' }}
               />
-              {/* 每个物品的标记框 - 根据图片比例计算正确坐标 */}
+              {/* 每个物品的标记框 - 根据图片比例计算正确坐标，支持中心点格式 */}
               {aiCountPreview?.detail?.items?.map((item, itemIdx) => {
-                if (!item.bbox || item.bbox.length < 4) return null;
-                const [x1, y1, x2, y2] = item.bbox;
-                
                 // 计算图片在容器中的实际位置（contain模式）
                 const imgRatio = (aiCountPreview?.photo?.width || 1) / (aiCountPreview?.photo?.height || 1);
                 const containerRatio = Dimensions.get('window').width / (Dimensions.get('window').height * 0.85);
@@ -3609,33 +3708,34 @@ const StockManage = () => {
                   offsetX = (Dimensions.get('window').width - imgWidth) / 2;
                 }
                 
-                // 计算标记框的实际位置和大小
-                const left = offsetX + (x1 / 100) * (aiCountPreview?.photo?.width || 1) * scale;
-                const top = offsetY + (y1 / 100) * (aiCountPreview?.photo?.height || 1) * scale;
-                const width = ((x2 - x1) / 100) * (aiCountPreview?.photo?.width || 1) * scale;
-                const height = ((y2 - y1) / 100) * (aiCountPreview?.photo?.height || 1) * scale;
-                
-                return (
-                  <View
-                    key={itemIdx}
-                    style={{
-                      position: 'absolute',
-                      left: left,
-                      top: top,
-                      width: width,
-                      height: height,
-                      borderWidth: 3,
-                      borderColor: '#4CAF50',
-                      borderRadius: 4,
-                      backgroundColor: 'rgba(76, 175, 80, 0.15)',
-                    }}
-                  >
-                    {/* 数字标记 - 绿色背景白色数字 */}
-                    <View style={{ 
-                      position: 'absolute', 
-                      top: -24, 
-                      left: 0, 
-                      backgroundColor: '#4CAF50', 
+                // 优先使用中心点坐标格式
+                if (item.x !== undefined && item.y !== undefined) {
+                  const radius = item.radius || 2;
+                  const size = radius * 2 * (aiCountPreview?.photo?.width || 1) * scale / 100;
+                  const left = offsetX + (item.x / 100) * (aiCountPreview?.photo?.width || 1) * scale - size / 2;
+                  const top = offsetY + (item.y / 100) * (aiCountPreview?.photo?.height || 1) * scale - size / 2;
+                  
+                  return (
+                    <View
+                      key={itemIdx}
+                      style={{
+                        position: 'absolute',
+                        left: left,
+                        top: top,
+                        width: size,
+                        height: size,
+                        borderRadius: size / 2,
+                        backgroundColor: 'rgba(76, 175, 80, 0.25)',
+                        borderWidth: 3,
+                        borderColor: '#4CAF50',
+                      }}
+                    >
+                      {/* 数字标记 - 绿色背景白色数字 */}
+                      <View style={{ 
+                        position: 'absolute', 
+                        top: -28, 
+                        left: -10, 
+                        backgroundColor: '#4CAF50', 
                       borderRadius: 6, 
                       paddingHorizontal: 8, 
                       paddingVertical: 2,
@@ -3650,7 +3750,54 @@ const StockManage = () => {
                     </View>
                   </View>
                 );
-              })}
+              }
+              
+              // 兼容旧格式：bbox数组
+              if (!item.bbox || item.bbox.length < 4) return null;
+              const [x1, y1, x2, y2] = item.bbox;
+              
+              // 计算标记框的实际位置和大小
+              const left = offsetX + (x1 / 100) * (aiCountPreview?.photo?.width || 1) * scale;
+              const top = offsetY + (y1 / 100) * (aiCountPreview?.photo?.height || 1) * scale;
+              const width = ((x2 - x1) / 100) * (aiCountPreview?.photo?.width || 1) * scale;
+              const height = ((y2 - y1) / 100) * (aiCountPreview?.photo?.height || 1) * scale;
+              
+              return (
+                <View
+                  key={itemIdx}
+                  style={{
+                    position: 'absolute',
+                    left: left,
+                    top: top,
+                    width: width,
+                    height: height,
+                    borderWidth: 3,
+                    borderColor: '#4CAF50',
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                  }}
+                >
+                  {/* 数字标记 - 绿色背景白色数字 */}
+                  <View style={{ 
+                    position: 'absolute', 
+                    top: -24, 
+                    left: 0, 
+                    backgroundColor: '#4CAF50', 
+                    borderRadius: 6, 
+                    paddingHorizontal: 8, 
+                    paddingVertical: 2,
+                    minWidth: 28,
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 2,
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{itemIdx + 1}</Text>
+                  </View>
+                </View>
+              );
+            })}
             </View>
           </View>
           
@@ -6949,7 +7096,7 @@ const PrivateChat = ({ route, navigation }) => {
                   </View>
                 </View>
               )}
-              <View style={[styles.chatBubble, isSelf ? styles.bubbleRight : styles.bubbleLeft]}>
+              <View style={isSelf ? styles.bubbleRight : styles.bubbleLeft}>
                 {msg.image ? (
                   <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                 ) : (
