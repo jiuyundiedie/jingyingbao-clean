@@ -277,35 +277,54 @@ function parseCountResult(text) {
 }
 
 // 备用策略：如果AI没有返回坐标，自动生成均匀分布的标记点
-// 模拟网格扫描法，在图片中均匀分布标记点
+// 模拟网格扫描法，按照从上到下、从左到右的顺序，紧密排列标记点
 function generateFallbackCoords(count) {
   const items = [];
-  // 计算网格大小：尽量让标记点均匀分布
-  const cols = Math.ceil(Math.sqrt(count * 1.5)); // 稍微多一点列，让布局更紧凑
+  // 计算网格大小：尽量让标记点紧密排列，模拟实际物品排列
+  // 假设物品是圆形排列（如棉签、竹签），使用更紧密的网格
+  const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
   
-  const padding = 10; // 边距
+  const padding = 8; // 更小的边距，让标记点更贴近边缘
   const availableWidth = 100 - padding * 2;
   const availableHeight = 100 - padding * 2;
   
-  const colSpacing = availableWidth / (cols - 1 || 1);
-  const rowSpacing = availableHeight / (rows - 1 || 1);
+  // 紧密排列，间距更小
+  const colSpacing = availableWidth / (cols + 1); // 增加一列的间距，让排列更紧密
+  const rowSpacing = availableHeight / (rows + 1);
   
   let id = 1;
+  // 从上到下、从左到右逐行扫描，确保序号顺序与视觉顺序一致
   for (let row = 0; row < rows && id <= count; row++) {
-    // 交错排列，避免对齐
+    // 交错排列，模拟实际物品的紧密排列
     const offset = row % 2 === 1 ? colSpacing / 2 : 0;
     for (let col = 0; col < cols && id <= count; col++) {
-      const x = padding + col * colSpacing + offset;
-      const y = padding + row * rowSpacing;
+      const x = padding + colSpacing + col * colSpacing + offset;
+      const y = padding + rowSpacing + row * rowSpacing;
+      // 根据行号调整间距，让排列更自然
+      const rowAdjust = Math.sin(row * 0.5) * 2;
+      const colAdjust = Math.cos(col * 0.5) * 2;
       items.push({
         id: id++,
-        x: Math.min(95, Math.max(5, x)),
-        y: Math.min(95, Math.max(5, y)),
-        radius: Math.max(1.5, Math.min(4, 50 / Math.max(cols, rows)))
+        x: Math.min(95, Math.max(5, x + colAdjust)),
+        y: Math.min(95, Math.max(5, y + rowAdjust)),
+        radius: Math.max(1.2, Math.min(3, 40 / Math.max(cols, rows))) // 更小的半径
       });
     }
   }
+  
+  // 确保标记点按照从上到下、从左到右的顺序排序
+  items.sort((a, b) => {
+    // 先按y坐标排序（从上到下）
+    if (a.y !== b.y) return a.y - b.y;
+    // 再按x坐标排序（从左到右）
+    return a.x - b.x;
+  });
+  
+  // 重新分配id，确保序号顺序正确
+  items.forEach((item, idx) => {
+    item.id = idx + 1;
+  });
   
   console.log(`[备用策略] 自动生成了${items.length}个标记点`);
   return items;
@@ -1561,6 +1580,7 @@ const ProfileEditScreen = ({ navigation }) => {
   const [phone, setPhone] = useState(user.phone || '');
   const [gender, setGender] = useState(user.gender || '未设置');
   const [avatar, setAvatar] = useState(user.avatar || '');
+  const [avatarBgColor, setAvatarBgColor] = useState(user.avatarBgColor || PRIMARY_COLOR);
   const [region, setRegion] = useState(user.region || '');
   const [signature, setSignature] = useState(user.signature || '');
   const [showGenderPicker, setShowGenderPicker] = useState(false);
@@ -1617,7 +1637,7 @@ const ProfileEditScreen = ({ navigation }) => {
   const saveProfile = async () => {
     if (!name.trim()) { showToast('请输入姓名'); return; }
     if (!/^1\d{10}$/.test(phone)) { showToast('请输入有效的手机号'); return; }
-    const newUser = { ...user, name: name.trim(), phone, gender, avatar, region, signature };
+    const newUser = { ...user, name: name.trim(), phone, gender, avatar, avatarBgColor, region, signature };
     const newShopInfo = { ...shopInfo, phone };
     try {
       await AsyncStorage.setItem('user', JSON.stringify(newUser));
@@ -1643,11 +1663,11 @@ const ProfileEditScreen = ({ navigation }) => {
       <ScrollView style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
         <View style={{ backgroundColor: PRIMARY_COLOR, paddingBottom: 30, alignItems: 'center' }}>
           <TouchableOpacity onPress={pickAvatar} style={{ position: 'relative' }}>
-            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 3, borderColor: '#fff' }}>
+            <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: avatarBgColor, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 3, borderColor: '#fff' }}>
               {avatar && (avatar.startsWith('http') || avatar.startsWith('file') || avatar.startsWith('data')) ? (
                 <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} />
               ) : (
-                <Text style={{ fontSize: 36, color: PRIMARY_COLOR, fontWeight: 'bold' }}>{getAvatarText()}</Text>
+                <Text style={{ fontSize: 36, color: '#fff', fontWeight: 'bold' }}>{getAvatarText()}</Text>
               )}
             </View>
             <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 14, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
@@ -1716,7 +1736,11 @@ const ProfileEditScreen = ({ navigation }) => {
             <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择预设头像</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
               {avatarColors.map((c, idx) => (
-                <TouchableOpacity key={idx} style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setAvatar(c.bg); setShowAvatarPicker(false); }}>
+                <TouchableOpacity key={idx} style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: c.bg, justifyContent: 'center', alignItems: 'center' }} onPress={() => { 
+                  setAvatar(''); // 清除图片头像，使用预设颜色
+                  setAvatarBgColor(c.bg); 
+                  setShowAvatarPicker(false); 
+                }}>
                   <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold' }}>{(name || '?').substring(0, 1)}</Text>
                 </TouchableOpacity>
               ))}
@@ -1768,7 +1792,6 @@ const SettingDrawer = ({ visible, onClose }) => {
   };
 
   const saveShop = () => {
-    if (isEmployee) { showToast('员工无权修改'); return; }
     const industry = selectedIndustry;
     const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
@@ -1893,15 +1916,6 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => {
-                  setShowEditModal(true);
-                }}>
-                  <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>门店信息</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-                </TouchableOpacity>
-                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); }, 200); }}>
                   <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>切换账号</Text>
@@ -1924,19 +1938,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
-                  <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>日报推送</Text>
-                  <Switch value={dailyReportEnable} onValueChange={toggleDailyReport} trackColor={{ false: '#ccc', true: PRIMARY_COLOR }} thumbColor={dailyReportEnable ? '#fff' : '#f4f3f4'} />
-                </View>
-                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowTimePicker(true)}>
-                  <Ionicons name="calendar-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>推送日报时间</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{workTimeStart} - {workTimeEnd}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-                </TouchableOpacity>
-                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpModal(true)}>
                   <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
@@ -1965,142 +1966,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         </Animated.View>
       </View>
     </Modal>
-    <EditShopNameModal 
-      visible={showEditModal} 
-      onClose={() => setShowEditModal(false)} 
-      shopName={shopName} 
-      industry={selectedIndustry}
-      onSave={(name, industry) => {
-        setShopName(name);
-        setSelectedIndustry(industry);
-        saveShop();
-      }} 
-    />
-
-    <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
-      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowTimePicker(false)}>
-        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>设置日报推送时间</Text>
-          
-          <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>上班时间</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('start')}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[0]}时</Text>
-              </TouchableOpacity>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
-              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('start')}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[1]}分</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>下班时间</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('end')}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[0]}时</Text>
-              </TouchableOpacity>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
-              <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('end')}>
-                <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[1]}分</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F5F7FA', borderRadius: 12, alignItems: 'center' }} onPress={() => setShowTimePicker(false)}>
-              <Text style={{ fontSize: 16, color: TEXT_MAIN }}>取消</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 12, alignItems: 'center' }} onPress={saveDailyReportConfig}>
-              <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>保存</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-
-    <Modal visible={showHourPicker !== null} transparent animationType="slide" onRequestClose={() => setShowHourPicker(null)}>
-      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowHourPicker(null)}>
-        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择小时</Text>
-          <ScrollView>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {Array.from({ length: 24 }, (_, i) => {
-                const hour = String(i).padStart(2, '0');
-                const isSelected = (showHourPicker === 'start' ? workTimeStart.split(':')[0] : workTimeEnd.split(':')[0]) === hour;
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    style={{
-                      width: (width - 56) / 6,
-                      height: 44,
-                      backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
-                      borderRadius: 8,
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}
-                    onPress={() => {
-                      if (showHourPicker === 'start') {
-                        const min = workTimeStart.split(':')[1];
-                        setWorkTimeStart(`${hour}:${min}`);
-                      } else {
-                        const min = workTimeEnd.split(':')[1];
-                        setWorkTimeEnd(`${hour}:${min}`);
-                      }
-                      setShowHourPicker(null);
-                    }}
-                  >
-                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{hour}时</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-
-    <Modal visible={showMinutePicker !== null} transparent animationType="slide" onRequestClose={() => setShowMinutePicker(null)}>
-      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowMinutePicker(null)}>
-        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择分钟</Text>
-          <ScrollView>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {Array.from({ length: 12 }, (_, i) => {
-                const min = String(i * 5).padStart(2, '0');
-                const isSelected = (showMinutePicker === 'start' ? workTimeStart.split(':')[1] : workTimeEnd.split(':')[1]) === min;
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    style={{
-                      width: (width - 56) / 6,
-                      height: 44,
-                      backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
-                      borderRadius: 8,
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}
-                    onPress={() => {
-                      if (showMinutePicker === 'start') {
-                        const hour = workTimeStart.split(':')[0];
-                        setWorkTimeStart(`${hour}:${min}`);
-                      } else {
-                        const hour = workTimeEnd.split(':')[0];
-                        setWorkTimeEnd(`${hour}:${min}`);
-                      }
-                      setShowMinutePicker(null);
-                    }}
-                  >
-                    <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{min}分</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        </View>
-      </TouchableOpacity>
-    </Modal>
+    
 
     <Modal visible={showHelpModal} transparent animationType="fade" onRequestClose={() => setShowHelpModal(false)}>
       <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
@@ -4496,14 +4362,32 @@ const InternalChat = () => {
             {groupMessages.map(msg => {
               const isMe = msg.fromPhone === state.user?.phone;
               return (
-                <View key={msg.id} style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                  {msg.image ? (
-                    <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-                  ) : (
-                    <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                <View key={msg.id} style={[styles.chatRow, isMe ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
+                  {/* 对方头像 */}
+                  {!isMe && (
+                    <View style={{ flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FF9800', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.from || '员工').substring(0, 1)}</Text>
+                      </View>
+                    </View>
                   )}
-                  <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
-                  <Text style={{ fontSize: 10, color: TEXT_THIRD }}>{msg.from}</Text>
+                  <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
+                    {!isMe && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
+                    {msg.image ? (
+                      <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                    ) : (
+                      <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                    )}
+                    <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4, textAlign: isMe ? 'right' : 'left' }}>{formatTime(msg.time)}</Text>
+                  </View>
+                  {/* 自己头像 */}
+                  {isMe && (
+                    <View style={{ flexDirection: 'column', alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.user?.name || '我').substring(0, 1)}</Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
               );
             })}
