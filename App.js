@@ -448,23 +448,25 @@ function parseCoordsResult(text, imageWidth, imageHeight) {
 // 计数指令：简化版本，只问数量
 const COUNT_ONLY_PROMPT = '请仔细清点图片中所有相同物品的总数量。对于密集排列的小物品（如棉签、筷子、牙签、纽扣、药片等），请逐个计数，确保不漏数、不多数。只返回一个阿拉伯数字，不要其他文字。';
 
-// 获取坐标指令 - 终极版（针对密集小物品优化，参考专业计数工具）
-const GET_COORDS_PROMPT = (count) => `你是一个专业的物品计数定位助手。图片中有${count}个物品（看起来像是棉签头、小圆球、小圆柱体等密集排列的小物品）。
+// 获取坐标指令 - 专业版（针对密集小物品优化，参考点数神器）
+const GET_COORDS_PROMPT = (count) => `你是一个专业的计算机视觉物品定位助手。图片中有${count}个小物品（棉签头、竹签、圆珠、药丸等）。
 
-你的任务：为每一个物品标注精确的中心点坐标。
+任务：精确标注每个物品的中心点坐标，模拟真实的视觉定位效果。
 
-严格按照以下格式返回（只返回JSON，不要任何其他文字）：
-{"items":[{"id":1,"x":15,"y":15,"radius":2},{"id":2,"x":25,"y":15,"radius":2},...]}
+严格返回JSON格式（不要任何文字解释，不要markdown）：
+{"items":[{"id":1,"x":12.5,"y":8.3,"radius":1.8},{"id":2,"x":18.2,"y":8.5,"radius":1.7},...]}
 
-要求：
-1. x和y是百分比坐标（0-100），表示物品中心位置
-2. radius是半径百分比（通常1-5%）
-3. 必须返回${count}个物品，一个都不能少！
-4. 对于密集排列的物品，仔细识别每个独立个体
-5. 从左上角开始逐行扫描，确保不遗漏任何物品
+关键要求：
+1. x,y是0-100的百分比坐标，精确到小数点后1位
+2. radius是半径百分比（1-4%），根据物品实际大小调整
+3. 必须返回${count}个物品，数量不能多也不能少
+4. **重要**：坐标必须真实对应图片中的物品位置，不能随意生成
+5. 从图片左上角开始，从上到下、从左到右逐行扫描标注
+6. 对于重叠物品，标注可见部分的中心位置
+7. 物品密集区域要特别仔细，确保每个独立个体都有标注
 
-示例：如果有3个物品，返回：
-{"items":[{"id":1,"x":20,"y":20,"radius":3},{"id":2,"x":45,"y":20,"radius":3},{"id":3,"x":70,"y":20,"radius":3}]}`;
+返回示例（5个物品）：
+{"items":[{"id":1,"x":15.2,"y":12.8,"radius":2.1},{"id":2,"x":22.5,"y":13.1,"radius":2.0},{"id":3,"x":29.8,"y":12.9,"radius":2.1},{"id":4,"x":15.5,"y":20.2,"radius":2.0},{"id":5,"x":22.8,"y":20.5,"radius":2.1}]}`;
 
 // 1. 阿里云百炼 Qwen-VL（国内可用）- 两步策略
 async function countWithAlibaba(base64, width, height) {
@@ -1576,13 +1578,13 @@ const ProfileEditScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const user = state.user || {};
   const shopInfo = state.shopInfo || {};
-  const [name, setName] = useState(user.name || '');
-  const [phone, setPhone] = useState(user.phone || '');
-  const [gender, setGender] = useState(user.gender || '未设置');
-  const [avatar, setAvatar] = useState(user.avatar || '');
-  const [avatarBgColor, setAvatarBgColor] = useState(user.avatarBgColor || PRIMARY_COLOR);
-  const [region, setRegion] = useState(user.region || '');
-  const [signature, setSignature] = useState(user.signature || '');
+  const [name, setName] = useState((user && user.name) || '');
+  const [phone, setPhone] = useState((user && user.phone) || '');
+  const [gender, setGender] = useState((user && user.gender) || '未设置');
+  const [avatar, setAvatar] = useState((user && user.avatar) || '');
+  const [avatarBgColor, setAvatarBgColor] = useState((user && user.avatarBgColor) || PRIMARY_COLOR);
+  const [region, setRegion] = useState((user && user.region) || '');
+  const [signature, setSignature] = useState((user && user.signature) || '');
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
@@ -1598,40 +1600,51 @@ const ProfileEditScreen = ({ navigation }) => {
   ];
 
   const pickAvatar = () => {
-    Alert.alert('选择头像方式', '', [
-      { text: '从相册选择', onPress: async () => {
-        try {
-          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== 'granted') { showToast('需要相册权限'); return; }
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.7,
-          });
-          if (!result.canceled) {
-            setAvatar(result.assets[0].uri);
+    try {
+      Alert.alert('选择头像方式', '', [
+        { text: '从相册选择', onPress: async () => {
+          try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') { showToast('需要相册权限'); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              setAvatar(result.assets[0].uri);
+            }
+          } catch (e) { 
+            console.error('[pickAvatar] 相册选择失败:', e);
+            showToast('选择失败'); 
           }
-        } catch (e) { showToast('选择失败'); }
-      }},
-      { text: '拍摄头像', onPress: async () => {
-        try {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== 'granted') { showToast('需要相机权限'); return; }
-          const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.7,
-          });
-          if (!result.canceled) {
-            setAvatar(result.assets[0].uri);
+        }},
+        { text: '拍摄头像', onPress: async () => {
+          try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') { showToast('需要相机权限'); return; }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.7,
+            });
+            if (!result.canceled && result.assets && result.assets[0]) {
+              setAvatar(result.assets[0].uri);
+            }
+          } catch (e) { 
+            console.error('[pickAvatar] 相机拍摄失败:', e);
+            showToast('拍摄失败'); 
           }
-        } catch (e) { showToast('拍摄失败'); }
-      }},
-      { text: '使用预设头像', onPress: () => setShowAvatarPicker(true) },
-      { text: '取消', style: 'cancel' },
-    ]);
+        }},
+        { text: '使用预设头像', onPress: () => setShowAvatarPicker(true) },
+        { text: '取消', style: 'cancel' },
+      ]);
+    } catch (e) {
+      console.error('[pickAvatar] Alert失败:', e);
+      showToast('选择头像失败');
+    }
   };
 
   const saveProfile = async () => {
@@ -1832,10 +1845,19 @@ const SettingDrawer = ({ visible, onClose }) => {
   };
 
   const goToProfile = () => {
-    onClose();
-    setTimeout(() => {
-      if (navigationRef.current) navigationRef.current.push('ProfileEdit');
-    }, 200);
+    try {
+      onClose();
+      setTimeout(() => {
+        if (navigationRef.current) {
+          navigationRef.current.push('ProfileEdit');
+        } else {
+          console.error('[goToProfile] navigationRef is null');
+        }
+      }, 200);
+    } catch (error) {
+      console.error('[goToProfile] Error:', error);
+      showToast('打开个人资料失败');
+    }
   };
 
   const handleBackup = async () => {
@@ -1915,6 +1937,20 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>个人资料</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
+                {/* 商家端显示门店信息 */}
+                {!isEmployee && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => {
+                      setShowEditModal(true);
+                    }}>
+                      <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                      <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>门店信息</Text>
+                      <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                    </TouchableOpacity>
+                  </>
+                )}
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => { if (navigationRef.current) navigationRef.current.navigate('SwitchAccount'); }, 200); }}>
                   <Ionicons name="swap-horizontal-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
@@ -1936,6 +1972,24 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
               </View>
+
+              {/* 商家端显示日报推送设置 */}
+              {!isEmployee && (
+                <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                    <Ionicons name="notifications-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                    <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>日报推送</Text>
+                    <Switch value={dailyReportEnable} onValueChange={toggleDailyReport} trackColor={{ false: '#ccc', true: PRIMARY_COLOR }} thumbColor={dailyReportEnable ? '#fff' : '#f4f3f4'} />
+                  </View>
+                  <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowTimePicker(true)}>
+                    <Ionicons name="calendar-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                    <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>推送日报时间</Text>
+                    <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{workTimeStart} - {workTimeEnd}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpModal(true)}>
@@ -1966,7 +2020,151 @@ const SettingDrawer = ({ visible, onClose }) => {
         </Animated.View>
       </View>
     </Modal>
-    
+
+    {/* 商家端显示门店编辑 Modal */}
+    {!isEmployee && (
+      <EditShopNameModal 
+        visible={showEditModal} 
+        onClose={() => setShowEditModal(false)} 
+        shopName={shopName} 
+        industry={selectedIndustry}
+        onSave={(name, industry) => {
+          setShopName(name);
+          setSelectedIndustry(industry);
+          saveShop();
+        }} 
+      />
+    )}
+
+    {/* 商家端显示时间选择器 Modal */}
+    {!isEmployee && (
+      <>
+        <Modal visible={showTimePicker} transparent animationType="slide" onRequestClose={() => setShowTimePicker(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowTimePicker(false)}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>设置日报推送时间</Text>
+              
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>上班时间</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('start')}>
+                    <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[0]}时</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
+                  <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('start')}>
+                    <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeStart.split(':')[1]}分</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>下班时间</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHourPicker('end')}>
+                    <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[0]}时</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>:</Text>
+                  <TouchableOpacity style={{ flex: 1, height: 44, backgroundColor: LIGHT_PRIMARY, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowMinutePicker('end')}>
+                    <Text style={{ fontSize: 16, color: TEXT_MAIN, fontWeight: '500' }}>{workTimeEnd.split(':')[1]}分</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F5F7FA', borderRadius: 12, alignItems: 'center' }} onPress={() => setShowTimePicker(false)}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 12, alignItems: 'center' }} onPress={saveDailyReportConfig}>
+                  <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>保存</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal visible={showHourPicker !== null} transparent animationType="slide" onRequestClose={() => setShowHourPicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowHourPicker(null)}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择小时</Text>
+              <ScrollView>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {Array.from({ length: 24 }, (_, i) => {
+                    const hour = String(i).padStart(2, '0');
+                    const isSelected = (showHourPicker === 'start' ? workTimeStart.split(':')[0] : workTimeEnd.split(':')[0]) === hour;
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={{
+                          width: (width - 56) / 6,
+                          height: 44,
+                          backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
+                          borderRadius: 8,
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}
+                        onPress={() => {
+                          if (showHourPicker === 'start') {
+                            const min = workTimeStart.split(':')[1];
+                            setWorkTimeStart(`${hour}:${min}`);
+                          } else {
+                            const min = workTimeEnd.split(':')[1];
+                            setWorkTimeEnd(`${hour}:${min}`);
+                          }
+                          setShowHourPicker(null);
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{hour}时</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal visible={showMinutePicker !== null} transparent animationType="slide" onRequestClose={() => setShowMinutePicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowMinutePicker(null)}>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 }}>选择分钟</Text>
+              <ScrollView>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const min = String(i * 5).padStart(2, '0');
+                    const isSelected = (showMinutePicker === 'start' ? workTimeStart.split(':')[1] : workTimeEnd.split(':')[1]) === min;
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={{
+                          width: (width - 56) / 6,
+                          height: 44,
+                          backgroundColor: isSelected ? PRIMARY_COLOR : LIGHT_PRIMARY,
+                          borderRadius: 8,
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}
+                        onPress={() => {
+                          if (showMinutePicker === 'start') {
+                            const hour = workTimeStart.split(':')[0];
+                            setWorkTimeStart(`${hour}:${min}`);
+                          } else {
+                            const hour = workTimeEnd.split(':')[0];
+                            setWorkTimeEnd(`${hour}:${min}`);
+                          }
+                          setShowMinutePicker(null);
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, color: isSelected ? '#fff' : TEXT_MAIN, fontWeight: '500' }}>{min}分</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </>
+    )}
 
     <Modal visible={showHelpModal} transparent animationType="fade" onRequestClose={() => setShowHelpModal(false)}>
       <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
