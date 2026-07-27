@@ -4715,6 +4715,14 @@ const InternalChat = () => {
         
         {showMediaOptions && (
           <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('gallery')}>
+              <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_MAIN }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
+              <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_MAIN }}>拍照</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
               <Ionicons name="call-outline" size={24} color={SUCCESS_COLOR} />
               <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>语音通话</Text>
@@ -7305,8 +7313,8 @@ const PrivateChat = ({ route, navigation }) => {
           quality: 0.7,
         });
         if (!result.canceled) {
-          setSelectedImages([...selectedImages, result.assets[0].uri]);
-          showToast('已选1张图片');
+          setSelectedImages([result.assets[0].uri]);
+          await sendMessage('image');
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -7319,8 +7327,8 @@ const PrivateChat = ({ route, navigation }) => {
         });
         if (!result.canceled) {
           const uris = result.assets.map(a => a.uri);
-          setSelectedImages([...selectedImages, ...uris]);
-          showToast(`已选${uris.length}张图片`);
+          setSelectedImages(uris);
+          await sendMessage('image');
         }
       }
     } catch (error) { showToast('选择图片失败'); }
