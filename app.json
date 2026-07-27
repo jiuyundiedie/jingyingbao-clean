@@ -32,6 +32,9 @@
       "enabled": false,
       "checkAutomatically": "NEVER",
       "fallbackToCacheTimeout": 0
-    }
+    },
+    "plugins": [
+      "expo-speech-recognition"
+    ]
   }
 }

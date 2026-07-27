@@ -27,8 +27,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      - name: Install dependencies
-        run: npm install
+      - name: Clear npm cache and reinstall dependencies
+        run: |
+          npm cache clean --force
+          rm -rf node_modules
+          npm install
 
       - name: Setup JDK
         uses: actions/setup-java@v4

@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
-import Voice from '@react-native-voice/voice';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -6135,41 +6135,45 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
   const startVoice = async () => {
     try {
       // 请求麦克风权限
-      const granted = await Voice.requestPermissions();
-      if (!granted) {
+      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permissionResult.granted) {
         showToast('请授权麦克风权限');
         return;
       }
 
-      Voice.onSpeechStart = () => {
+      // 添加事件监听器
+      ExpoSpeechRecognitionModule.addListener('start', () => {
         setRecording(true);
         showToast('正在聆听...请说话');
-      };
+      });
 
-      Voice.onSpeechEnd = () => {
+      ExpoSpeechRecognitionModule.addListener('end', () => {
         setRecording(false);
-      };
+      });
 
-      Voice.onSpeechResults = (event) => {
-        const text = event.value[0];
-        if (text) {
-          setInputText(prev => (prev + ' ' + text).trim());
+      ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        const { segments } = event;
+        if (segments && segments.length > 0) {
+          const text = segments.map(s => s.transcript).join('');
+          if (text) {
+            setInputText(prev => (prev + ' ' + text).trim());
+          }
         }
-      };
+      });
 
-      Voice.onSpeechError = (event) => {
+      ExpoSpeechRecognitionModule.addListener('error', (event) => {
         setRecording(false);
-        const errorCode = event.error.code;
-        if (errorCode === 'not-allowed') {
+        const error = event.error;
+        if (error === 'not-allowed') {
           showToast('请授权麦克风权限');
-        } else if (errorCode === 'no-speech') {
+        } else if (error === 'no-speech') {
           showToast('未检测到语音，请重试');
         } else {
-          showToast('语音识别错误：' + errorCode);
+          showToast('语音识别错误：' + error);
         }
-      };
+      });
 
-      await Voice.start('zh-CN');
+      await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
     } catch (e) {
       showToast('启动语音失败: ' + (e?.message || e));
       setRecording(false);
@@ -6178,7 +6182,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 
   const stopVoice = async () => {
     try {
-      await Voice.stop();
+      await ExpoSpeechRecognitionModule.stop();
     } catch (e) {
       console.warn('停止语音失败:', e);
     }
