@@ -3,7 +3,8 @@ import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
-  PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView
+  PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
+  AppState
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
@@ -11,7 +12,6 @@ const navigationRef = createNavigationContainerRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { BarCodeScanner } from 'expo-barcode-scanner';
 import { Camera, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
+import Voice from '@react-native-voice/voice';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ===== 工具函数 =====
@@ -2823,7 +2824,7 @@ const StockManage = () => {
 
   const handleScan = async () => {
     try {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
       setScanning(true);
     } catch (error) { showToast('扫码失败'); }
@@ -3296,7 +3297,7 @@ const StockManage = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <Camera onBarcodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
       </View>
     );
@@ -4089,8 +4090,8 @@ const CustomerService = () => {
           quality: 0.7,
         });
         if (!result.canceled) {
-          setSelectedImages([...selectedImages, result.assets[0].uri]);
-          showToast('已选1张图片，点击发送按钮发送');
+          setSelectedImages([result.assets[0].uri]);
+          await sendMessage('image');
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -4103,8 +4104,8 @@ const CustomerService = () => {
         });
         if (!result.canceled) {
           const uris = result.assets.map(a => a.uri);
-          setSelectedImages([...selectedImages, ...uris]);
-          showToast(`已选${uris.length}张图片，点击发送按钮发送`);
+          setSelectedImages(uris);
+          await sendMessage('image');
         }
       }
     } catch (error) { showToast('选择图片失败'); }
@@ -6131,45 +6132,56 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     }
   }, [visible]);
 
-  const startVoice = () => {
+  const startVoice = async () => {
     try {
-      const SR = (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition));
-      if (!SR) { 
-        showToast('当前环境暂不支持语音识别，请使用文字输入'); 
-        return; 
+      // 请求麦克风权限
+      const granted = await Voice.requestPermissions();
+      if (!granted) {
+        showToast('请授权麦克风权限');
+        return;
       }
-      const recognition = new SR();
-      recognition.lang = 'zh-CN';
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => { setRecording(true); showToast('正在聆听...请说话'); };
-      recognition.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += transcript;
-          else interimTranscript += transcript;
-        }
-        if (finalTranscript) setInputText(prev => (prev + ' ' + finalTranscript).trim());
-        else if (interimTranscript) setInputText(interimTranscript);
+
+      Voice.onSpeechStart = () => {
+        setRecording(true);
+        showToast('正在聆听...请说话');
       };
-      recognition.onerror = (e) => {
+
+      Voice.onSpeechEnd = () => {
         setRecording(false);
-        const err = e.error || '未知错误';
-        if (err === 'no-speech') showToast('未检测到语音，请重试');
-        else if (err === 'not-allowed') showToast('请授权麦克风权限');
-        else showToast('语音识别错误：' + err);
       };
-      recognition.onend = () => { setRecording(false); };
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) { showToast('启动语音失败: ' + (e?.message || e)); setRecording(false); }
+
+      Voice.onSpeechResults = (event) => {
+        const text = event.value[0];
+        if (text) {
+          setInputText(prev => (prev + ' ' + text).trim());
+        }
+      };
+
+      Voice.onSpeechError = (event) => {
+        setRecording(false);
+        const errorCode = event.error.code;
+        if (errorCode === 'not-allowed') {
+          showToast('请授权麦克风权限');
+        } else if (errorCode === 'no-speech') {
+          showToast('未检测到语音，请重试');
+        } else {
+          showToast('语音识别错误：' + errorCode);
+        }
+      };
+
+      await Voice.start('zh-CN');
+    } catch (e) {
+      showToast('启动语音失败: ' + (e?.message || e));
+      setRecording(false);
+    }
   };
 
-  const stopVoice = () => {
-    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) {} }
+  const stopVoice = async () => {
+    try {
+      await Voice.stop();
+    } catch (e) {
+      console.warn('停止语音失败:', e);
+    }
     setRecording(false);
   };
 
@@ -6943,7 +6955,7 @@ const VerifyOrder = () => {
 
   const requestCameraPermission = async () => {
     try {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       return status === 'granted';
     } catch (e) {
       return false;
@@ -7015,7 +7027,7 @@ const VerifyOrder = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <BarCodeScanner onBarCodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <Camera onBarcodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消</Text></TouchableOpacity>
       </View>
     );
@@ -7699,6 +7711,20 @@ export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+
+  useEffect(() => {
+    const appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && !isFirstLaunch) {
+        // 从后台返回，不显示开屏
+        setShowSplash(false);
+      }
+    });
+
+    return () => {
+      appStateListener.remove();
+    };
+  }, [isFirstLaunch]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -7741,10 +7767,11 @@ export default function App() {
   // 开屏完成后显示主应用
   const handleSplashComplete = () => {
     setShowSplash(false);
+    setIsFirstLaunch(false);
   };
 
-  // 显示开屏界面
-  if (showSplash) {
+  // 显示开屏界面（仅首次启动显示）
+  if (showSplash && isFirstLaunch) {
     return <SplashScreenComponent onComplete={handleSplashComplete} />;
   }
 
