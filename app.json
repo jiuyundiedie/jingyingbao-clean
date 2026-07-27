@@ -2,7 +2,7 @@
   "expo": {
     "name": "经营宝",
     "slug": "jingyingbao",
-    "version": "5.40.0",
+    "version": "5.41.0",
     "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.xxx.jingyingbao",
-      "versionCode": 73,
+      "versionCode": 74,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -34,7 +34,21 @@
       "fallbackToCacheTimeout": 0
     },
     "plugins": [
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许访问相机以进行扫码和拍照",
+          "microphonePermission": "允许访问麦克风以进行视频通话"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "允许访问相册以选择图片",
+          "cameraPermission": "允许访问相机以拍摄照片"
+        }
+      ]
     ]
   }
 }

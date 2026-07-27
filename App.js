@@ -1954,12 +1954,18 @@ const SettingDrawer = ({ visible, onClose }) => {
     try {
       onClose();
       setTimeout(() => {
-        if (navigationRef.current) {
-          navigationRef.current.push('ProfileEdit');
-        } else {
-          console.error('[goToProfile] navigationRef is null');
+        try {
+          if (navigationRef.current) {
+            navigationRef.current.push('ProfileEdit');
+          } else {
+            console.error('[goToProfile] navigationRef is null');
+            showToast('导航初始化失败');
+          }
+        } catch (navError) {
+          console.error('[goToProfile] Navigation Error:', navError);
+          showToast('打开个人资料失败');
         }
-      }, 200);
+      }, 300);
     } catch (error) {
       console.error('[goToProfile] Error:', error);
       showToast('打开个人资料失败');
@@ -3421,14 +3427,21 @@ const StockManage = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <CameraView
-          facing="back"
-          onBarcodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
-          }}
-        />
+        {cameraPermission?.granted ? (
+          <CameraView
+            facing="back"
+            onBarcodeScanned={handleBarCodeScanned}
+            style={StyleSheet.absoluteFillObject}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
+            }}
+          />
+        ) : (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+            <Text style={{ marginTop: 16, color: TEXT_SECOND }}>正在获取相机权限...</Text>
+          </View>
+        )}
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
       </View>
     );
