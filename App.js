@@ -2518,6 +2518,9 @@ const ProductOverview = () => {
   const [name, setName] = useState('');
   const [stock, setStock] = useState('');
   const [platform, setPlatform] = useState('美团');
+  const [loadingPlatform, setLoadingPlatform] = useState(null);
+  const [shelfModalVisible, setShelfModalVisible] = useState(false);
+  const [currentShelfGoods, setCurrentShelfGoods] = useState(null);
 
   const handleSave = () => {
     try {
@@ -2569,6 +2572,41 @@ const ProductOverview = () => {
     setModalVisible(true);
   };
 
+  const openShelfModal = (item) => {
+    setCurrentShelfGoods(item);
+    setShelfModalVisible(true);
+  };
+
+  const handleShelf = async (platform) => {
+    try {
+      if (!currentShelfGoods) { showToast('请先选择商品'); return; }
+      setLoadingPlatform(platform);
+      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      Alert.alert(`上架到${platform}`, reply);
+      showToast(`已成功生成${platform}上架内容`);
+    } catch (error) {
+      showToast(`${platform}上架生成失败`);
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
+  const handleShelfAll = async () => {
+    try {
+      if (!currentShelfGoods) { showToast('请先选择商品'); return; }
+      setLoadingPlatform('all');
+      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
+      Alert.alert('一键上架所有平台', reply);
+      showToast('已生成所有平台上架内容');
+    } catch (error) {
+      showToast('一键上架生成失败');
+    } finally {
+      setLoadingPlatform(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
@@ -2580,6 +2618,13 @@ const ProductOverview = () => {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+      
+      {/* 上架提示 */}
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF8E7', borderBottomWidth: 1, borderColor: '#FFE0B2' }}>
+        <Text style={{ fontSize: 14, color: '#E65100', fontWeight: '600' }}>📤 商品上架功能</Text>
+        <Text style={{ fontSize: 12, color: '#EF6C00', marginTop: 4 }}>选择商品后点击"上架"按钮，可一键生成美团、抖音、大众点评的上架内容</Text>
+      </View>
+
       <FlatList
         data={state.goodsList || []}
         keyExtractor={item => item.id}
@@ -2593,12 +2638,15 @@ const ProductOverview = () => {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>编辑</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.editBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleDelete(item.id)}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>删除</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.editBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => openShelfModal(item)}><Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>上架</Text></TouchableOpacity>
             </View>
           </View>
         )}
         ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 40, color: TEXT_THIRD }}>暂无商品，点击右上角➕添加</Text>}
         contentContainerStyle={{ padding: 16 }}
       />
+
+      {/* 添加/编辑商品弹窗 */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
           <View style={styles.modalWrap}>
@@ -2621,6 +2669,43 @@ const ProductOverview = () => {
             <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}>
               <Text style={styles.sendTxt}>{editingItem ? '更新' : '添加'}</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 上架平台选择弹窗 */}
+      <Modal visible={shelfModalVisible} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={styles.modalWrap}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📤 商品上架</Text>
+              <TouchableOpacity onPress={() => setShelfModalVisible(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 16, textAlign: 'center' }}>
+              {currentShelfGoods?.name}
+            </Text>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 16, textAlign: 'center' }}>
+              当前库存: {currentShelfGoods?.stock}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['美团', '抖音', '大众点评'].map(p => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
+                  onPress={() => handleShelf(p)}
+                  disabled={loadingPlatform !== null}
+                >
+                  <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
+                onPress={handleShelfAll}
+                disabled={loadingPlatform !== null}
+              >
+                <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2822,58 +2907,77 @@ const StockManage = () => {
     setOutQuantity('');
   };
 
+  const cameraRef = useRef(null);
+
   const handleScan = async () => {
     try {
       const { status } = await Camera.requestCameraPermissionsAsync();
       if (status !== 'granted') { showToast('需要相机权限'); return; }
       setScanning(true);
-    } catch (error) { showToast('扫码失败'); }
+    } catch (error) { 
+      showToast('扫码失败'); 
+      console.error('扫码启动失败:', error);
+    }
   };
 
-  const handleBarCodeScanned = ({ data }) => {
-    setScanning(false);
-    const matched = (state.goodsList || []).find(g => g.code === data);
-    if (matched) {
-      setSelectedGoodsId(matched.id);
-      if (type === '出库') {
-        if (matched.stock <= 0) {
-          showToast('库存不足');
-          return;
-        }
-        Alert.alert(
-          '确认出库',
-          `商品：${matched.name}\n当前库存：${matched.stock}\n请输入出库数量`,
-          [
-            { text: '取消' },
-            { text: '确认出库', onPress: () => {
-              const qty = 1;
-              const newStock = matched.stock - qty;
-              const updatedGoods = (state.goodsList || []).map(g =>
-                g.id === matched.id ? { ...g, stock: newStock } : g
-              );
-              dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-              const record = {
-                id: Date.now().toString(),
-                type: '出库',
-                productName: matched.name,
-                quantity: qty,
-                reason: '扫码出库',
-                time: new Date().toISOString(),
-                photo: null,
-              };
-              dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-              showToast(`出库成功: ${matched.name} ×${qty}`);
-            }}
-          ]
-        );
-      } else {
-        showToast(`扫描到商品：${matched.name}`);
+  const handleBarCodeScanned = (scannedData) => {
+    try {
+      const data = scannedData?.data;
+      if (!data) return;
+      
+      // 停止扫描
+      if (cameraRef.current) {
+        cameraRef.current.pausePreview();
       }
-    } else {
-      Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择或手动录入`, [
-        { text: '手动录入', onPress: () => { setShowManualInput(true); setModalVisible(true); } },
-        { text: '确定' }
-      ]);
+      
+      setScanning(false);
+      const matched = (state.goodsList || []).find(g => g.code === data);
+      if (matched) {
+        setSelectedGoodsId(matched.id);
+        if (type === '出库') {
+          if (matched.stock <= 0) {
+            showToast('库存不足');
+            return;
+          }
+          Alert.alert(
+            '确认出库',
+            `商品：${matched.name}\n当前库存：${matched.stock}\n请输入出库数量`,
+            [
+              { text: '取消' },
+              { text: '确认出库', onPress: () => {
+                const qty = 1;
+                const newStock = matched.stock - qty;
+                const updatedGoods = (state.goodsList || []).map(g =>
+                  g.id === matched.id ? { ...g, stock: newStock } : g
+                );
+                dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+                const record = {
+                  id: Date.now().toString(),
+                  type: '出库',
+                  productName: matched.name,
+                  quantity: qty,
+                  reason: '扫码出库',
+                  time: new Date().toISOString(),
+                  photo: null,
+                };
+                dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
+                showToast(`出库成功: ${matched.name} ×${qty}`);
+              }}
+            ]
+          );
+        } else {
+          showToast(`扫描到商品：${matched.name}`);
+        }
+      } else {
+        Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择或手动录入`, [
+          { text: '手动录入', onPress: () => { setShowManualInput(true); setModalVisible(true); } },
+          { text: '确定' }
+        ]);
+      }
+    } catch (error) {
+      console.error('扫码处理失败:', error);
+      setScanning(false);
+      showToast('扫码处理异常');
     }
   };
 
@@ -3297,7 +3401,14 @@ const StockManage = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <Camera onBarcodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <Camera
+          ref={cameraRef}
+          onBarcodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
+          }}
+        />
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
       </View>
     );
@@ -3348,31 +3459,7 @@ const StockManage = () => {
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
         </TouchableOpacity>
       </View>
-      {!isEmployee && (
-      <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
-        <Text style={{ fontWeight: '600', marginBottom: 6 }}>📤 上架平台</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {['美团', '抖音', '大众点评'].map(p => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
-              onPress={() => handleShelf(p, selectedGoodsId)}
-              disabled={loadingPlatform !== null}
-            >
-              <Text style={styles.sendTxt}>{loadingPlatform === p ? '生成中...' : `⬆️ ${p}`}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === 'all' ? '#999' : SUCCESS_COLOR }]}
-            onPress={() => handleShelfAll(selectedGoodsId)}
-            disabled={loadingPlatform !== null}
-          >
-            <Text style={styles.sendTxt}>{loadingPlatform === 'all' ? '生成中...' : '🚀 一键上架'}</Text>
-          </TouchableOpacity>
-        </View>
-        {!selectedGoodsId && <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>⚠️ 请先在下方选择一个商品</Text>}
-      </View>
-      )}
+      
       <View style={{ padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={{ fontSize: 16, fontWeight: '600' }}>📦 库存列表</Text>
