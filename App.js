@@ -12,7 +12,7 @@ const navigationRef = createNavigationContainerRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Camera, CameraType } from 'expo-camera';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -2907,12 +2907,17 @@ const StockManage = () => {
     setOutQuantity('');
   };
 
-  const cameraRef = useRef(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const handleScan = async () => {
     try {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      if (status !== 'granted') { showToast('需要相机权限'); return; }
+      if (!cameraPermission?.granted) {
+        const permissionResult = await requestCameraPermission();
+        if (!permissionResult.granted) {
+          showToast('需要相机权限');
+          return;
+        }
+      }
       setScanning(true);
     } catch (error) { 
       showToast('扫码失败'); 
@@ -2920,15 +2925,9 @@ const StockManage = () => {
     }
   };
 
-  const handleBarCodeScanned = (scannedData) => {
+  const handleBarCodeScanned = ({ data }) => {
     try {
-      const data = scannedData?.data;
       if (!data) return;
-      
-      // 停止扫描
-      if (cameraRef.current) {
-        cameraRef.current.pausePreview();
-      }
       
       setScanning(false);
       const matched = (state.goodsList || []).find(g => g.code === data);
@@ -3401,8 +3400,7 @@ const StockManage = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <Camera
-          ref={cameraRef}
+        <CameraView
           onBarcodeScanned={handleBarCodeScanned}
           style={StyleSheet.absoluteFillObject}
           barcodeScannerSettings={{
@@ -6714,8 +6712,9 @@ const HomePage = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
-      <SafeAreaView edges={['top']} style={{ backgroundColor: BG_CARD }}>
+      <SafeAreaView style={{ backgroundColor: BG_CARD }}>
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
@@ -7043,15 +7042,7 @@ const VerifyOrder = () => {
   const [couponPrice, setCouponPrice] = useState('');
   const [scanning, setScanning] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
-
-  const requestCameraPermission = async () => {
-    try {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      return status === 'granted';
-    } catch (e) {
-      return false;
-    }
-  };
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const handleVerify = () => {
     try {
@@ -7118,7 +7109,13 @@ const VerifyOrder = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        <Camera onBarcodeScanned={handleBarCodeScanned} style={StyleSheet.absoluteFillObject} />
+        <CameraView
+          onBarcodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
+          }}
+        />
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消</Text></TouchableOpacity>
       </View>
     );
@@ -7139,9 +7136,14 @@ const VerifyOrder = () => {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TextInput style={[styles.formInput, { flex: 1 }]} placeholder="输入核销码或扫码" value={orderCode} onChangeText={setOrderCode} />
             <TouchableOpacity style={styles.miniBlueBtn} onPress={async () => {
-              const ok = await requestCameraPermission();
-              if (ok) setScanning(true);
-              else showToast('需要相机权限');
+              if (!cameraPermission?.granted) {
+                const permissionResult = await requestCameraPermission();
+                if (!permissionResult.granted) {
+                  showToast('需要相机权限');
+                  return;
+                }
+              }
+              setScanning(true);
             }}>
               <Text style={styles.sendTxt}>扫码</Text>
             </TouchableOpacity>
