@@ -6712,15 +6712,16 @@ const HomePage = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
+      <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} translucent={false} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
-      <SafeAreaView style={{ backgroundColor: BG_CARD }}>
+      <View style={{ backgroundColor: BG_CARD }}>
+        <View style={{ height: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : (Platform.OS === 'ios' ? 44 : 0), backgroundColor: BG_CARD }} />
         <View style={styles.headerBar}>
           <View style={{ width: 40 }} />
           <Text style={styles.homeTitle}>经营宝</Text>
           <TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{typeof user?.name === 'string' ? user.name : (isEmployee ? '员工' : '老板')}</Text>
