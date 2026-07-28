@@ -2039,7 +2039,11 @@ const SettingDrawer = ({ visible, onClose }) => {
               </View>
               <TouchableOpacity onPress={goToProfile} style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginRight: 12 }}>
-                  <Text style={{ color: PRIMARY_COLOR, fontSize: 24, fontWeight: 'bold' }}>{(user.name || '?').substring(0, 1)}</Text>
+                  {user.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('file') || user.avatar.startsWith('data')) ? (
+                    <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <Text style={{ color: PRIMARY_COLOR, fontSize: 24, fontWeight: 'bold' }}>{(user.name || '?').substring(0, 1)}</Text>
+                  )}
                 </View>
                 <View>
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{user.name || '未设置'}</Text>
@@ -4232,14 +4236,14 @@ const CustomerService = () => {
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
+          const compressedUri = await compressImage(asset.uri);
           const msg = {
             id: Date.now().toString(),
             text: '图片消息',
-            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            image: compressedUri,
             from: 'staff',
             fromName: state.user?.name || '我',
             fromPhone: state.user?.phone || '',
@@ -4262,17 +4266,15 @@ const CustomerService = () => {
           allowsEditing: false,
           quality: 0.8,
           selectionLimit: 10,
-          base64: true,
           defaultTab: 'photos',
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
-          const uris = result.assets.map(a => a.uri);
-          setSelectedImages(uris);
           for (let asset of result.assets) {
+            const compressedUri = await compressImage(asset.uri);
             const msg = {
               id: Date.now().toString() + Math.random(),
               text: '图片消息',
-              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              image: compressedUri,
               from: 'staff',
               fromName: state.user?.name || '我',
               fromPhone: state.user?.phone || '',
@@ -4728,15 +4730,17 @@ const InternalChat = () => {
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
+          const compressedUri = await compressImage(asset.uri);
           const newMsg = {
             id: Date.now().toString(),
             type: 'image',
             content: '',
-            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            image: compressedUri,
+            from: state.user?.name || '我',
+            fromPhone: state.user?.phone || '',
             senderId: state.user?.id || 'staff',
             senderName: state.user?.name || '我',
             senderAvatar: state.user?.avatar || null,
@@ -4756,16 +4760,16 @@ const InternalChat = () => {
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
           defaultTab: 'photos',
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           for (let asset of result.assets) {
+            const compressedUri = await compressImage(asset.uri);
             const newMsg = {
               id: Date.now().toString() + Math.random(),
               type: 'image',
               content: '',
-              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              image: compressedUri,
               from: state.user?.name || '我',
               fromPhone: state.user?.phone || '',
               senderId: state.user?.id || 'staff',
@@ -4835,8 +4839,12 @@ const InternalChat = () => {
                   {/* 自己头像 */}
                   {isMe && (
                     <View style={{ flexDirection: 'column', alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.user?.name || '我').substring(0, 1)}</Text>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                        {state.user?.avatar && (state.user.avatar.startsWith('http') || state.user.avatar.startsWith('file') || state.user.avatar.startsWith('data')) ? (
+                          <Image source={{ uri: state.user.avatar }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(state.user?.name || '我').substring(0, 1)}</Text>
+                        )}
                       </View>
                     </View>
                   )}
@@ -5813,6 +5821,14 @@ const MerchantAssistant = () => {
           '上门服务流程优化',
         ],
         '分类经营': [
+          '手机店开业活动方案',
+          '新机上市营销策略',
+          '以旧换新活动设计',
+          '配件套餐组合推荐',
+          '维修服务定价方案',
+          '分期付款方案设计',
+          '增值业务推广技巧',
+          '老客户回访话术',
           '美容项目定价方案',
           '美发沙龙营销',
           '家政服务推广',
@@ -7547,14 +7563,14 @@ const PrivateChat = ({ route, navigation }) => {
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
+          const compressedUri = await compressImage(asset.uri);
           const msg = {
             id: Date.now().toString(),
             text: '图片消息',
-            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            image: compressedUri,
             from: 'staff',
             fromName: state.user?.name || '我',
             fromPhone: state.user?.phone || '',
@@ -7577,17 +7593,15 @@ const PrivateChat = ({ route, navigation }) => {
           allowsEditing: false,
           quality: 0.8,
           selectionLimit: 10,
-          base64: true,
           defaultTab: 'photos',
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
-          const uris = result.assets.map(a => a.uri);
-          setSelectedImages(uris);
           for (let asset of result.assets) {
+            const compressedUri = await compressImage(asset.uri);
             const msg = {
               id: Date.now().toString() + Math.random(),
               text: '图片消息',
-              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              image: compressedUri,
               from: 'staff',
               fromName: state.user?.name || '我',
               fromPhone: state.user?.phone || '',
@@ -7682,8 +7696,12 @@ const PrivateChat = ({ route, navigation }) => {
               {/* 自己头像 - 自己发送的消息显示头像 */}
               {isSelf && (
                 <View style={{ flexDirection: 'column', alignItems: 'center', marginLeft: 8, flexShrink: 0 }}>
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isEmployee ? '#FF9800' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(currentUser?.name || '我').substring(0, 1)}</Text>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isEmployee ? '#FF9800' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                    {currentUser?.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('file') || currentUser.avatar.startsWith('data')) ? (
+                      <Image source={{ uri: currentUser.avatar }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(currentUser?.name || '我').substring(0, 1)}</Text>
+                    )}
                   </View>
                 </View>
               )}
