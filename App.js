@@ -3429,12 +3429,36 @@ const StockManage = () => {
   };
 
   if (scanning) {
+    if (!cameraPermission) {
+      return (
+        <View style={[styles.scannerContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={{ color: '#fff', marginTop: 16 }}>加载相机权限中...</Text>
+        </View>
+      );
+    }
+    if (!cameraPermission.granted) {
+      return (
+        <View style={[styles.scannerContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name="camera" size={60} color="#fff" />
+          <Text style={{ color: '#fff', marginTop: 16, marginBottom: 16 }}>需要相机权限才能扫码</Text>
+          <TouchableOpacity style={[styles.miniBlueBtn, { padding: 12, borderRadius: 8 }]} onPress={requestCameraPermission}>
+            <Text style={styles.sendTxt}>授予权限</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setScanning(false)}>
+            <Text style={{ color: '#fff' }}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
       <View style={styles.scannerContainer}>
         <CameraView
           facing="back"
           onBarcodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
+          style={{ flex: 1 }}
+          onCameraReady={() => console.log('[Camera] Ready')}
+          onMountError={(error) => console.error('[Camera] Mount Error:', error)}
           barcodeScannerSettings={{
             barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
           }}
@@ -7143,12 +7167,36 @@ const VerifyOrder = () => {
   };
 
   if (scanning) {
+    if (!cameraPermission) {
+      return (
+        <View style={[styles.scannerContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+          <Text style={{ color: '#fff', marginTop: 16 }}>加载相机权限中...</Text>
+        </View>
+      );
+    }
+    if (!cameraPermission.granted) {
+      return (
+        <View style={[styles.scannerContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name="camera" size={60} color="#fff" />
+          <Text style={{ color: '#fff', marginTop: 16, marginBottom: 16 }}>需要相机权限才能扫码</Text>
+          <TouchableOpacity style={[styles.miniBlueBtn, { padding: 12, borderRadius: 8 }]} onPress={requestCameraPermission}>
+            <Text style={styles.sendTxt}>授予权限</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ marginTop: 16 }} onPress={() => setScanning(false)}>
+            <Text style={{ color: '#fff' }}>取消</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
       <View style={styles.scannerContainer}>
         <CameraView
           facing="back"
           onBarcodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
+          style={{ flex: 1 }}
+          onCameraReady={() => console.log('[Camera] Ready')}
+          onMountError={(error) => console.error('[Camera] Mount Error:', error)}
           barcodeScannerSettings={{
             barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
           }}
