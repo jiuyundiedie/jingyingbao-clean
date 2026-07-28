@@ -1370,6 +1370,8 @@ const styles = StyleSheet.create({
   badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
   badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
   imageMessage: { width: 150, height: 150, borderRadius: 12, marginTop: 4 },
+  imageMsgRight: { alignSelf: 'flex-end', maxWidth: '70%', marginVertical: 4 },
+  imageMsgLeft: { alignSelf: 'flex-start', maxWidth: '70%', marginVertical: 4 },
   productItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
   productName: { fontSize: 16, fontWeight: '500', color: TEXT_MAIN },
   productStock: { fontSize: 14, color: TEXT_SECOND },
@@ -4090,6 +4092,7 @@ const CustomerService = () => {
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [aiPaused, setAiPaused] = useState(false);
   const [escalateToBoss, setEscalateToBoss] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
 
   // 收集所有顾客（按手机号）
   const allCustomers = Object.keys(state.privateChatMessages || {});
@@ -4490,17 +4493,22 @@ const CustomerService = () => {
             contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            {currentMessages.map(msg => (
-              <View key={msg.id} style={msg.from === 'staff' ? styles.bubbleRight : styles.bubbleLeft}>
-                {msg.image ? (
-                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
-                ) : (
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
-                )}
-                <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
-                {msg.from === 'ai' && <Text style={{ fontSize: 9, color: SUCCESS_COLOR }}>🤖 AI回复</Text>}
-              </View>
-            ))}
+            {currentMessages.map(msg => {
+              const isStaff = msg.from === 'staff' || msg.fromPhone === state.user?.phone;
+              return (
+                <View key={msg.id} style={msg.image ? (isStaff ? styles.imageMsgRight : styles.imageMsgLeft) : (isStaff ? styles.bubbleRight : styles.bubbleLeft)}>
+                  {msg.image ? (
+                    <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                      <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                  )}
+                  <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4, textAlign: isStaff ? 'right' : 'left' }}>{formatTime(msg.time)}</Text>
+                  {msg.from === 'ai' && <Text style={{ fontSize: 9, color: SUCCESS_COLOR }}>🤖 AI回复</Text>}
+                </View>
+              );
+            })}
             {currentMessages.length === 0 && (
               <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无咨询，开始与顾客对话</Text>
             )}
@@ -4579,6 +4587,16 @@ const CustomerService = () => {
           </View>
         </View>
       </KeyboardAvoidingView>
+    {fullscreenImage && (
+      <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
+        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
+        </View>
+      </Modal>
+    )}
     </View>
   );
 };
@@ -4598,6 +4616,7 @@ const InternalChat = () => {
   const [callDuration, setCallDuration] = useState(0);
   const [callingName, setCallingName] = useState('');
   const callTimerRef = useRef(null);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
@@ -4747,6 +4766,8 @@ const InternalChat = () => {
               type: 'image',
               content: '',
               image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              from: state.user?.name || '我',
+              fromPhone: state.user?.phone || '',
               senderId: state.user?.id || 'staff',
               senderName: state.user?.name || '我',
               senderAvatar: state.user?.avatar || null,
@@ -4800,10 +4821,12 @@ const InternalChat = () => {
                       </View>
                     </View>
                   )}
-                  <View style={isMe ? styles.bubbleRight : styles.bubbleLeft}>
-                    {!isMe && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
+                  <View style={msg.image ? (isMe ? styles.imageMsgRight : styles.imageMsgLeft) : (isMe ? styles.bubbleRight : styles.bubbleLeft)}>
+                    {!isMe && !msg.image && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
                     {msg.image ? (
-                      <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                      <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                        <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                      </TouchableOpacity>
                     ) : (
                       <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
                     )}
@@ -4966,6 +4989,16 @@ const InternalChat = () => {
             </View>
           </View>
         </View>
+      )}
+    {fullscreenImage && (
+        <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
+          <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
+              <Ionicons name="close-circle" size={36} color="#fff" />
+            </TouchableOpacity>
+            <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
+          </View>
+        </Modal>
       )}
     </View>
   );
@@ -7425,6 +7458,7 @@ const PrivateChat = ({ route, navigation }) => {
   const scrollViewRef = useRef(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
   
   // 当前用户信息
   const currentUser = state.user;
@@ -7635,9 +7669,11 @@ const PrivateChat = ({ route, navigation }) => {
                   </View>
                 </View>
               )}
-              <View style={isSelf ? styles.bubbleRight : styles.bubbleLeft}>
+              <View style={msg.image ? (isSelf ? styles.imageMsgRight : styles.imageMsgLeft) : (isSelf ? styles.bubbleRight : styles.bubbleLeft)}>
                 {msg.image ? (
-                  <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                  <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                    <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                  </TouchableOpacity>
                 ) : (
                   <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
                 )}
@@ -7717,6 +7753,16 @@ const PrivateChat = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+    {fullscreenImage && (
+      <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
+        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
+        </View>
+      </Modal>
+    )}
     </View>
   );
 };
