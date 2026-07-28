@@ -4226,31 +4226,70 @@ const CustomerService = () => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.8,
+          base64: true,
         });
-        if (!result.canceled) {
-          const uris = [result.assets[0].uri];
-          setSelectedImages(uris);
-          await sendMessage('image', uris);
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const msg = {
+            id: Date.now().toString(),
+            text: '图片消息',
+            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            from: 'staff',
+            fromName: state.user?.name || '我',
+            fromPhone: state.user?.phone || '',
+            platform: currentPlatform || 'private',
+            time: new Date().toISOString(),
+            read: false,
+          };
+          setMessages(prev => [...prev, msg]);
+          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+          setSelectedImages([]);
+          setInputText('');
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') { showToast('需要相册权限'); return; }
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.8,
           selectionLimit: 10,
+          base64: true,
+          defaultTab: 'photos',
         });
-        if (!result.canceled) {
+        if (!result.canceled && result.assets && result.assets.length > 0) {
           const uris = result.assets.map(a => a.uri);
           setSelectedImages(uris);
-          await sendMessage('image', uris);
+          for (let asset of result.assets) {
+            const msg = {
+              id: Date.now().toString() + Math.random(),
+              text: '图片消息',
+              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              from: 'staff',
+              fromName: state.user?.name || '我',
+              fromPhone: state.user?.phone || '',
+              platform: currentPlatform || 'private',
+              time: new Date().toISOString(),
+              read: false,
+            };
+            setMessages(prev => [...prev, msg]);
+            dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+          }
+          setSelectedImages([]);
+          setInputText('');
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       }
-    } catch (error) { showToast('选择图片失败'); }
+    } catch (error) { 
+      console.error('选择图片失败:', error);
+      showToast('选择图片失败'); 
+    }
   };
 
   const removeImage = (index) => {
@@ -4662,23 +4701,68 @@ const InternalChat = () => {
   const pickImage = async (source) => {
     try {
       setShowMediaOptions(false);
-      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.7 };
       let result;
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync(options);
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 0.8,
+          base64: true,
+        });
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const newMsg = {
+            id: Date.now().toString(),
+            type: 'image',
+            content: '',
+            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            senderId: state.user?.id || 'staff',
+            senderName: state.user?.name || '我',
+            senderAvatar: state.user?.avatar || null,
+            time: new Date().toISOString(),
+            isSelf: true,
+          };
+          dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
+          setMessages(prev => [...prev, newMsg]);
+          setImageUri(null);
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync(options);
-      }
-      if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        setImageUri(uri);
-        await sendGroupMessage('image', uri);
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 0.8,
+          base64: true,
+          defaultTab: 'photos',
+        });
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          for (let asset of result.assets) {
+            const newMsg = {
+              id: Date.now().toString() + Math.random(),
+              type: 'image',
+              content: '',
+              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              senderId: state.user?.id || 'staff',
+              senderName: state.user?.name || '我',
+              senderAvatar: state.user?.avatar || null,
+              time: new Date().toISOString(),
+              isSelf: true,
+            };
+            dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
+            setMessages(prev => [...prev, newMsg]);
+          }
+          setImageUri(null);
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        }
       }
     } catch (error) {
+      console.error('选择图片失败:', error);
       showToast('选择图片失败');
     }
   };
@@ -5647,93 +5731,100 @@ const MerchantAssistant = () => {
 
   const getQuickReplies = () => {
     if (industry === '餐饮类') {
-      return [
-        // 通用餐饮
-        '今天生意怎么样？',
-        '今日总营收是多少？',
-        '哪些菜卖得最好？',
-        '怎么提高翻台率？',
-        '帮我写一份招牌菜推荐文案',
-        '本周食材采购建议',
-        '差评预警情况',
-        '生成一份爆款海报',
-        // 餐厅类
-        '帮我设计餐厅促销活动',
-        '菜品定价策略建议',
-        '周末客流预测',
-        '员工培训方案',
-        // 小吃类
-        '小吃摊选址建议',
-        '夜市摆摊攻略',
-        '爆款小吃配方',
-        '外卖平台运营技巧',
-        // 饮品店
-        '新品饮品开发',
-        '奶茶店营销方案',
-        '会员积分体系',
-      ];
+      return {
+        '经营数据': [
+          '今天生意怎么样？',
+          '今日总营收是多少？',
+          '哪些菜卖得最好？',
+          '本周客流趋势',
+        ],
+        '营销推广': [
+          '帮我写一份招牌菜推荐文案',
+          '生成一份爆款海报',
+          '帮我设计餐厅促销活动',
+          '外卖平台运营技巧',
+        ],
+        '运营管理': [
+          '怎么提高翻台率？',
+          '菜品定价策略建议',
+          '本周食材采购建议',
+          '员工培训方案',
+        ],
+        '分类经营': [
+          '小吃摊选址建议',
+          '夜市摆摊攻略',
+          '爆款小吃配方',
+          '新品饮品开发',
+          '奶茶店营销方案',
+          '会员积分体系',
+        ],
+      };
     } else if (industry === '服务类') {
-      return [
-        // 通用服务
-        '今日服务订单量是多少？',
-        '怎么提升客户满意度？',
-        '员工排班表怎么安排？',
-        '本月服务收入目标',
-        '帮我生成服务推广话术',
-        '客户复购率分析',
-        // 美容美发
-        '美容项目定价方案',
-        '会员储值活动设计',
-        '美发沙龙营销',
-        '技师绩效激励方案',
-        // 家政保洁
-        '家政服务推广',
-        '保洁套餐设计',
-        '上门服务流程优化',
-        '客户满意度调查',
-        // 教育培训
-        '课程促销活动',
-        '学员续费率提升',
-        '师资团队管理',
-        '招生渠道拓展',
-        // 健身娱乐
-        '健身房会员增长',
-        '私教课程定价',
-        '活动策划方案',
-        '场馆运营优化',
-      ];
+      return {
+        '经营数据': [
+          '今日服务订单量是多少？',
+          '本月服务收入目标',
+          '客户复购率分析',
+          '差评预警情况',
+        ],
+        '营销推广': [
+          '帮我生成服务推广话术',
+          '会员储值活动设计',
+          '帮我设计引流方案',
+          '朋友圈文案生成',
+        ],
+        '运营管理': [
+          '怎么提升客户满意度？',
+          '员工排班表怎么安排？',
+          '技师绩效激励方案',
+          '上门服务流程优化',
+        ],
+        '分类经营': [
+          '美容项目定价方案',
+          '美发沙龙营销',
+          '家政服务推广',
+          '保洁套餐设计',
+          '课程促销活动',
+          '健身房会员增长',
+          '私教课程定价',
+        ],
+      };
     } else if (industry === '企业类') {
-      return [
-        // 通用企业
-        '今日销售业绩如何？',
-        '团队协作效率提升',
-        '项目汇报模板',
-        '员工绩效怎么考核？',
-        '本月招聘计划',
-        '客户转化率分析',
-        // 零售批发
-        '库存管理优化',
-        '批发客户开发',
-        '促销活动策划',
-        '供应链管理',
-        // 科技互联网
-        '产品迭代计划',
-        '用户增长策略',
-        '技术方案评审',
-        '融资路演PPT',
-        // 制造业
-        '生产流程优化',
-        '成本控制方案',
-        '质量管控体系',
-        '供应商管理',
-        // 商务服务
-        '企业宣传文案',
-        '招投标方案',
-        '商务谈判技巧',
-        '品牌形象升级',
-      ];
+      return {
+        '经营数据': [
+          '今日销售业绩如何？',
+          '本月营收完成度',
+          '客户转化率分析',
+          '库存周转率',
+        ],
+        '营销推广': [
+          '促销活动策划',
+          '企业宣传文案',
+          '品牌形象升级',
+          '短视频营销方案',
+        ],
+        '运营管理': [
+          '团队协作效率提升',
+          '员工绩效怎么考核？',
+          '项目汇报模板',
+          '本月招聘计划',
+        ],
+        '分类经营': [
+          '库存管理优化',
+          '批发客户开发',
+          '供应链管理',
+          '产品迭代计划',
+          '用户增长策略',
+          '生产流程优化',
+          '成本控制方案',
+        ],
+      };
     }
-    return ['今天生意怎么样？', '有什么经营建议？', '帮我分析数据', '生成一份报表', '怎么提高利润？'];
+    return {
+      '经营数据': ['今天生意怎么样？', '帮我分析数据', '今日营收报表'],
+      '营销推广': ['有什么经营建议？', '生成营销文案', '爆款海报生成'],
+      '运营管理': ['怎么提高利润？', '员工管理建议', '库存优化方案'],
+    };
   };
 
   // 使用useMemo确保快捷短语响应行业变化
@@ -6073,22 +6164,59 @@ ${businessContext}
   const pickImage = async (source) => {
     try {
       setShowMediaOptions(false);
-      const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.7 };
       let result;
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync(options);
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 0.8,
+          base64: true,
+        });
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const msg = {
+            id: Date.now().toString(),
+            text: '[图片]',
+            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            from: 'user',
+            time: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, msg]);
+          dispatch({ type: 'SET_AI_MESSAGES', payload: [...messages, msg] });
+          setImageUri(null);
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync(options);
-      }
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendMessage('image');
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: false,
+          quality: 0.8,
+          base64: true,
+          defaultTab: 'photos',
+        });
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const msg = {
+            id: Date.now().toString(),
+            text: '[图片]',
+            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            from: 'user',
+            time: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, msg]);
+          dispatch({ type: 'SET_AI_MESSAGES', payload: [...messages, msg] });
+          setImageUri(null);
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        }
       }
     } catch (error) {
+      console.error('选择图片失败:', error);
       showToast('选择图片失败');
     }
   };
@@ -6181,24 +6309,35 @@ ${businessContext}
         )}
         
         {showQuickReply && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            {[
-              { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-              { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
-              { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
-              { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-              { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-              { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-            ].map(item => (
-              <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
-                <Ionicons name={item.icon} size={14} color={item.color} />
-                <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-            {quickReplies.map((text, idx) => (
-              <TouchableOpacity key={idx} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }} onPress={() => setInputText(text)}>
-                <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>{text}</Text>
-              </TouchableOpacity>
+          <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            {/* 营销快捷按钮 */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+              {[
+                { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
+                { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
+                { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+              ].map(item => (
+                <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
+                  <Ionicons name={item.icon} size={14} color={item.color} />
+                  <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* 分类快捷话术 */}
+            {Object.entries(quickReplies).map(([category, texts]) => (
+              <View key={category} style={{ marginBottom: 6 }}>
+                <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{category}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {texts.map((text, idx) => (
+                    <TouchableOpacity key={idx} style={{ marginRight: 6, marginBottom: 3, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: LIGHT_PRIMARY }} onPress={() => setInputText(text)}>
+                      <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{text}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             ))}
           </View>
         )}
@@ -7371,31 +7510,70 @@ const PrivateChat = ({ route, navigation }) => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.8,
+          base64: true,
         });
-        if (!result.canceled) {
-          const uris = [result.assets[0].uri];
-          setSelectedImages(uris);
-          await sendMessage('image', uris);
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const msg = {
+            id: Date.now().toString(),
+            text: '图片消息',
+            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            from: 'staff',
+            fromName: state.user?.name || '我',
+            fromPhone: state.user?.phone || '',
+            platform: currentPlatform || 'private',
+            time: new Date().toISOString(),
+            read: false,
+          };
+          setMessages(prev => [...prev, msg]);
+          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+          setSelectedImages([]);
+          setInputText('');
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') { showToast('需要相册权限'); return; }
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.8,
           selectionLimit: 10,
+          base64: true,
+          defaultTab: 'photos',
         });
-        if (!result.canceled) {
+        if (!result.canceled && result.assets && result.assets.length > 0) {
           const uris = result.assets.map(a => a.uri);
           setSelectedImages(uris);
-          await sendMessage('image', uris);
+          for (let asset of result.assets) {
+            const msg = {
+              id: Date.now().toString() + Math.random(),
+              text: '图片消息',
+              image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+              from: 'staff',
+              fromName: state.user?.name || '我',
+              fromPhone: state.user?.phone || '',
+              platform: currentPlatform || 'private',
+              time: new Date().toISOString(),
+              read: false,
+            };
+            setMessages(prev => [...prev, msg]);
+            dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+          }
+          setSelectedImages([]);
+          setInputText('');
+          setShowMediaOptions(false);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       }
-    } catch (error) { showToast('选择图片失败'); }
+    } catch (error) { 
+      console.error('选择图片失败:', error);
+      showToast('选择图片失败'); 
+    }
   };
 
   const removeImage = (index) => {
