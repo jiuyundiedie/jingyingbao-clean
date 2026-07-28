@@ -1381,7 +1381,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
   closeTxt: { fontSize: 24, color: TEXT_THIRD },
-  scannerContainer: { flex: 1 },
+  scannerContainer: { flex: 1, width: '100%', height: '100%', backgroundColor: '#000', position: 'relative' },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
   cancelText: { color: '#fff', fontSize: 16 },
   reportCard: { backgroundColor: BG_CARD, padding: 16, borderRadius: 16, marginTop: 16, ...SHADOW },
@@ -1956,16 +1956,20 @@ const SettingDrawer = ({ visible, onClose }) => {
       setTimeout(() => {
         try {
           if (navigationRef.current) {
-            navigationRef.current.push('ProfileEdit');
+            const state = navigationRef.current.getState();
+            if (state) {
+              navigationRef.current.navigate('ProfileEdit');
+            } else {
+              showToast('导航状态异常');
+            }
           } else {
-            console.error('[goToProfile] navigationRef is null');
-            showToast('导航初始化失败');
+            showToast('导航未初始化');
           }
         } catch (navError) {
           console.error('[goToProfile] Navigation Error:', navError);
           showToast('打开个人资料失败');
         }
-      }, 300);
+      }, 500);
     } catch (error) {
       console.error('[goToProfile] Error:', error);
       showToast('打开个人资料失败');
@@ -3427,21 +3431,14 @@ const StockManage = () => {
   if (scanning) {
     return (
       <View style={styles.scannerContainer}>
-        {cameraPermission?.granted ? (
-          <CameraView
-            facing="back"
-            onBarcodeScanned={handleBarCodeScanned}
-            style={StyleSheet.absoluteFillObject}
-            barcodeScannerSettings={{
-              barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
-            }}
-          />
-        ) : (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-            <Text style={{ marginTop: 16, color: TEXT_SECOND }}>正在获取相机权限...</Text>
-          </View>
-        )}
+        <CameraView
+          facing="back"
+          onBarcodeScanned={handleBarCodeScanned}
+          style={StyleSheet.absoluteFillObject}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
+          }}
+        />
         <TouchableOpacity style={styles.cancelBtn} onPress={() => setScanning(false)}><Text style={styles.cancelText}>取消扫描</Text></TouchableOpacity>
       </View>
     );
@@ -4129,13 +4126,14 @@ const CustomerService = () => {
     showToast('⚠️ 已通知商家介入处理');
   };
 
-  const sendMessage = async (type = 'text') => {
+  const sendMessage = async (type = 'text', imageUris = null) => {
     try {
       let text = inputText.trim();
       let images = [];
       if (type === 'image') {
-        if (selectedImages.length === 0) { showToast('请先选择图片'); return; }
-        for (let uri of selectedImages) {
+        const uris = imageUris || selectedImages;
+        if (uris.length === 0) { showToast('请先选择图片'); return; }
+        for (let uri of uris) {
           const compressed = await compressImage(uri);
           const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
           images.push(`data:image/jpeg;base64,${base64}`);
@@ -4209,8 +4207,9 @@ const CustomerService = () => {
           quality: 0.7,
         });
         if (!result.canceled) {
-          setSelectedImages([result.assets[0].uri]);
-          await sendMessage('image');
+          const uris = [result.assets[0].uri];
+          setSelectedImages(uris);
+          await sendMessage('image', uris);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -4224,7 +4223,7 @@ const CustomerService = () => {
         if (!result.canceled) {
           const uris = result.assets.map(a => a.uri);
           setSelectedImages(uris);
-          await sendMessage('image');
+          await sendMessage('image', uris);
         }
       }
     } catch (error) { showToast('选择图片失败'); }
@@ -4602,13 +4601,14 @@ const InternalChat = () => {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const sendGroupMessage = async (type = 'text') => {
+  const sendGroupMessage = async (type = 'text', selectedImageUri = null) => {
     try {
       let text = inputText.trim();
       let image = null;
       if (type === 'image') {
-        if (!imageUri) { showToast('请先选择图片'); return; }
-        const compressed = await compressImage(imageUri);
+        const uri = selectedImageUri || imageUri;
+        if (!uri) { showToast('请先选择图片'); return; }
+        const compressed = await compressImage(uri);
         const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
         image = `data:image/jpeg;base64,${base64}`;
       } else if (!text) {
@@ -4650,8 +4650,9 @@ const InternalChat = () => {
         result = await ImagePicker.launchImageLibraryAsync(options);
       }
       if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
-        await sendGroupMessage('image');
+        const uri = result.assets[0].uri;
+        setImageUri(uri);
+        await sendGroupMessage('image', uri);
       }
     } catch (error) {
       showToast('选择图片失败');
@@ -7252,13 +7253,14 @@ const PrivateChat = ({ route, navigation }) => {
     dispatch({ type: 'MARK_PRIVATE_MESSAGES_READ', payload: { phone } });
   }, [phone]);
 
-  const sendMessage = async (type = 'text') => {
+  const sendMessage = async (type = 'text', imageUris = null) => {
     try {
       let text = inputText.trim();
       let images = [];
       if (type === 'image') {
-        if (selectedImages.length === 0) { showToast('请先选择图片'); return; }
-        for (let uri of selectedImages) {
+        const uris = imageUris || selectedImages;
+        if (uris.length === 0) { showToast('请先选择图片'); return; }
+        for (let uri of uris) {
           const compressed = await compressImage(uri);
           const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
           images.push(`data:image/jpeg;base64,${base64}`);
@@ -7326,8 +7328,9 @@ const PrivateChat = ({ route, navigation }) => {
           quality: 0.7,
         });
         if (!result.canceled) {
-          setSelectedImages([result.assets[0].uri]);
-          await sendMessage('image');
+          const uris = [result.assets[0].uri];
+          setSelectedImages(uris);
+          await sendMessage('image', uris);
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -7341,7 +7344,7 @@ const PrivateChat = ({ route, navigation }) => {
         if (!result.canceled) {
           const uris = result.assets.map(a => a.uri);
           setSelectedImages(uris);
-          await sendMessage('image');
+          await sendMessage('image', uris);
         }
       }
     } catch (error) { showToast('选择图片失败'); }
