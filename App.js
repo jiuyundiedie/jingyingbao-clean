@@ -2771,7 +2771,8 @@ const StockManage = () => {
   const [photoUris, setPhotoUris] = useState([]);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualProductName, setManualProductName] = useState('');
-  const [manualPlatform, setManualPlatform] = useState('美团');
+  const [manualPlatform, setManualPlatform] = useState('通用');
+  const [scannedBarcode, setScannedBarcode] = useState('');
   const [loadingPlatform, setLoadingPlatform] = useState(null);
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
   const [voiceText, setVoiceText] = useState('');
@@ -2821,7 +2822,7 @@ const StockManage = () => {
     if (!manualProductName.trim()) { showToast('请输入商品名称'); return; }
     const qty = parseInt(quantity);
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
-    let existing = (state.goodsList || []).find(g => g.name === manualProductName.trim() && g.platform === manualPlatform);
+    let existing = (state.goodsList || []).find(g => g.name === manualProductName.trim());
     if (existing) {
       let newStock = existing.stock;
       if (type === '入库') newStock += qty;
@@ -2849,7 +2850,8 @@ const StockManage = () => {
         id: Date.now().toString(),
         name: manualProductName.trim(),
         stock: type === '入库' ? qty : 0,
-        platform: manualPlatform,
+        platform: '通用',
+        code: scannedBarcode || '',
         createdAt: new Date().toISOString(),
       };
       dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
@@ -2871,7 +2873,9 @@ const StockManage = () => {
     setSelectedGoodsId(null);
     setPhotoUris([]);
     setManualProductName('');
+    setManualPlatform('通用');
     setShowManualInput(false);
+    setScannedBarcode('');
   };
 
   const handleSubmit = () => {
@@ -2974,6 +2978,7 @@ const StockManage = () => {
       if (!data) return;
       
       setScanning(false);
+      setScannedBarcode(data);
       const matched = (state.goodsList || []).find(g => g.code === data);
       if (matched) {
         if (type === '入库') {
@@ -3001,6 +3006,7 @@ const StockManage = () => {
           Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品`, [
             { text: '确定' }
           ]);
+          setScannedBarcode('');
         }
       }
     } catch (error) {
@@ -3577,16 +3583,13 @@ const StockManage = () => {
             </View>
             {showManualInput ? (
               <>
+                {scannedBarcode ? (
+                  <View style={{ backgroundColor: LIGHT_PRIMARY, padding: 10, borderRadius: 8, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>📱 扫描条码：{scannedBarcode}</Text>
+                  </View>
+                ) : null}
                 <Text style={styles.label}>商品名称</Text>
                 <TextInput style={styles.formInput} value={manualProductName} onChangeText={setManualProductName} placeholder="输入商品名称" />
-                <Text style={styles.label}>平台</Text>
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-                  {['美团', '抖音', '大众点评'].map(p => (
-                    <TouchableOpacity key={p} style={[styles.tagNormal, manualPlatform === p && styles.tagActive]} onPress={() => setManualPlatform(p)}>
-                      <Text style={{ color: manualPlatform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
                 <Text style={styles.label}>数量</Text>
                 <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
                 <Text style={styles.label}>备注</Text>
@@ -4335,7 +4338,7 @@ const CustomerService = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { flex: 1 }]}>
       <CommonHeader 
         title="顾客客服" 
         showBack={true}
@@ -4528,7 +4531,7 @@ const CustomerService = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -4548,7 +4551,7 @@ const CustomerService = () => {
               </TouchableOpacity>
             )}
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, justifyContent: 'space-around' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4, justifyContent: 'space-around' }}>
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
@@ -4867,7 +4870,7 @@ const InternalChat = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: 0 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -4881,7 +4884,7 @@ const InternalChat = () => {
               <Text style={styles.sendTxt}>发送</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, justifyContent: 'space-around' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4, justifyContent: 'space-around' }}>
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
@@ -4996,329 +4999,69 @@ const InternalChat = () => {
 
 // ================== 自定义图片选择器 ==================
 const CustomImagePicker = ({ visible, onClose, onSend, maxSelection = 10 }) => {
-  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
-  const [assets, setAssets] = useState([]);
-  const [selectedAssets, setSelectedAssets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('recent');
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const pageSize = 30;
-  const gridRef = useRef(null);
-
-  const loadAssets = async (reset = false) => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const currentPage = reset ? 1 : page;
-      const album = activeTab === 'recent' 
-        ? await MediaLibrary.getAlbumAsync('Recently Added')
-        : null;
-      
-      let query;
-      if (album) {
-        query = MediaLibrary.Asset.createQuery(album.id);
-      } else {
-        query = MediaLibrary.Asset.createQuery();
-      }
-      
-      query = query
-        .limit(pageSize)
-        .offset((currentPage - 1) * pageSize)
-        .sortBy(MediaLibrary.AssetSortBy.CREATION_TIME_DESC)
-        .filter(MediaLibrary.AssetMediaType.PHOTO);
-      
-      const results = await MediaLibrary.Asset.getAssetsAsync(query);
-      
-      if (reset) {
-        setAssets(results.assets);
-        setPage(1);
-      } else {
-        setAssets(prev => [...prev, ...results.assets]);
-        setPage(currentPage);
-      }
-      setHasMore(results.hasNextPage);
-    } catch (error) {
-      console.error('加载图片失败:', error);
-      showToast('加载图片失败');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (visible) {
-      setSelectedAssets([]);
-      setAssets([]);
-      setActiveTab('recent');
-      loadAssets(true);
+      openPicker();
     }
   }, [visible]);
 
-  useEffect(() => {
-    if (visible) {
-      loadAssets(true);
-    }
-  }, [activeTab]);
-
-  const handleLoadMore = () => {
-    if (hasMore && !loading) {
-      loadAssets(false);
-    }
-  };
-
-  const toggleSelect = (asset) => {
-    setSelectedAssets(prev => {
-      const isSelected = prev.some(a => a.id === asset.id);
-      if (isSelected) {
-        return prev.filter(a => a.id !== asset.id);
-      } else if (prev.length < maxSelection) {
-        return [...prev, asset];
-      } else {
-        showToast(`最多选择${maxSelection}张`);
-        return prev;
-      }
-    });
-  };
-
-  const handleSend = async () => {
-    if (selectedAssets.length === 0) {
-      showToast('请选择图片');
-      return;
-    }
+  const openPicker = async () => {
     try {
       setLoading(true);
-      const uris = [];
-      for (const asset of selectedAssets) {
-        const uri = await asset.getUri();
-        const compressed = await compressImage(uri);
-        uris.push(compressed);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('需要相册权限');
+        onClose();
+        return;
       }
-      await onSend(uris);
-      onClose();
-    } catch (error) {
-      console.error('发送图片失败:', error);
-      showToast('发送图片失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const takePhoto = async () => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
+        selectionLimit: maxSelection,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const compressed = await compressImage(result.assets[0].uri);
-        await onSend([compressed]);
-        onClose();
+        const uris = [];
+        for (const asset of result.assets) {
+          const compressed = await compressImage(asset.uri);
+          uris.push(compressed);
+        }
+        await onSend(uris);
       }
+      onClose();
     } catch (error) {
-      showToast('拍照失败');
+      console.error('选择图片失败:', error);
+      showToast('选择图片失败');
+      onClose();
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const renderAsset = ({ item }) => {
-    const isSelected = selectedAssets.some(a => a.id === item.id);
-    const index = selectedAssets.findIndex(a => a.id === item.id) + 1;
-    return (
-      <TouchableOpacity
-        style={{ flex: 1, aspectRatio: 1, margin: 1, position: 'relative' }}
-        onPress={() => toggleSelect(item)}
-      >
-        <Image 
-          source={{ uri: item.uri }} 
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
-        {isSelected && (
-          <View style={{ 
-            position: 'absolute', 
-            top: 4, 
-            right: 4, 
-            width: 24, 
-            height: 24, 
-            borderRadius: 12, 
-            backgroundColor: PRIMARY_COLOR,
-            justifyContent: 'center',
-            alignItems: 'center',
-            borderWidth: 2,
-            borderColor: '#fff'
-          }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{index}</Text>
-          </View>
-        )}
-        {isSelected && (
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(26,95,139,0.3)' }} />
-        )}
-      </TouchableOpacity>
-    );
   };
 
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-        {/* Header */}
-        <View style={{ 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          borderBottomWidth: 1,
-          borderBottomColor: '#eee'
-        }}>
-          <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-            <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
-          </TouchableOpacity>
-          <Text style={{ fontSize: 17, fontWeight: '600' }}>
-            {selectedAssets.length > 0 ? `已选择 ${selectedAssets.length} 张` : '选择图片'}
-          </Text>
-          <TouchableOpacity 
-            onPress={handleSend}
-            disabled={selectedAssets.length === 0 || loading}
-            style={{ 
-              paddingHorizontal: 16, 
-              paddingVertical: 6, 
-              borderRadius: 16,
-              backgroundColor: selectedAssets.length > 0 ? PRIMARY_COLOR : '#ccc'
-            }}
-          >
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-              {loading ? '发送中...' : '发送'}
-            </Text>
-          </TouchableOpacity>
+    <Modal visible={visible} animationType="fade" transparent={true}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center', minWidth: 200 }}>
+          {loading ? (
+            <>
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+              <Text style={{ marginTop: 16, color: TEXT_SECOND }}>正在打开相册...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="images-outline" size={48} color={PRIMARY_COLOR} />
+              <Text style={{ marginTop: 16, color: TEXT_SECOND }}>打开相册选择图片</Text>
+              <TouchableOpacity onPress={onClose} style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 8, backgroundColor: '#f0f0f0', borderRadius: 8 }}>
+                <Text style={{ color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
-
-        {/* Tabs */}
-        <View style={{ 
-          flexDirection: 'row', 
-          paddingHorizontal: 16, 
-          paddingVertical: 8,
-          gap: 12
-        }}>
-          {[
-            { key: 'recent', label: '最近' },
-            { key: 'all', label: '全部' },
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: activeTab === tab.key ? PRIMARY_COLOR : '#f0f0f0'
-              }}
-            >
-              <Text style={{ 
-                fontSize: 14, 
-                color: activeTab === tab.key ? '#fff' : TEXT_SECOND 
-              }}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity 
-            onPress={takePhoto}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: LIGHT_PRIMARY
-            }}
-          >
-            <Ionicons name="camera" size={18} color={PRIMARY_COLOR} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Permission check */}
-        {!permissionResponse?.granted ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-            <Ionicons name="images-outline" size={64} color="#ccc" />
-            <Text style={{ fontSize: 16, color: TEXT_SECOND, marginTop: 16, textAlign: 'center' }}>
-              需要相册权限才能选择图片
-            </Text>
-            <TouchableOpacity 
-              onPress={requestPermission}
-              style={{ 
-                marginTop: 16, 
-                paddingHorizontal: 24, 
-                paddingVertical: 12, 
-                backgroundColor: PRIMARY_COLOR,
-                borderRadius: 8
-              }}
-            >
-              <Text style={{ color: '#fff', fontSize: 16 }}>授权访问相册</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* Grid */}
-            <FlatList
-              ref={gridRef}
-              data={assets}
-              renderItem={renderAsset}
-              keyExtractor={(item) => item.id}
-              numColumns={3}
-              onEndReached={handleLoadMore}
-              onEndReachedThreshold={0.5}
-              ListFooterComponent={
-                loading ? (
-                  <View style={{ padding: 16, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                  </View>
-                ) : null
-              }
-              ListEmptyComponent={
-                loading ? null : (
-                  <View style={{ padding: 40, alignItems: 'center' }}>
-                    <Ionicons name="images-outline" size={48} color="#ccc" />
-                    <Text style={{ color: TEXT_THIRD, marginTop: 8 }}>暂无图片</Text>
-                  </View>
-                )
-              }
-            />
-
-            {/* Selected count */}
-            {selectedAssets.length > 0 && (
-              <View style={{ 
-                position: 'absolute', 
-                bottom: 20, 
-                left: 20, 
-                right: 20,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                borderRadius: 12,
-                padding: 12,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <Text style={{ color: '#fff', fontSize: 14 }}>
-                  已选 {selectedAssets.length} / {maxSelection} 张
-                </Text>
-                <TouchableOpacity 
-                  onPress={handleSend}
-                  style={{ 
-                    paddingHorizontal: 20, 
-                    paddingVertical: 8, 
-                    backgroundColor: PRIMARY_COLOR,
-                    borderRadius: 20
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>发送</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 };
