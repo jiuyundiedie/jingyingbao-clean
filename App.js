@@ -16,6 +16,7 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
@@ -2556,6 +2557,7 @@ const ProductOverview = () => {
   const [name, setName] = useState('');
   const [stock, setStock] = useState('');
   const [platform, setPlatform] = useState('美团');
+  const [code, setCode] = useState('');
   const [loadingPlatform, setLoadingPlatform] = useState(null);
   const [shelfModalVisible, setShelfModalVisible] = useState(false);
   const [currentShelfGoods, setCurrentShelfGoods] = useState(null);
@@ -2566,7 +2568,7 @@ const ProductOverview = () => {
       const stockNum = parseInt(stock) || 0;
       if (editingItem) {
         const updated = (state.goodsList || []).map(item =>
-          item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform } : item
+          item.id === editingItem.id ? { ...item, name: name.trim(), stock: stockNum, platform, code: code.trim() } : item
         );
         dispatch({ type: 'SET_GOODS_LIST', payload: updated });
         showToast('已更新');
@@ -2576,6 +2578,7 @@ const ProductOverview = () => {
           name: name.trim(),
           stock: stockNum,
           platform,
+          code: code.trim(),
           createdAt: new Date().toISOString(),
         };
         dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
@@ -2584,6 +2587,7 @@ const ProductOverview = () => {
       setModalVisible(false);
       setName('');
       setStock('');
+      setCode('');
       setEditingItem(null);
     } catch (error) {
       showToast('操作失败');
@@ -2607,6 +2611,7 @@ const ProductOverview = () => {
     setName(item.name);
     setStock(String(item.stock));
     setPlatform(item.platform || '美团');
+    setCode(item.code || '');
     setModalVisible(true);
   };
 
@@ -2651,7 +2656,7 @@ const ProductOverview = () => {
         title="商品总览" 
         showBack={true}
         navigation={navigation}
-        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setModalVisible(true); }}>
+        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setCode(''); setModalVisible(true); }}>
           <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>}
       />
@@ -2693,6 +2698,8 @@ const ProductOverview = () => {
             </View>
             <Text style={styles.label}>商品名称</Text>
             <TextInput style={styles.formInput} value={name} onChangeText={setName} placeholder="例如：招牌牛肉面" />
+            <Text style={styles.label}>条码 (选填)</Text>
+            <TextInput style={styles.formInput} value={code} onChangeText={setCode} placeholder="用于扫码识别" />
             <Text style={styles.label}>库存</Text>
             <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
             <Text style={styles.label}>平台</Text>
@@ -2969,46 +2976,32 @@ const StockManage = () => {
       setScanning(false);
       const matched = (state.goodsList || []).find(g => g.code === data);
       if (matched) {
-        setSelectedGoodsId(matched.id);
-        if (type === '出库') {
+        if (type === '入库') {
+          setSelectedGoodsId(matched.id);
+          setQuantity('1');
+          setReason('扫码入库');
+          setShowManualInput(false);
+          setModalVisible(true);
+          showToast(`扫描到商品：${matched.name}，请确认入库`);
+        } else {
           if (matched.stock <= 0) {
-            showToast('库存不足');
+            showToast('库存不足，无法出库');
             return;
           }
-          Alert.alert(
-            '确认出库',
-            `商品：${matched.name}\n当前库存：${matched.stock}\n请输入出库数量`,
-            [
-              { text: '取消' },
-              { text: '确认出库', onPress: () => {
-                const qty = 1;
-                const newStock = matched.stock - qty;
-                const updatedGoods = (state.goodsList || []).map(g =>
-                  g.id === matched.id ? { ...g, stock: newStock } : g
-                );
-                dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-                const record = {
-                  id: Date.now().toString(),
-                  type: '出库',
-                  productName: matched.name,
-                  quantity: qty,
-                  reason: '扫码出库',
-                  time: new Date().toISOString(),
-                  photo: null,
-                };
-                dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-                showToast(`出库成功: ${matched.name} ×${qty}`);
-              }}
-            ]
-          );
-        } else {
-          showToast(`扫描到商品：${matched.name}`);
+          setOutModalGoods(matched);
+          setOutQuantity('1');
         }
       } else {
-        Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品，请手动选择或手动录入`, [
-          { text: '手动录入', onPress: () => { setShowManualInput(true); setModalVisible(true); } },
-          { text: '确定' }
-        ]);
+        if (type === '入库') {
+          setShowManualInput(true);
+          setManualProductName('');
+          setModalVisible(true);
+          showToast('未找到商品，请输入名称');
+        } else {
+          Alert.alert('扫描结果', `条码：${data}\n未找到匹配商品`, [
+            { text: '确定' }
+          ]);
+        }
       }
     } catch (error) {
       console.error('扫码处理失败:', error);
@@ -3522,22 +3515,6 @@ const StockManage = () => {
       <View style={{ padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={{ fontSize: 16, fontWeight: '600' }}>📦 库存列表</Text>
-          <View style={{ flexDirection: 'row', gap: 4 }}>
-            {[{ key: 'name', label: '名称' }, { key: 'stock', label: '库存' }, { key: 'platform', label: '平台' }].map(s => (
-              <TouchableOpacity 
-                key={s.key} 
-                style={[styles.miniBlueBtn, { paddingHorizontal: 12, paddingVertical: 4, backgroundColor: sortBy === s.key ? PRIMARY_COLOR : LIGHT_PRIMARY }]}
-                onPress={() => {
-                  setSortBy(s.key);
-                  setSortOrder(sortBy === s.key && sortOrder === 'asc' ? 'desc' : 'asc');
-                }}
-              >
-                <Text style={{ fontSize: 12, color: sortBy === s.key ? '#fff' : PRIMARY_COLOR }}>
-                  {s.label} {sortBy === s.key ? (sortOrder === 'asc' ? '↑' : '↓') : ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
         {sortedGoods.map(g => {
           const getPlatformIcon = (platform) => {
@@ -4097,6 +4074,7 @@ const CustomerService = () => {
   const [aiPaused, setAiPaused] = useState(false);
   const [escalateToBoss, setEscalateToBoss] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
 
   // 收集所有顾客（按手机号）
   const allCustomers = Object.keys(state.privateChatMessages || {});
@@ -4225,14 +4203,42 @@ const CustomerService = () => {
     showToast('AI已恢复，将自动回复顾客');
   };
 
+  const handleCustomPickerSend = async (uris) => {
+    try {
+      for (let uri of uris) {
+        const msg = {
+          id: Date.now().toString() + Math.random(),
+          text: '图片消息',
+          image: uri,
+          from: 'staff',
+          fromName: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
+          platform: currentPlatform || 'private',
+          time: new Date().toISOString(),
+          read: false,
+        };
+        setMessages(prev => [...prev, msg]);
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+      }
+      setInputText('');
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      console.error('发送图片失败:', error);
+      showToast('发送图片失败');
+    }
+  };
+
   const pickImages = async (source) => {
     try {
       setShowMediaOptions(false);
-      let result;
+      if (source === 'library') {
+        setShowCustomPicker(true);
+        return;
+      }
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync({
+        const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
@@ -4253,41 +4259,7 @@ const CustomerService = () => {
           };
           setMessages(prev => [...prev, msg]);
           dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
-          setSelectedImages([]);
           setInputText('');
-          setShowMediaOptions(false);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: false,
-          quality: 0.8,
-          selectionLimit: 10,
-          defaultTab: 'photos',
-        });
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-          for (let asset of result.assets) {
-            const compressedUri = await compressImage(asset.uri);
-            const msg = {
-              id: Date.now().toString() + Math.random(),
-              text: '图片消息',
-              image: compressedUri,
-              from: 'staff',
-              fromName: state.user?.name || '我',
-              fromPhone: state.user?.phone || '',
-              platform: currentPlatform || 'private',
-              time: new Date().toISOString(),
-              read: false,
-            };
-            setMessages(prev => [...prev, msg]);
-            dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
-          }
-          setSelectedImages([]);
-          setInputText('');
-          setShowMediaOptions(false);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       }
@@ -4599,6 +4571,12 @@ const CustomerService = () => {
         </View>
       </Modal>
     )}
+    <CustomImagePicker 
+      visible={showCustomPicker}
+      onClose={() => setShowCustomPicker(false)}
+      onSend={handleCustomPickerSend}
+      maxSelection={10}
+    />
     </View>
   );
 };
@@ -4619,6 +4597,7 @@ const InternalChat = () => {
   const [callingName, setCallingName] = useState('');
   const callTimerRef = useRef(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
@@ -4719,14 +4698,44 @@ const InternalChat = () => {
     }
   };
 
+  const handleInternalPickerSend = async (uris) => {
+    try {
+      for (let uri of uris) {
+        const newMsg = {
+          id: Date.now().toString() + Math.random(),
+          type: 'image',
+          content: '',
+          image: uri,
+          from: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
+          senderId: state.user?.id || 'staff',
+          senderName: state.user?.name || '我',
+          senderAvatar: state.user?.avatar || null,
+          time: new Date().toISOString(),
+          isSelf: true,
+        };
+        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
+        setMessages(prev => [...prev, newMsg]);
+      }
+      setImageUri(null);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      console.error('发送图片失败:', error);
+      showToast('发送图片失败');
+    }
+  };
+
   const pickImage = async (source) => {
     try {
       setShowMediaOptions(false);
-      let result;
+      if (source === 'gallery') {
+        setShowCustomPicker(true);
+        return;
+      }
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync({
+        const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
@@ -4750,39 +4759,6 @@ const InternalChat = () => {
           dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
           setMessages(prev => [...prev, newMsg]);
           setImageUri(null);
-          setShowMediaOptions(false);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: false,
-          quality: 0.8,
-          defaultTab: 'photos',
-        });
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-          for (let asset of result.assets) {
-            const compressedUri = await compressImage(asset.uri);
-            const newMsg = {
-              id: Date.now().toString() + Math.random(),
-              type: 'image',
-              content: '',
-              image: compressedUri,
-              from: state.user?.name || '我',
-              fromPhone: state.user?.phone || '',
-              senderId: state.user?.id || 'staff',
-              senderName: state.user?.name || '我',
-              senderAvatar: state.user?.avatar || null,
-              time: new Date().toISOString(),
-              isSelf: true,
-            };
-            dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
-            setMessages(prev => [...prev, newMsg]);
-          }
-          setImageUri(null);
-          setShowMediaOptions(false);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       }
@@ -5008,7 +4984,342 @@ const InternalChat = () => {
           </View>
         </Modal>
       )}
+    <CustomImagePicker 
+      visible={showCustomPicker}
+      onClose={() => setShowCustomPicker(false)}
+      onSend={handleInternalPickerSend}
+      maxSelection={10}
+    />
     </View>
+  );
+};
+
+// ================== 自定义图片选择器 ==================
+const CustomImagePicker = ({ visible, onClose, onSend, maxSelection = 10 }) => {
+  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
+  const [assets, setAssets] = useState([]);
+  const [selectedAssets, setSelectedAssets] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('recent');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const pageSize = 30;
+  const gridRef = useRef(null);
+
+  const loadAssets = async (reset = false) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const currentPage = reset ? 1 : page;
+      const album = activeTab === 'recent' 
+        ? await MediaLibrary.getAlbumAsync('Recently Added')
+        : null;
+      
+      let query;
+      if (album) {
+        query = MediaLibrary.Asset.createQuery(album.id);
+      } else {
+        query = MediaLibrary.Asset.createQuery();
+      }
+      
+      query = query
+        .limit(pageSize)
+        .offset((currentPage - 1) * pageSize)
+        .sortBy(MediaLibrary.AssetSortBy.CREATION_TIME_DESC)
+        .filter(MediaLibrary.AssetMediaType.PHOTO);
+      
+      const results = await MediaLibrary.Asset.getAssetsAsync(query);
+      
+      if (reset) {
+        setAssets(results.assets);
+        setPage(1);
+      } else {
+        setAssets(prev => [...prev, ...results.assets]);
+        setPage(currentPage);
+      }
+      setHasMore(results.hasNextPage);
+    } catch (error) {
+      console.error('加载图片失败:', error);
+      showToast('加载图片失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) {
+      setSelectedAssets([]);
+      setAssets([]);
+      setActiveTab('recent');
+      loadAssets(true);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible) {
+      loadAssets(true);
+    }
+  }, [activeTab]);
+
+  const handleLoadMore = () => {
+    if (hasMore && !loading) {
+      loadAssets(false);
+    }
+  };
+
+  const toggleSelect = (asset) => {
+    setSelectedAssets(prev => {
+      const isSelected = prev.some(a => a.id === asset.id);
+      if (isSelected) {
+        return prev.filter(a => a.id !== asset.id);
+      } else if (prev.length < maxSelection) {
+        return [...prev, asset];
+      } else {
+        showToast(`最多选择${maxSelection}张`);
+        return prev;
+      }
+    });
+  };
+
+  const handleSend = async () => {
+    if (selectedAssets.length === 0) {
+      showToast('请选择图片');
+      return;
+    }
+    try {
+      setLoading(true);
+      const uris = [];
+      for (const asset of selectedAssets) {
+        const uri = await asset.getUri();
+        const compressed = await compressImage(uri);
+        uris.push(compressed);
+      }
+      await onSend(uris);
+      onClose();
+    } catch (error) {
+      console.error('发送图片失败:', error);
+      showToast('发送图片失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const compressed = await compressImage(result.assets[0].uri);
+        await onSend([compressed]);
+        onClose();
+      }
+    } catch (error) {
+      showToast('拍照失败');
+    }
+  };
+
+  const renderAsset = ({ item }) => {
+    const isSelected = selectedAssets.some(a => a.id === item.id);
+    const index = selectedAssets.findIndex(a => a.id === item.id) + 1;
+    return (
+      <TouchableOpacity
+        style={{ flex: 1, aspectRatio: 1, margin: 1, position: 'relative' }}
+        onPress={() => toggleSelect(item)}
+      >
+        <Image 
+          source={{ uri: item.uri }} 
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+        {isSelected && (
+          <View style={{ 
+            position: 'absolute', 
+            top: 4, 
+            right: 4, 
+            width: 24, 
+            height: 24, 
+            borderRadius: 12, 
+            backgroundColor: PRIMARY_COLOR,
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 2,
+            borderColor: '#fff'
+          }}>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>{index}</Text>
+          </View>
+        )}
+        {isSelected && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(26,95,139,0.3)' }} />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={false}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+        {/* Header */}
+        <View style={{ 
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: '#eee'
+        }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+            <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 17, fontWeight: '600' }}>
+            {selectedAssets.length > 0 ? `已选择 ${selectedAssets.length} 张` : '选择图片'}
+          </Text>
+          <TouchableOpacity 
+            onPress={handleSend}
+            disabled={selectedAssets.length === 0 || loading}
+            style={{ 
+              paddingHorizontal: 16, 
+              paddingVertical: 6, 
+              borderRadius: 16,
+              backgroundColor: selectedAssets.length > 0 ? PRIMARY_COLOR : '#ccc'
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+              {loading ? '发送中...' : '发送'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Tabs */}
+        <View style={{ 
+          flexDirection: 'row', 
+          paddingHorizontal: 16, 
+          paddingVertical: 8,
+          gap: 12
+        }}>
+          {[
+            { key: 'recent', label: '最近' },
+            { key: 'all', label: '全部' },
+          ].map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 20,
+                backgroundColor: activeTab === tab.key ? PRIMARY_COLOR : '#f0f0f0'
+              }}
+            >
+              <Text style={{ 
+                fontSize: 14, 
+                color: activeTab === tab.key ? '#fff' : TEXT_SECOND 
+              }}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity 
+            onPress={takePhoto}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: LIGHT_PRIMARY
+            }}
+          >
+            <Ionicons name="camera" size={18} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Permission check */}
+        {!permissionResponse?.granted ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <Ionicons name="images-outline" size={64} color="#ccc" />
+            <Text style={{ fontSize: 16, color: TEXT_SECOND, marginTop: 16, textAlign: 'center' }}>
+              需要相册权限才能选择图片
+            </Text>
+            <TouchableOpacity 
+              onPress={requestPermission}
+              style={{ 
+                marginTop: 16, 
+                paddingHorizontal: 24, 
+                paddingVertical: 12, 
+                backgroundColor: PRIMARY_COLOR,
+                borderRadius: 8
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 16 }}>授权访问相册</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Grid */}
+            <FlatList
+              ref={gridRef}
+              data={assets}
+              renderItem={renderAsset}
+              keyExtractor={(item) => item.id}
+              numColumns={3}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.5}
+              ListFooterComponent={
+                loading ? (
+                  <View style={{ padding: 16, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                loading ? null : (
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Ionicons name="images-outline" size={48} color="#ccc" />
+                    <Text style={{ color: TEXT_THIRD, marginTop: 8 }}>暂无图片</Text>
+                  </View>
+                )
+              }
+            />
+
+            {/* Selected count */}
+            {selectedAssets.length > 0 && (
+              <View style={{ 
+                position: 'absolute', 
+                bottom: 20, 
+                left: 20, 
+                right: 20,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                borderRadius: 12,
+                padding: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <Text style={{ color: '#fff', fontSize: 14 }}>
+                  已选 {selectedAssets.length} / {maxSelection} 张
+                </Text>
+                <TouchableOpacity 
+                  onPress={handleSend}
+                  style={{ 
+                    paddingHorizontal: 20, 
+                    paddingVertical: 8, 
+                    backgroundColor: PRIMARY_COLOR,
+                    borderRadius: 20
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>发送</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+      </SafeAreaView>
+    </Modal>
   );
 };
 
@@ -7475,6 +7786,7 @@ const PrivateChat = ({ route, navigation }) => {
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
   
   // 当前用户信息
   const currentUser = state.user;
@@ -7552,14 +7864,42 @@ const PrivateChat = ({ route, navigation }) => {
     }
   };
 
+  const handlePrivatePickerSend = async (uris) => {
+    try {
+      for (let uri of uris) {
+        const msg = {
+          id: Date.now().toString() + Math.random(),
+          text: '图片消息',
+          image: uri,
+          from: 'staff',
+          fromName: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
+          platform: 'private',
+          time: new Date().toISOString(),
+          read: false,
+        };
+        setMessages(prev => [...prev, msg]);
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+      }
+      setInputText('');
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      console.error('发送图片失败:', error);
+      showToast('发送图片失败');
+    }
+  };
+
   const pickImages = async (source) => {
     try {
       setShowMediaOptions(false);
-      let result;
+      if (source === 'library') {
+        setShowCustomPicker(true);
+        return;
+      }
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') { showToast('需要相机权限'); return; }
-        result = await ImagePicker.launchCameraAsync({
+        const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
@@ -7574,47 +7914,13 @@ const PrivateChat = ({ route, navigation }) => {
             from: 'staff',
             fromName: state.user?.name || '我',
             fromPhone: state.user?.phone || '',
-            platform: currentPlatform || 'private',
+            platform: 'private',
             time: new Date().toISOString(),
             read: false,
           };
           setMessages(prev => [...prev, msg]);
-          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
-          setSelectedImages([]);
+          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
           setInputText('');
-          setShowMediaOptions(false);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { showToast('需要相册权限'); return; }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: false,
-          quality: 0.8,
-          selectionLimit: 10,
-          defaultTab: 'photos',
-        });
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-          for (let asset of result.assets) {
-            const compressedUri = await compressImage(asset.uri);
-            const msg = {
-              id: Date.now().toString() + Math.random(),
-              text: '图片消息',
-              image: compressedUri,
-              from: 'staff',
-              fromName: state.user?.name || '我',
-              fromPhone: state.user?.phone || '',
-              platform: currentPlatform || 'private',
-              time: new Date().toISOString(),
-              read: false,
-            };
-            setMessages(prev => [...prev, msg]);
-            dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
-          }
-          setSelectedImages([]);
-          setInputText('');
-          setShowMediaOptions(false);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
       }
@@ -7781,6 +8087,12 @@ const PrivateChat = ({ route, navigation }) => {
         </View>
       </Modal>
     )}
+    <CustomImagePicker 
+      visible={showCustomPicker}
+      onClose={() => setShowCustomPicker(false)}
+      onSend={handlePrivatePickerSend}
+      maxSelection={10}
+    />
     </View>
   );
 };
