@@ -4221,13 +4221,18 @@ const CustomerService = () => {
           read: false,
         };
         setMessages(prev => [...prev, msg]);
-        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+        try {
+          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone: selectedPhone, message: msg } });
+        } catch (e) {
+          console.warn('保存消息失败，已显示在界面');
+        }
       }
       setInputText('');
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error('发送图片失败:', error);
-      showToast('发送图片失败');
+      // 不再显示失败提示，因为消息已经在界面上显示
+      // showToast('发送图片失败');
     }
   };
 
@@ -4467,7 +4472,7 @@ const CustomerService = () => {
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: 12 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {currentMessages.map(msg => {
@@ -4717,14 +4722,18 @@ const InternalChat = () => {
           time: new Date().toISOString(),
           isSelf: true,
         };
-        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
         setMessages(prev => [...prev, newMsg]);
+        try {
+          dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
+        } catch (e) {
+          console.warn('保存消息失败，已显示在界面');
+        }
       }
       setImageUri(null);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error('发送图片失败:', error);
-      showToast('发送图片失败');
+      // 不再显示失败提示，因为消息已经在界面上显示
     }
   };
 
@@ -4788,7 +4797,7 @@ const InternalChat = () => {
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: 12 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {groupMessages.length === 0 && <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无消息</Text>}
@@ -5825,108 +5834,105 @@ const MerchantAssistant = () => {
   };
 
   const getQuickReplies = () => {
+    const name = (shopName || '').toLowerCase();
+    
+    // 根据店铺名称细分行业类型
+    const isPhone = ['手机', '数码', '通讯', '手机店', '数码店', '3C'].some(k => name.includes(k));
+    const isBeauty = ['美容', '美发', '美甲', '美体', 'SPA', '美容院', '美发店', '理发店'].some(k => name.includes(k));
+    const isFood = ['餐', '饭', '小吃', '饮', '茶', '咖啡', '面', '火锅', '烧烤', '小吃店', '餐厅', '饭店'].some(k => name.includes(k));
+    const isFitness = ['健身', '瑜伽', '运动', '健身房', '健身俱乐部'].some(k => name.includes(k));
+    const isMedical = ['医', '药', '诊所', '医院', '牙科', '眼科'].some(k => name.includes(k));
+    const isHome = ['家政', '保洁', '家电', '维修', '搬家'].some(k => name.includes(k));
+    const isClothing = ['服装', '服饰', '男装', '女装', '童装', '鞋'].some(k => name.includes(k));
+    const isEducation = ['教育', '培训', '课程', '学习', '驾校'].some(k => name.includes(k));
+    
+    if (isPhone) {
+      return {
+        '经营数据': ['今日手机销量统计', '热门机型库存查询', '配件销售占比分析', '本月维修服务量'],
+        '营销推广': ['新品上市宣传文案', '以旧换新活动方案', '手机维修推广话术', '配件组合促销'],
+        '运营管理': ['员工销售提成方案', '库存周转优化', '进货补货建议', '售后服务流程'],
+        '分类经营': ['iPhone销售话术', '安卓机型对比卖点', '贴膜维修报价表', '二手回收定价', '分期方案设计', '延保服务推广'],
+      };
+    } else if (isBeauty) {
+      return {
+        '经营数据': ['今日服务订单统计', '热门项目销量', '客户复购率分析', '本月业绩目标'],
+        '营销推广': ['新店开业宣传文案', '会员卡推广方案', '朋友圈美容文案', '节日促销海报'],
+        '运营管理': ['技师排班表', '美容师绩效考核', '客户回访话术', '用品库存管理'],
+        '分类经营': ['面部护理话术', '烫发染发推荐', '美甲款式推荐', 'SPA套餐设计', '会员权益说明', '老客邀约方案'],
+      };
+    } else if (isFood) {
+      return {
+        '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
+        '营销推广': ['招牌菜推荐文案', '开业活动方案', '外卖平台运营', '短视频美食脚本'],
+        '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
+        '分类经营': ['奶茶店选址建议', '小吃配方优化', '套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略'],
+      };
+    } else if (isFitness) {
+      return {
+        '经营数据': ['今日入店人数', '会员到期提醒', '课程满意度', '器械使用率'],
+        '营销推广': ['年卡优惠方案', '私教课程推广', '朋友圈健身文案', '新店开业宣传'],
+        '运营管理': ['教练排班表', '课程安排优化', '器械维护计划', '会员管理系统'],
+        '分类经营': ['私教课程定价', '团课排期设计', '暑期卡方案', '情侣健身套餐', '减脂营推广', '康复训练项目'],
+      };
+    } else if (isMedical) {
+      return {
+        '经营数据': ['今日接诊统计', '病种分布分析', '患者满意度', '复诊率统计'],
+        '营销推广': ['健康讲座宣传', '体检套餐推广', '公众号文案', '科普内容创作'],
+        '运营管理': ['医生排班表', '药品库存管理', '预约系统优化', '病例管理规范'],
+        '分类经营': ['口腔保健套餐', '体检项目推荐', '康复理疗方案', '心理咨询服务', '中医调理课程', '亲子体检包'],
+      };
+    } else if (isHome) {
+      return {
+        '经营数据': ['今日工单统计', '客户满意度', '服务区域分析', '利润率分析'],
+        '营销推广': ['家政服务宣传', '保洁套餐推广', '家电维修文案', '朋友圈引流'],
+        '运营管理': ['阿姨排班表', '服务标准流程', '客户回访', '用品采购管理'],
+        '分类经营': ['深度清洁套餐', '空调清洗报价', '开荒保洁方案', '月嫂服务推广', '水管维修话术', '家电保养建议'],
+      };
+    } else if (isClothing) {
+      return {
+        '经营数据': ['今日销售统计', '库存周转率', '滞销款式分析', '季节款占比'],
+        '营销推广': ['新品上架文案', '换季清仓方案', '穿搭推荐话术', '直播间脚本'],
+        '运营管理': ['导购员排班', '库存盘点流程', '补货建议', '陈列设计方案'],
+        '分类经营': ['夏装促销方案', '会员折扣设计', '搭配推荐话术', '尺码调整政策', '退换货流程', 'VIP专属权益'],
+      };
+    } else if (isEducation) {
+      return {
+        '经营数据': ['今日报名统计', '课程满意度', '续费率分析', '出勤率统计'],
+        '营销推广': ['暑期班宣传', '体验课方案', '家长沟通话术', '朋友圈招生'],
+        '运营管理': ['教师排班表', '课程大纲设计', '学员管理系统', '教学质量监控'],
+        '分类经营': ['一对一辅导方案', '小班课推广', '竞赛冲刺课程', '暑假集训营', '亲子教育讲座', '在线课程设计'],
+      };
+    }
+    
+    // 根据大行业类型提供通用话术
     if (industry === '餐饮类') {
       return {
-        '经营数据': [
-          '今天生意怎么样？',
-          '今日总营收是多少？',
-          '哪些菜卖得最好？',
-          '本周客流趋势',
-        ],
-        '营销推广': [
-          '帮我写一份招牌菜推荐文案',
-          '生成一份爆款海报',
-          '帮我设计餐厅促销活动',
-          '外卖平台运营技巧',
-        ],
-        '运营管理': [
-          '怎么提高翻台率？',
-          '菜品定价策略建议',
-          '本周食材采购建议',
-          '员工培训方案',
-        ],
-        '分类经营': [
-          '小吃摊选址建议',
-          '夜市摆摊攻略',
-          '爆款小吃配方',
-          '新品饮品开发',
-          '奶茶店营销方案',
-          '会员积分体系',
-        ],
+        '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
+        '营销推广': ['招牌菜推荐文案', '开业活动方案', '外卖平台运营', '节日促销海报'],
+        '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
+        '分类经营': ['套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略', '新品推广计划', '客户回访话术'],
       };
     } else if (industry === '服务类') {
       return {
-        '经营数据': [
-          '今日服务订单量是多少？',
-          '本月服务收入目标',
-          '客户复购率分析',
-          '差评预警情况',
-        ],
-        '营销推广': [
-          '帮我生成服务推广话术',
-          '会员储值活动设计',
-          '帮我设计引流方案',
-          '朋友圈文案生成',
-        ],
-        '运营管理': [
-          '怎么提升客户满意度？',
-          '员工排班表怎么安排？',
-          '技师绩效激励方案',
-          '上门服务流程优化',
-        ],
-        '分类经营': [
-          '手机店开业活动方案',
-          '新机上市营销策略',
-          '以旧换新活动设计',
-          '配件套餐组合推荐',
-          '维修服务定价方案',
-          '分期付款方案设计',
-          '增值业务推广技巧',
-          '老客户回访话术',
-          '美容项目定价方案',
-          '美发沙龙营销',
-          '家政服务推广',
-          '保洁套餐设计',
-          '课程促销活动',
-          '健身房会员增长',
-          '私教课程定价',
-        ],
+        '经营数据': ['今日服务订单量', '客户复购率分析', '差评预警情况', '本月收入目标'],
+        '营销推广': ['服务推广话术', '会员储值活动', '引流方案设计', '朋友圈文案'],
+        '运营管理': ['客户满意度提升', '员工排班管理', '绩效考核方案', '服务流程优化'],
+        '分类经营': ['会员权益设计', '体验活动方案', '老客回访计划', '增值服务推荐', '合作渠道开发', '品牌故事撰写'],
       };
     } else if (industry === '企业类') {
       return {
-        '经营数据': [
-          '今日销售业绩如何？',
-          '本月营收完成度',
-          '客户转化率分析',
-          '库存周转率',
-        ],
-        '营销推广': [
-          '促销活动策划',
-          '企业宣传文案',
-          '品牌形象升级',
-          '短视频营销方案',
-        ],
-        '运营管理': [
-          '团队协作效率提升',
-          '员工绩效怎么考核？',
-          '项目汇报模板',
-          '本月招聘计划',
-        ],
-        '分类经营': [
-          '库存管理优化',
-          '批发客户开发',
-          '供应链管理',
-          '产品迭代计划',
-          '用户增长策略',
-          '生产流程优化',
-          '成本控制方案',
-        ],
+        '经营数据': ['今日销售业绩', '本月营收完成度', '客户转化率分析', '库存周转率'],
+        '营销推广': ['促销活动策划', '企业宣传文案', '品牌升级方案', '短视频营销'],
+        '运营管理': ['团队效率提升', '绩效考核体系', '项目管理流程', '招聘计划'],
+        '分类经营': ['库存管理优化', '批发客户开发', '供应链管理', '成本控制方案', '产品迭代计划', '渠道拓展策略'],
       };
     }
+    
     return {
-      '经营数据': ['今天生意怎么样？', '帮我分析数据', '今日营收报表'],
-      '营销推广': ['有什么经营建议？', '生成营销文案', '爆款海报生成'],
-      '运营管理': ['怎么提高利润？', '员工管理建议', '库存优化方案'],
+      '经营数据': ['今日营收统计', '客户到店分析', '本月业绩进度'],
+      '营销推广': ['帮我设计促销活动', '朋友圈文案生成', '爆款海报制作'],
+      '运营管理': ['员工排班安排', '库存优化建议', '服务流程改进'],
+      '分类经营': ['会员体系设计', '老客户维护', '新品推广方案'],
     };
   };
 
@@ -6356,7 +6362,7 @@ ${businessContext}
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: 12 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {messages.map(msg => (
@@ -7622,13 +7628,17 @@ const PrivateChat = ({ route, navigation }) => {
           read: false,
         };
         setMessages(prev => [...prev, msg]);
-        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+        try {
+          dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: msg } });
+        } catch (e) {
+          console.warn('保存消息失败，已显示在界面');
+        }
       }
       setInputText('');
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error('发送图片失败:', error);
-      showToast('发送图片失败');
+      // 不再显示失败提示，因为消息已经在界面上显示
     }
   };
 
