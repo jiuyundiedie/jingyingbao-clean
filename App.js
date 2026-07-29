@@ -86,14 +86,14 @@ const ALIBABA_API_KEY = process.env.EXPO_PUBLIC_ALIBABA_API_KEY || "";
 const ALIBABA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 // 2. 硅基流动 SiliconFlow（国内平台，新用户送14元）
-const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "sk-bevcesyyysluduherrbpqezjsazawntlspvmqattomtmaxik";
+const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "";
 
 // 3. 豆包AI（火山引擎，国内可用，新用户有免费额度）
 const DOUBAO_API_KEY = process.env.EXPO_PUBLIC_DOUBAO_API_KEY || "";
 const DOUBAO_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
 // 4. 智谱AI（备用）
-const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
+const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
@@ -128,12 +128,12 @@ const getWeekStart = () => {
 // ===== 压缩图片 =====
 const compressImage = async (uri, quality = 0.7) => {
   try {
-    const result = await ImageManipulator.manipulateAsync(
+    const manipResult = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1200 } }],
       { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
     );
-    return result.uri;
+    return manipResult.uri;
   } catch (error) {
     return uri;
   }
@@ -4667,6 +4667,16 @@ const InternalChat = () => {
     });
   }, []);
 
+  // 组件卸载时清理通话定时器,防止内存泄漏
+  useEffect(() => {
+    return () => {
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+        callTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
   
@@ -5703,6 +5713,18 @@ const VoiceAssistant = () => {
     }
   }, []);
 
+  // 组件卸载时清理资源
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        try { abortControllerRef.current.abort(); } catch (e) {}
+        abortControllerRef.current = null;
+      }
+      try { Speech.stop(); } catch (e) {}
+      try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
+    };
+  }, []);
+
   // 语音识别（Web Speech API）
   const startVoice = async () => {
     try {
@@ -5970,6 +5992,16 @@ const MerchantAssistant = () => {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // 组件卸载时中止AI请求,防止内存泄漏和状态更新到已卸载组件
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        try { abortControllerRef.current.abort(); } catch (e) {}
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   const industry = state.shopInfo?.industry || '待识别';
   const shopName = state.shopInfo?.shopName || '我的门店';
@@ -6767,6 +6799,22 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     }
   }, [visible]);
 
+  // 组件卸载时清理资源,防止内存泄漏和音频继续播放
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        try { abortControllerRef.current.abort(); } catch (e) {}
+        abortControllerRef.current = null;
+      }
+      if (speechTimerRef.current) {
+        clearTimeout(speechTimerRef.current);
+        speechTimerRef.current = null;
+      }
+      try { Speech.stop(); } catch (e) {}
+      try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
+    };
+  }, []);
+
   const startVoice = async () => {
     try {
       const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
@@ -7001,12 +7049,11 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 // ================== AI助手图片全屏查看器 ==================
 const FullscreenImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
   const [editMode, setEditMode] = useState(false);
-  const [brightness, setBrightness] = useState(100);
-  const [contrast, setContrast] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [filter, setFilter] = useState(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [processedImageUri, setProcessedImageUri] = useState(null);
 
   if (!visible) return null;
 
@@ -7023,38 +7070,24 @@ const FullscreenImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMess
     setProcessing(true);
     try {
       let processedUri = imageUri;
-      if (filterType) {
-        const manipResult = await ImageManipulator.manipulateAsync(
-          imageUri,
-          [
-            { rotate: rotation },
-            {
-              filter: filterType === 'warm' ? 'warm' :
-                      filterType === 'cool' ? 'cool' :
-                      filterType === 'mono' ? 'mono' :
-                      filterType === 'sepia' ? 'sepia' : 'vibrant'
-            },
-          ],
-          { compress: 0.9, format: 'jpeg' }
-        );
-        processedUri = manipResult.uri;
-      } else if (rotation !== 0) {
+      if (rotation !== 0) {
         const manipResult = await ImageManipulator.manipulateAsync(
           imageUri,
           [{ rotate: rotation }],
-          { compress: 0.9, format: 'jpeg' }
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
         );
         processedUri = manipResult.uri;
       }
       setFilter(filterType);
       setProcessedImageUri(processedUri);
+      if (filterType) {
+        showToast('滤镜效果预览（旋转已应用）');
+      }
     } catch (e) {
-      showToast('滤镜应用失败');
+      showToast('图片处理失败');
     }
     setProcessing(false);
   };
-
-  const [processedImageUri, setProcessedImageUri] = useState(null);
 
   const currentImageUri = processedImageUri || imageUri;
 
@@ -7084,8 +7117,6 @@ const FullscreenImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMess
   };
 
   const resetEdits = () => {
-    setBrightness(100);
-    setContrast(100);
     setRotation(0);
     setFilter(null);
     setProcessedImageUri(null);
@@ -8592,11 +8623,58 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.53.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.0</Text>
       </Animated.View>
     </Animated.View>
   );
 };
+
+// ================== 全局错误边界 ==================
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[GlobalErrorBoundary]', error, errorInfo);
+  }
+
+  handleRestart = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE, padding: 30 }}>
+          <Image
+            source={require('./assets/icon.png')}
+            style={{ width: 80, height: 80, marginBottom: 20, borderRadius: 16 }}
+            resizeMode="contain"
+          />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8 }}>
+            应用遇到问题
+          </Text>
+          <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginBottom: 24 }}>
+            抱歉,应用发生了意外错误。请尝试重新启动。
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24 }}
+            onPress={this.handleRestart}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>重新启动</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ================== App 容器 ==================
 export default function App() {
@@ -8678,12 +8756,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppContext.Provider value={{ state, dispatch }}>
-        <NavigationContainer ref={navigationRef}>
-          {state.user ? <AppStack /> : <AuthStack />}
-        </NavigationContainer>
-        <CustomToast />
-      </AppContext.Provider>
+      <GlobalErrorBoundary>
+        <AppContext.Provider value={{ state, dispatch }}>
+          <NavigationContainer ref={navigationRef}>
+            {state.user ? <AppStack /> : <AuthStack />}
+          </NavigationContainer>
+          <CustomToast />
+        </AppContext.Provider>
+      </GlobalErrorBoundary>
     </SafeAreaProvider>
   );
 }

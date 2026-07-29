@@ -1,4 +1,4 @@
-package com.xxx.jingyingbao
+package com.jingyingbao.app
 
 import android.os.Build
 import android.os.Bundle

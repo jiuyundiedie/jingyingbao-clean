@@ -27,11 +27,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      - name: Clear npm cache and reinstall dependencies
-        run: |
-          npm cache clean --force
-          rm -rf node_modules
-          npm install
+      - name: Install dependencies
+        run: npm ci
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -54,9 +51,9 @@ jobs:
 
       - name: Create .env file with environment variables
         run: |
-          echo "EXPO_PUBLIC_BAIDU_API_KEY=2X4R2K4qq9u3K9769BOjDXtq" > .env
-          echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=oHTvqHAZvXUyAMBTrF8n93GnoE41lqri" >> .env
-          echo "EXPO_PUBLIC_ZHIPU_API_KEY=1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p" >> .env
+          echo "EXPO_PUBLIC_BAIDU_API_KEY=${{ secrets.BAIDU_API_KEY }}" > .env
+          echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=${{ secrets.BAIDU_SECRET_KEY }}" >> .env
+          echo "EXPO_PUBLIC_ZHIPU_API_KEY=${{ secrets.ZHIPU_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_ALIBABA_API_KEY=${{ secrets.ALIBABA_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_DOUBAO_API_KEY=${{ secrets.DOUBAO_API_KEY }}" >> .env
@@ -71,11 +68,11 @@ jobs:
           find node_modules -type d -name ".cxx" -exec rm -rf {} + 2>/dev/null || true
           rm -rf android/app/.cxx
 
-      - name: Build APK (only arm64-v8a for faster build)
+      - name: Build APK (arm64-v8a + armeabi-v7a for Google Play)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease -PreactNativeArchitectures=arm64-v8a
+          ./gradlew clean assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
 
       - name: Get version from app.json
         id: get_version

@@ -92,10 +92,26 @@ android {
         applicationId 'com.jingyingbao.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 86
-        versionName "5.53.0"
+        versionCode 87
+        versionName "5.54.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+    }
+    // 正式发布签名: 从 android/keystore.properties 读取
+    // 生成keystore请参考 keystore.properties.example
+    def keystorePropsFile = rootProject.file("keystore.properties")
+    def hasReleaseKeystore = keystorePropsFile.exists()
+    if (hasReleaseKeystore) {
+        def keystoreProps = new Properties()
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+        signingConfigs {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
     }
     signingConfigs {
         debug {
@@ -112,7 +128,8 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // 优先使用正式签名,缺失时fallback到debug签名(仅开发用,无法上架)
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
