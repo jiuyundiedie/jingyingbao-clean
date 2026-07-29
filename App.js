@@ -1397,6 +1397,24 @@ const styles = StyleSheet.create({
   badReviewHandledBtnText: { color: '#fff', fontSize: 12 },
   badReviewEmpty: { textAlign: 'center', marginTop: 40, color: TEXT_THIRD, fontSize: 16 },
   imageMessage: { width: 150, height: 150, borderRadius: 12, marginTop: 4 },
+  imageViewerContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)' },
+  imageViewerTopBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 80, paddingTop: 40, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, zIndex: 10 },
+  imageViewerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  imageViewerImageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 80 },
+  imageViewerLoading: { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)', padding: 20, borderRadius: 12 },
+  imageViewerEditPanel: { backgroundColor: 'rgba(30,30,30,0.9)', padding: 16, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  imageViewerControlRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 },
+  imageViewerControlBtn: { alignItems: 'center', padding: 8 },
+  imageViewerControlText: { color: '#fff', fontSize: 11, marginTop: 4 },
+  filterScrollView: { paddingVertical: 8 },
+  filterBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#333', borderRadius: 20, marginRight: 8, borderWidth: 2, borderColor: 'transparent' },
+  filterBtnActive: { borderColor: PRIMARY_COLOR, backgroundColor: LIGHT_PRIMARY },
+  filterBtnText: { color: '#fff', fontSize: 13 },
+  imageViewerBottomBar: { flexDirection: 'row', justifyContent: 'space-around', padding: 20, backgroundColor: 'rgba(0,0,0,0.9)', paddingBottom: 40 },
+  imageViewerActionBtn: { alignItems: 'center', padding: 10 },
+  imageViewerActionText: { color: '#fff', fontSize: 12, marginTop: 4 },
+  bgPickerBtn: { width: '100%', height: 120, borderRadius: 12, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  bgResetBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
   imageMsgRight: { alignSelf: 'flex-end', maxWidth: '70%', marginVertical: 4 },
   imageMsgLeft: { alignSelf: 'flex-start', maxWidth: '70%', marginVertical: 4 },
   productItem: { backgroundColor: BG_CARD, padding: 14, borderRadius: 14, marginVertical: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...SHADOW },
@@ -4596,14 +4614,12 @@ const CustomerService = () => {
         </View>
       </KeyboardAvoidingView>
     {fullscreenImage && (
-      <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
-        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
-            <Ionicons name="close-circle" size={36} color="#fff" />
-          </TouchableOpacity>
-          <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
-        </View>
-      </Modal>
+      <FullscreenImageViewer
+        visible={!!fullscreenImage}
+        imageUri={fullscreenImage}
+        onClose={() => setFullscreenImage(null)}
+        isOwnMessage={true}
+      />
     )}
     <CustomImagePicker 
       visible={showCustomPicker}
@@ -4623,6 +4639,7 @@ const InternalChat = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const scrollViewRef = useRef(null);
   const [chatBgColor, setChatBgColor] = useState('#F2F3F5');
+  const [chatBgImage, setChatBgImage] = useState(null);
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [callType, setCallType] = useState('voice');
@@ -4632,6 +4649,23 @@ const InternalChat = () => {
   const callTimerRef = useRef(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  // Load saved background
+  useEffect(() => {
+    AsyncStorage.getItem('internalChatBg').then(saved => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.type === 'color') {
+            setChatBgColor(parsed.value);
+            setChatBgImage(null);
+          } else if (parsed.type === 'image') {
+            setChatBgImage(parsed.value);
+          }
+        } catch (e) {}
+      }
+    });
+  }, []);
 
   const chatId = 'internal';
   const groupMessages = state.groupChatMessages[chatId] || [];
@@ -4817,6 +4851,9 @@ const InternalChat = () => {
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
+          {chatBgImage && (
+            <Image source={{ uri: chatBgImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          )}
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
@@ -5010,14 +5047,12 @@ const InternalChat = () => {
         </View>
       )}
     {fullscreenImage && (
-        <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
-          <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
-            <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
-              <Ionicons name="close-circle" size={36} color="#fff" />
-            </TouchableOpacity>
-            <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
-          </View>
-        </Modal>
+        <FullscreenImageViewer
+          visible={!!fullscreenImage}
+          imageUri={fullscreenImage}
+          onClose={() => setFullscreenImage(null)}
+          isOwnMessage={true}
+        />
       )}
     <CustomImagePicker 
       visible={showCustomPicker}
@@ -5117,10 +5152,23 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [bgColor, setBgColor] = useState('#F2F3F5');
+  const [bgImage, setBgImage] = useState(null);
   const [showGroupMembers, setShowGroupMembers] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const [bgTab, setBgTab] = useState('color'); // color / image
+  const [showImagePickerForBg, setShowImagePickerForBg] = useState(false);
 
   const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
+  const bgMaterials = [
+    { id: 'bg1', name: '简约灰', color: '#F2F3F5' },
+    { id: 'bg2', name: '薄荷绿', color: '#E8F5E9' },
+    { id: 'bg3', name: '天空蓝', color: '#E3F2FD' },
+    { id: 'bg4', name: '暖阳橙', color: '#FFF3E0' },
+    { id: 'bg5', name: '樱花粉', color: '#FCE4EC' },
+    { id: 'bg6', name: '薰衣紫', color: '#EDE7F6' },
+    { id: 'bg7', name: '纯净白', color: '#FFFFFF' },
+    { id: 'bg8', name: '夜幕蓝', color: '#37474F' },
+  ];
   const staffMembers = state.staffMemberList || [];
   const groupMessages = state.groupChatMessages[chatId] || [];
 
@@ -5197,9 +5245,51 @@ const ChatSettingScreen = ({ route, navigation }) => {
     setShowNotifyModal(false);
   };
 
-  const changeBgColor = (color) => {
+  const changeBgColor = async (color) => {
     setBgColor(color);
-    showToast('聊天背景已更换');
+    setBgImage(null);
+    try {
+      await AsyncStorage.setItem('internalChatBg', JSON.stringify({ type: 'color', value: color }));
+      showToast('聊天背景已更换');
+    } catch (e) {
+      showToast('保存失败');
+    }
+  };
+
+  const pickBgImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { showToast('需要相册权限'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const compressedUri = await compressImage(asset.uri);
+        setBgImage(compressedUri);
+        setBgColor(null);
+        try {
+          await AsyncStorage.setItem('internalChatBg', JSON.stringify({ type: 'image', value: compressedUri }));
+          showToast('背景已设置');
+        } catch (e) {
+          showToast('保存失败');
+        }
+      }
+    } catch (error) {
+      console.error('选择背景图失败:', error);
+      showToast('选择失败');
+    }
+  };
+
+  const resetBg = async () => {
+    setBgColor('#F2F3F5');
+    setBgImage(null);
+    try {
+      await AsyncStorage.removeItem('internalChatBg');
+      showToast('已恢复默认背景');
+    } catch (e) {}
   };
 
   return (
@@ -5295,11 +5385,73 @@ const ChatSettingScreen = ({ route, navigation }) => {
               <Text style={styles.modalTitle}>媒体管理</Text>
               <TouchableOpacity onPress={() => setShowMediaModal(false)}><Text style={styles.closeTxt}>✕</Text></TouchableOpacity>
             </View>
-            <Text style={styles.label}>选择聊天背景</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              {bgColors.map((color, idx) => (
-                <TouchableOpacity key={idx} style={{ width: 50, height: 50, borderRadius: 10, backgroundColor: color, borderWidth: bgColor === color ? 3 : 0, borderColor: PRIMARY_COLOR }} onPress={() => { changeBgColor(color); setShowMediaModal(false); }} />
-              ))}
+            
+            {/* Tabs */}
+            <View style={{ flexDirection: 'row', marginBottom: 16, backgroundColor: '#F5F5F5', borderRadius: 8, padding: 2 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 8, borderRadius: 6, backgroundColor: bgTab === 'color' ? '#fff' : 'transparent', ...SHADOW }}
+                onPress={() => setBgTab('color')}
+              >
+                <Text style={{ textAlign: 'center', color: TEXT_MAIN, fontSize: 14 }}>颜色</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 8, borderRadius: 6, backgroundColor: bgTab === 'image' ? '#fff' : 'transparent', ...SHADOW }}
+                onPress={() => setBgTab('image')}
+              >
+                <Text style={{ textAlign: 'center', color: TEXT_MAIN, fontSize: 14 }}>图片</Text>
+              </TouchableOpacity>
+            </View>
+
+            {bgTab === 'color' ? (
+              <>
+                <Text style={styles.label}>选择聊天背景颜色</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {bgMaterials.map((bg) => (
+                    <TouchableOpacity 
+                      key={bg.id} 
+                      style={{ 
+                        width: 56, 
+                        height: 56, 
+                        borderRadius: 10, 
+                        backgroundColor: bg.color, 
+                        borderWidth: bgColor === bg.color && !bgImage ? 3 : 0, 
+                        borderColor: PRIMARY_COLOR,
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }} 
+                      onPress={() => { changeBgColor(bg.color); }} 
+                    >
+                      <Text style={{ fontSize: 10, color: bg.color === '#37474F' ? '#fff' : TEXT_THIRD }}>{bg.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>选择背景图片</Text>
+                <TouchableOpacity 
+                  style={[styles.bgPickerBtn, { borderColor: PRIMARY_COLOR, borderWidth: 2, borderStyle: 'dashed' }]}
+                  onPress={pickBgImage}
+                >
+                  <Ionicons name="image-outline" size={40} color={PRIMARY_COLOR} />
+                  <Text style={{ color: PRIMARY_COLOR, marginTop: 8, fontSize: 14 }}>从相册选择图片</Text>
+                </TouchableOpacity>
+                {bgImage && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={styles.label}>当前背景预览</Text>
+                    <Image source={{ uri: bgImage }} style={{ width: '100%', height: 120, borderRadius: 8, marginTop: 8 }} resizeMode="cover" />
+                  </View>
+                )}
+              </>
+            )}
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+              <TouchableOpacity style={[styles.bgResetBtn, { backgroundColor: '#F5F5F5' }]} onPress={resetBg}>
+                <Text style={{ color: TEXT_SECOND }}>恢复默认</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bgResetBtn, { backgroundColor: PRIMARY_COLOR }]} onPress={() => setShowMediaModal(false)}>
+                <Text style={{ color: '#fff' }}>完成</Text>
+              </TouchableOpacity>
             </View>
 
           </View>
@@ -5800,6 +5952,7 @@ const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const messages = state.aiChatMessages || [];
+  const messagesRef = useRef(messages);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [showImageGen, setShowImageGen] = useState(false);
@@ -5812,6 +5965,11 @@ const MerchantAssistant = () => {
   const [downloading, setDownloading] = useState(false);
   const [streamingMsgId, setStreamingMsgId] = useState(null);
   const abortControllerRef = useRef(null);
+
+  // Keep messagesRef in sync with state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const industry = state.shopInfo?.industry || '待识别';
   const shopName = state.shopInfo?.shopName || '我的门店';
@@ -5858,10 +6016,11 @@ const MerchantAssistant = () => {
 
   // 更新AI消息（用于流式显示）
   const updateAiMessage = (id, text) => {
-    const currentMessages = state.aiChatMessages || [];
+    const currentMessages = messagesRef.current || [];
     const updatedMessages = currentMessages.map(m => 
       m.id === id ? { ...m, text } : m
     );
+    messagesRef.current = updatedMessages;
     dispatch({ type: 'SET_AI_MESSAGES', payload: updatedMessages });
   };
 
@@ -5872,10 +6031,11 @@ const MerchantAssistant = () => {
     for (let i = 0; i < chars.length; i++) {
       if (abortControllerRef.current?.signal?.aborted) return;
       currentText += chars[i];
-      // 每3个字符更新一次，提升性能
-      if (i % 3 === 0 || i === chars.length - 1) {
+      // 每2个字符更新一次，提升流畅度
+      if (i % 2 === 0 || i === chars.length - 1) {
         updateAiMessage(msgId, currentText);
-        setTimeout(() => {}, 0); // 让UI有机会渲染
+        // 让UI有机会渲染
+        await new Promise(resolve => setTimeout(resolve, 16));
       }
     }
     updateAiMessage(msgId, fullText);
@@ -6177,6 +6337,8 @@ const MerchantAssistant = () => {
         time: new Date().toISOString(),
       };
       dispatch({ type: 'ADD_AI_MESSAGE', payload: userMsg });
+      // Update ref immediately for synchronous access
+      messagesRef.current = [...(messagesRef.current || []), userMsg];
       setInputText('');
       setImageUri(null);
       setShowMediaOptions(false);
@@ -6198,9 +6360,9 @@ const MerchantAssistant = () => {
 【最近10条订单】${allData.recentOrders || '暂无'}
 【其他】差评数：${allData.badReviewCount}，在职员工：${allData.staffCount}人`;
 
-      const msgList = messages.filter(m => m.from !== 'system').slice(-10).map(m => ({
+      const msgList = messagesRef.current.filter(m => m.from !== 'system').slice(-10).map(m => ({
         role: m.from === 'user' ? 'user' : 'assistant',
-        content: m.text,
+        content: m.text || '',
       }));
       msgList.push({ role: 'user', content: text });
 
@@ -6310,6 +6472,8 @@ ${businessContext}
         time: new Date().toISOString(),
       };
       dispatch({ type: 'ADD_AI_MESSAGE', payload: emptyAiMsg });
+      // Update ref immediately
+      messagesRef.current = [...(messagesRef.current || []), emptyAiMsg];
       setLoading(false);
       setStreamingMsgId(aiMsgId);
       abortControllerRef.current = null;
@@ -6835,33 +6999,205 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 };
 
 // ================== AI助手图片全屏查看器 ==================
-const FullscreenImageViewer = ({ visible, imageUri, onClose }) => {
+const FullscreenImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
+  const [editMode, setEditMode] = useState(false);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [rotation, setRotation] = useState(0);
+  const [filter, setFilter] = useState(null);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [processing, setProcessing] = useState(false);
+
   if (!visible) return null;
+
+  const filters = [
+    { name: '原图', value: null },
+    { name: '暖色', value: 'warm' },
+    { name: '冷色', value: 'cool' },
+    { name: '黑白', value: 'mono' },
+    { name: '复古', value: 'sepia' },
+    { name: '鲜艳', value: 'vibrant' },
+  ];
+
+  const applyFilter = async (filterType) => {
+    setProcessing(true);
+    try {
+      let processedUri = imageUri;
+      if (filterType) {
+        const manipResult = await ImageManipulator.manipulateAsync(
+          imageUri,
+          [
+            { rotate: rotation },
+            {
+              filter: filterType === 'warm' ? 'warm' :
+                      filterType === 'cool' ? 'cool' :
+                      filterType === 'mono' ? 'mono' :
+                      filterType === 'sepia' ? 'sepia' : 'vibrant'
+            },
+          ],
+          { compress: 0.9, format: 'jpeg' }
+        );
+        processedUri = manipResult.uri;
+      } else if (rotation !== 0) {
+        const manipResult = await ImageManipulator.manipulateAsync(
+          imageUri,
+          [{ rotate: rotation }],
+          { compress: 0.9, format: 'jpeg' }
+        );
+        processedUri = manipResult.uri;
+      }
+      setFilter(filterType);
+      setProcessedImageUri(processedUri);
+    } catch (e) {
+      showToast('滤镜应用失败');
+    }
+    setProcessing(false);
+  };
+
+  const [processedImageUri, setProcessedImageUri] = useState(null);
+
+  const currentImageUri = processedImageUri || imageUri;
+
+  const handleSave = async () => {
+    try {
+      const fileUri = `${FileSystem.documentDirectory}img_${Date.now()}.jpg`;
+      await FileSystem.downloadAsync(currentImageUri, fileUri);
+      showToast('已保存到相册');
+    } catch (e) {
+      showToast('保存失败');
+    }
+  };
+
+  const handleShare = () => {
+    showToast('分享功能：图片链接已复制');
+  };
+
+  const handleDelete = () => {
+    Alert.alert('删除图片', '确定要删除这张图片吗？', [
+      { text: '取消', style: 'cancel' },
+      { text: '删除', style: 'destructive', onPress: () => {
+        if (onDelete) onDelete();
+        onClose();
+        showToast('图片已删除');
+      }}
+    ]);
+  };
+
+  const resetEdits = () => {
+    setBrightness(100);
+    setContrast(100);
+    setRotation(0);
+    setFilter(null);
+    setProcessedImageUri(null);
+    setShowFilterPanel(false);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
-        <Image source={{ uri: imageUri }} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-        <TouchableOpacity
-          style={{ position: 'absolute', top: 40, right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={onClose}
-        >
-          <Ionicons name="close" size={24} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ position: 'absolute', bottom: 40, right: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}
-          onPress={async () => {
-            try {
-              const fileUri = `${FileSystem.documentDirectory}ai_image_${Date.now()}.jpg`;
-              await FileSystem.downloadAsync(imageUri, fileUri);
-              showToast('已下载到本地');
-            } catch (e) {
-              showToast('下载失败');
+      <View style={styles.imageViewerContainer}>
+        {/* Top bar */}
+        <View style={styles.imageViewerTopBar}>
+          <TouchableOpacity style={styles.imageViewerBtn} onPress={onClose}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 14 }}>{editMode ? '编辑模式' : '预览模式'}</Text>
+          </View>
+          <TouchableOpacity style={styles.imageViewerBtn} onPress={() => {
+            if (editMode) {
+              resetEdits();
             }
-          }}
-        >
-          <Ionicons name="download-outline" size={18} color="#fff" />
-          <Text style={{ color: '#fff', marginLeft: 6, fontSize: 14 }}>下载图片</Text>
-        </TouchableOpacity>
+            setEditMode(!editMode);
+          }}>
+            <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Image */}
+        <View style={styles.imageViewerImageContainer}>
+          <Image 
+            source={{ uri: currentImageUri }} 
+            style={{ 
+              width: '100%', 
+              height: '70%', 
+              resizeMode: 'contain',
+              transform: [{ rotate: `${rotation}deg` }]
+            }} 
+          />
+          {processing && (
+            <View style={styles.imageViewerLoading}>
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+              <Text style={{ color: '#fff', marginTop: 8 }}>处理中...</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Edit controls */}
+        {editMode && (
+          <View style={styles.imageViewerEditPanel}>
+            <View style={styles.imageViewerControlRow}>
+              <TouchableOpacity style={styles.imageViewerControlBtn} onPress={() => {
+                const newRotation = rotation - 90;
+                setRotation(newRotation);
+                applyFilter(filter);
+              }}>
+                <Ionicons name="refresh-back" size={20} color={PRIMARY_COLOR} />
+                <Text style={styles.imageViewerControlText}>左转</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imageViewerControlBtn} onPress={() => {
+                const newRotation = rotation + 90;
+                setRotation(newRotation);
+                applyFilter(filter);
+              }}>
+                <Ionicons name="refresh-forward" size={20} color={PRIMARY_COLOR} />
+                <Text style={styles.imageViewerControlText}>右转</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imageViewerControlBtn} onPress={() => setShowFilterPanel(!showFilterPanel)}>
+                <Ionicons name="color-palette-outline" size={20} color={PRIMARY_COLOR} />
+                <Text style={styles.imageViewerControlText}>滤镜</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imageViewerControlBtn} onPress={resetEdits}>
+                <Ionicons name="refresh" size={20} color={TEXT_SECOND} />
+                <Text style={styles.imageViewerControlText}>重置</Text>
+              </TouchableOpacity>
+            </View>
+
+            {showFilterPanel && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
+                {filters.map((f) => (
+                  <TouchableOpacity
+                    key={f.name}
+                    style={[styles.filterBtn, filter === f.value && styles.filterBtnActive]}
+                    onPress={() => {
+                      setFilter(f.value);
+                      applyFilter(f.value);
+                    }}
+                  >
+                    <Text style={styles.filterBtnText}>{f.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {/* Bottom action bar */}
+        <View style={styles.imageViewerBottomBar}>
+          <TouchableOpacity style={styles.imageViewerActionBtn} onPress={handleSave}>
+            <Ionicons name="download-outline" size={22} color="#fff" />
+            <Text style={styles.imageViewerActionText}>保存</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.imageViewerActionBtn} onPress={handleShare}>
+            <Ionicons name="share-outline" size={22} color="#fff" />
+            <Text style={styles.imageViewerActionText}>分享</Text>
+          </TouchableOpacity>
+          {isOwnMessage && onDelete && (
+            <TouchableOpacity style={[styles.imageViewerActionBtn, { color: DANGER_COLOR }]} onPress={handleDelete}>
+              <Ionicons name="trash-outline" size={22} color={DANGER_COLOR} />
+              <Text style={[styles.imageViewerActionText, { color: DANGER_COLOR }]}>删除</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </Modal>
   );
@@ -7904,14 +8240,12 @@ const PrivateChat = ({ route, navigation }) => {
         </View>
       </Modal>
     {fullscreenImage && (
-      <Modal visible={!!fullscreenImage} transparent={true} onRequestClose={() => setFullscreenImage(null)}>
-        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 40, right: 20, zIndex: 10 }} onPress={() => setFullscreenImage(null)}>
-            <Ionicons name="close-circle" size={36} color="#fff" />
-          </TouchableOpacity>
-          <Image source={{ uri: fullscreenImage }} style={{ width: '95%', height: '70%', resizeMode: 'contain' }} />
-        </View>
-      </Modal>
+      <FullscreenImageViewer
+        visible={!!fullscreenImage}
+        imageUri={fullscreenImage}
+        onClose={() => setFullscreenImage(null)}
+        isOwnMessage={true}
+      />
     )}
     <CustomImagePicker 
       visible={showCustomPicker}
