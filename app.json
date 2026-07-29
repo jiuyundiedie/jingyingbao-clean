@@ -7,21 +7,41 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "icon": "./assets/icon.png"
+      "icon": "./assets/icon.png",
+      "bundleIdentifier": "com.jingyingbao.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "经营宝需要访问相机以进行扫码核销和拍摄商品照片",
+        "NSPhotoLibraryUsageDescription": "经营宝需要访问相册以选择商品图片和聊天图片",
+        "NSMicrophoneUsageDescription": "经营宝需要访问麦克风以进行语音通话和语音识别",
+        "NSSpeechRecognitionUsageDescription": "经营宝需要语音识别权限以提供语音助手功能"
+      }
     },
     "android": {
-      "package": "com.xxx.jingyingbao",
+      "package": "com.jingyingbao.app",
       "versionCode": 86,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1A5F8B"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "INTERNET",
+        "RECORD_AUDIO",
+        "VIBRATE",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "extra": {
       "eas": {

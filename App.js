@@ -8581,9 +8581,7 @@ const SplashScreenComponent = ({ onComplete }) => {
     <Animated.View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', opacity: containerOpacity }}>
       {/* Logo 动画 */}
       <Animated.View style={{ transform: [{ scale: logoScale }] }}>
-        <View style={{ width: 120, height: 120, borderRadius: 30, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }}>
-          <Text style={{ color: '#fff', fontSize: 48, fontWeight: 'bold' }}>经</Text>
-        </View>
+        <Image source={require('./assets/icon.png')} style={{ width: 120, height: 120, borderRadius: 30, ...SHADOW }} resizeMode="contain" />
       </Animated.View>
       
       {/* 应用名称 */}
@@ -8594,7 +8592,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.36.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.53.0</Text>
       </Animated.View>
     </Animated.View>
   );
