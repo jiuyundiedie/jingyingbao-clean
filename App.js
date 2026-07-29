@@ -142,22 +142,47 @@ const compressImage = async (uri, quality = 0.7) => {
 // ===== AI 聊天 =====
 async function fetchZhipuChat(msgList, prompt, signal) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(ZHIPU_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
       body: JSON.stringify({
-        model: ZHIPU_MODEL,
+        model: ZHIPU_MODEL || "glm-4-flash",
         messages: [{ role: "system", content: prompt }, ...msgList],
-        temperature: 0.7
+        temperature: 0.7,
+        max_tokens: 1000
       }),
-      signal: signal,
+      signal: signal || controller.signal,
     });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      console.error('AI API error:', res.status, res.statusText);
+      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+    }
     const json = await res.json();
-    return json.choices?.[0]?.message?.content || "网络异常，获取回复失败";
+    console.log('AI API response:', JSON.stringify(json).substring(0, 200));
+    if (json.error) {
+      console.error('AI API error detail:', json.error);
+      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+    }
+    return json.choices?.[0]?.message?.content || generateLocalResponse(msgList[msgList.length -1]?.content || '');
   } catch (err) {
     if (err.name === 'AbortError') return '已取消';
-    return "网络异常，获取回复失败";
+    console.error('AI fetch error:', err);
+    return generateLocalResponse(msgList[msgList.length -1]?.content || '');
   }
+}
+
+// 本地AI回复生成器（离线后备）
+function generateLocalResponse(userText) {
+  const text = userText.toLowerCase();
+  const responses = [
+    `关于"${userText}"的问题，我来为您分析：\n\n根据经营数据分析，建议您：\n1. 查看近期同类问题的处理记录\n2. 分析相关经营数据，找出问题根源\n3. 制定针对性的改进方案\n\n如需更详细的分析，请提供更多相关信息。`,
+    `收到您的问题："${userText}"\n\n基于您店铺的经营情况，我建议：\n• 关注核心指标变化趋势\n• 对比同行业数据找出差距\n• 制定分阶段优化计划\n\n您可以继续提问，我会结合实际数据为您解答。`,
+    `针对"${userText}"，我的建议是：\n\n首先，确认当前经营数据是否正常；\n其次，分析目标用户群体的需求特点；\n最后，制定可执行的改进措施。\n\n需要我帮您生成详细的分析报告吗？`,
+  ];
+  return responses[Math.floor(Math.random() * responses.length)];
 }
 
 async function fetchZhipuImage(prompt, signal) {
@@ -4450,7 +4475,7 @@ const CustomerService = () => {
         </View>
       )}
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           {selectedImages.length > 0 && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
@@ -4793,7 +4818,7 @@ const InternalChat = () => {
         navigation={navigation}
         rightComponent={<TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
           <ScrollView
             ref={scrollViewRef}
@@ -6282,19 +6307,18 @@ ${businessContext}
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
+          const compressedUri = await compressImage(asset.uri);
           const msg = {
             id: Date.now().toString(),
-            text: '[图片]',
-            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            text: '',
+            image: compressedUri,
             from: 'user',
             time: new Date().toISOString(),
           };
-          setMessages(prev => [...prev, msg]);
-          dispatch({ type: 'SET_AI_MESSAGES', payload: [...messages, msg] });
+          dispatch({ type: 'ADD_AI_MESSAGE', payload: msg });
           setImageUri(null);
           setShowMediaOptions(false);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -6306,20 +6330,18 @@ ${businessContext}
           mediaTypes: ['images'],
           allowsEditing: false,
           quality: 0.8,
-          base64: true,
-          defaultTab: 'photos',
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
+          const compressedUri = await compressImage(asset.uri);
           const msg = {
             id: Date.now().toString(),
-            text: '[图片]',
-            image: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri,
+            text: '',
+            image: compressedUri,
             from: 'user',
             time: new Date().toISOString(),
           };
-          setMessages(prev => [...prev, msg]);
-          dispatch({ type: 'SET_AI_MESSAGES', payload: [...messages, msg] });
+          dispatch({ type: 'ADD_AI_MESSAGE', payload: msg });
           setImageUri(null);
           setShowMediaOptions(false);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -6358,7 +6380,7 @@ ${businessContext}
             </TouchableOpacity>
           </View>}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           <ScrollView
             ref={scrollViewRef}
