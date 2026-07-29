@@ -4748,7 +4748,6 @@ const InternalChat = () => {
           time: new Date().toISOString(),
           isSelf: true,
         };
-        setMessages(prev => [...prev, newMsg]);
         try {
           dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
         } catch (e) {
@@ -4759,7 +4758,6 @@ const InternalChat = () => {
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error('发送图片失败:', error);
-      // 不再显示失败提示，因为消息已经在界面上显示
     }
   };
 
@@ -4795,7 +4793,6 @@ const InternalChat = () => {
             isSelf: true,
           };
           dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: newMsg } });
-          setMessages(prev => [...prev, newMsg]);
           setImageUri(null);
           setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         }
@@ -5555,53 +5552,51 @@ const VoiceAssistant = () => {
   }, []);
 
   // 语音识别（Web Speech API）
-  const startVoice = () => {
+  const startVoice = async () => {
     try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        showToast('当前环境不支持语音识别');
+      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permissionResult.granted) {
+        showToast('请授权麦克风权限');
         return;
       }
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'zh-CN';
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.onstart = () => {
-        setRecording(true);
-        setRecognizing(true);
-        showToast('正在聆听...请说话');
-      };
-      recognition.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
+      
+      // Remove any existing listeners
+      try {
+        ExpoSpeechRecognitionModule.removeAllListeners();
+      } catch (e) {}
+      
+      const subscription = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        const { segments } = event;
+        if (segments && segments.length > 0) {
+          const text = segments.map(s => s.transcript).join('');
+          if (text) {
+            setInputText(prev => (prev + ' ' + text).trim());
           }
         }
-        if (finalTranscript) {
-          setInputText(prev => prev + finalTranscript);
-        } else if (interimTranscript) {
-          setInputText(interimTranscript);
+      });
+      
+      ExpoSpeechRecognitionModule.addListener('error', (event) => {
+        const error = event.error;
+        setRecording(false);
+        setRecognizing(false);
+        if (error === 'not-allowed') {
+          showToast('请授权麦克风权限');
+        } else if (error === 'no-speech') {
+          showToast('未检测到语音，请重试');
+        } else {
+          console.warn('语音识别错误:', error);
         }
-      };
-      recognition.onerror = (event) => {
-        console.error('语音识别错误:', event.error);
-        if (event.error === 'no-speech') showToast('未检测到语音');
-        else if (event.error === 'not-allowed') showToast('请允许使用麦克风');
-        else showToast('语音识别出错');
+      });
+      
+      ExpoSpeechRecognitionModule.addListener('end', () => {
         setRecording(false);
         setRecognizing(false);
-      };
-      recognition.onend = () => {
-        setRecording(false);
-        setRecognizing(false);
-      };
-      recognitionRef.current = recognition;
-      recognition.start();
+      });
+      
+      setRecording(true);
+      setRecognizing(true);
+      showToast('正在聆听...请说话');
+      await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
     } catch (error) {
       console.error('启动语音识别失败:', error);
       showToast('启动语音识别失败');
@@ -5610,9 +5605,11 @@ const VoiceAssistant = () => {
     }
   };
 
-  const stopVoice = () => {
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
+  const stopVoice = async () => {
+    try {
+      await ExpoSpeechRecognitionModule.stop();
+    } catch (e) {
+      console.warn('停止语音失败:', e);
     }
     setRecording(false);
     setRecognizing(false);
@@ -5621,13 +5618,12 @@ const VoiceAssistant = () => {
   // 语音播报回复
   const speakText = (text) => {
     try {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text.substring(0, 200));
-        utter.lang = 'zh-CN';
-        utter.rate = 1.0;
-        window.speechSynthesis.speak(utter);
-      }
+      Speech.stop();
+      Speech.speak(text, {
+        language: 'zh-CN',
+        rate: 1.0,
+        pitch: 1.0,
+      });
     } catch (error) {
       console.error('语音播报失败:', error);
     }
@@ -5814,6 +5810,7 @@ const MerchantAssistant = () => {
   const [showQuickReply, setShowQuickReply] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [streamingMsgId, setStreamingMsgId] = useState(null);
   const abortControllerRef = useRef(null);
 
   const industry = state.shopInfo?.industry || '待识别';
@@ -5857,6 +5854,32 @@ const MerchantAssistant = () => {
       badReviewCount: state.badReviewCount || 0,
       staffCount: staffList.filter(s => s.status === 'approved').length,
     };
+  };
+
+  // 更新AI消息（用于流式显示）
+  const updateAiMessage = (id, text) => {
+    const currentMessages = state.aiChatMessages || [];
+    const updatedMessages = currentMessages.map(m => 
+      m.id === id ? { ...m, text } : m
+    );
+    dispatch({ type: 'SET_AI_MESSAGES', payload: updatedMessages });
+  };
+
+  // 模拟流式显示AI回复
+  const streamAiResponse = async (msgId, fullText) => {
+    const chars = Array.from(fullText);
+    let currentText = '';
+    for (let i = 0; i < chars.length; i++) {
+      if (abortControllerRef.current?.signal?.aborted) return;
+      currentText += chars[i];
+      // 每3个字符更新一次，提升性能
+      if (i % 3 === 0 || i === chars.length - 1) {
+        updateAiMessage(msgId, currentText);
+        setTimeout(() => {}, 0); // 让UI有机会渲染
+      }
+    }
+    updateAiMessage(msgId, fullText);
+    setStreamingMsgId(null);
   };
 
   const getQuickReplies = () => {
@@ -6278,16 +6301,22 @@ ${businessContext}
         abortControllerRef.current = null;
         return;
       }
-      const aiMsg = {
-        id: (Date.now()+1).toString(),
-        text: reply,
+      // 使用流式效果显示AI回复
+      const aiMsgId = (Date.now()+1).toString();
+      const emptyAiMsg = {
+        id: aiMsgId,
+        text: '',
         from: 'ai',
         time: new Date().toISOString(),
       };
-      dispatch({ type: 'ADD_AI_MESSAGE', payload: aiMsg });
+      dispatch({ type: 'ADD_AI_MESSAGE', payload: emptyAiMsg });
       setLoading(false);
+      setStreamingMsgId(aiMsgId);
       abortControllerRef.current = null;
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      // 立即滚动到底部
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+      // 开始流式显示
+      streamAiResponse(aiMsgId, reply);
     } catch (error) {
       if (error.name === 'AbortError') {}
       else { showToast('发送失败'); }
@@ -6402,12 +6431,25 @@ ${businessContext}
                     </TouchableOpacity>
                   </>
                 ) : (
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>
+                    {msg.text}
+                    {streamingMsgId === msg.id && (
+                      <Text style={{ color: PRIMARY_COLOR, fontWeight: 'bold' }}>
+                        {new Date().getSeconds() % 2 === 0 ? '▋' : '▌'}
+                      </Text>
+                    )}
+                  </Text>
                 )}
                 <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
               </View>
             ))}
-            {loading && <View style={[styles.bubbleLeft, { padding: 12 }]}><ActivityIndicator size="small" color={PRIMARY_COLOR} /></View>}
+            {loading && <View style={[styles.bubbleLeft, { padding: 12, flexDirection: 'row', alignItems: 'center' }]}>
+              <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 13, color: TEXT_SECOND, marginLeft: 8 }}>AI正在思考...</Text>
+              <Text style={{ fontSize: 13, color: TEXT_SECOND }}>
+                {new Date().getSeconds() % 2 === 0 ? '▋' : '▌'}
+              </Text>
+            </View>}
           </ScrollView>
         </View>
         
@@ -6563,22 +6605,16 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 
   const startVoice = async () => {
     try {
-      // 请求麦克风权限
       const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!permissionResult.granted) {
         showToast('请授权麦克风权限');
         return;
       }
 
-      // 添加事件监听器
-      ExpoSpeechRecognitionModule.addListener('start', () => {
-        setRecording(true);
-        showToast('正在聆听...请说话');
-      });
-
-      ExpoSpeechRecognitionModule.addListener('end', () => {
-        setRecording(false);
-      });
+      // Remove existing listeners first
+      try {
+        ExpoSpeechRecognitionModule.removeAllListeners();
+      } catch (e) {}
 
       ExpoSpeechRecognitionModule.addListener('result', (event) => {
         const { segments } = event;
@@ -6598,13 +6634,20 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
         } else if (error === 'no-speech') {
           showToast('未检测到语音，请重试');
         } else {
-          showToast('语音识别错误：' + error);
+          console.warn('语音识别错误:', error);
         }
       });
 
+      ExpoSpeechRecognitionModule.addListener('end', () => {
+        setRecording(false);
+      });
+
+      setRecording(true);
+      showToast('正在聆听...请说话');
       await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
     } catch (e) {
-      showToast('启动语音失败: ' + (e?.message || e));
+      console.error('启动语音失败:', e);
+      showToast('启动语音失败');
       setRecording(false);
     }
   };
