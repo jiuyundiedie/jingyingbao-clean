@@ -95,6 +95,7 @@ const DOUBAO_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 // 4. 智谱AI（备用）
 const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+const ZHIPU_MODEL = "glm-4-flash";
 
 // 5. 百度AI（备用）
 const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
@@ -1309,8 +1310,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG_PAGE },
   chatScroll: { flex: 1, paddingHorizontal: 12 },
   chatRow: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 8 },
-  bubbleLeft: { backgroundColor: BG_CARD, padding: 14, borderRadius: 18, maxWidth: '78%', ...SHADOW },
-  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 14, borderRadius: 18, maxWidth: '78%', ...SHADOW },
+  bubbleLeft: { backgroundColor: BG_CARD, padding: 14, borderRadius: 18, maxWidth: '78%', alignSelf: 'flex-start', ...SHADOW },
+  bubbleRight: { backgroundColor: LIGHT_PRIMARY, padding: 14, borderRadius: 18, maxWidth: '78%', alignSelf: 'flex-end', ...SHADOW },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4449,7 +4450,7 @@ const CustomerService = () => {
         </View>
       )}
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           {selectedImages.length > 0 && (
             <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
@@ -4792,7 +4793,7 @@ const InternalChat = () => {
         navigation={navigation}
         rightComponent={<TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
           <ScrollView
             ref={scrollViewRef}
@@ -6357,7 +6358,7 @@ ${businessContext}
             </TouchableOpacity>
           </View>}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 50}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : null}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           <ScrollView
             ref={scrollViewRef}
@@ -6418,37 +6419,44 @@ ${businessContext}
         )}
         
         {showQuickReply && (
-          <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: BG_CARD, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            {/* 营销快捷按钮 */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
-              {[
-                { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
-                { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
-                { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-                { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
-              ].map(item => (
-                <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => handleMarketing(item.label)}>
-                  <Ionicons name={item.icon} size={14} color={item.color} />
-                  <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {/* 分类快捷话术 */}
-            {Object.entries(quickReplies).map(([category, texts]) => (
-              <View key={category} style={{ marginBottom: 6 }}>
-                <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{category}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  {texts.map((text, idx) => (
-                    <TouchableOpacity key={idx} style={{ marginRight: 6, marginBottom: 3, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: LIGHT_PRIMARY }} onPress={() => setInputText(text)}>
-                      <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{text}</Text>
-                    </TouchableOpacity>
+          <Modal visible={showQuickReply} transparent={true} animationType="fade" onRequestClose={() => setShowQuickReply(false)}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' }} onPress={() => setShowQuickReply(false)} activeOpacity={1}>
+              <TouchableOpacity style={{ maxHeight: '66%', backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8 }} activeOpacity={1}>
+                <View style={{ width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 12 }} />
+                <ScrollView style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={true}>
+                  {/* 营销快捷按钮 */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+                    {[
+                      { label: '文案', icon: 'document-text-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                      { label: '海报', icon: 'image-outline', color: '#FF8C00', bg: '#FFE4B5' },
+                      { label: '广告语', icon: 'mic-outline', color: '#FF8C00', bg: '#FFE4B5' },
+                      { label: '日报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                      { label: '周报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                      { label: '月报', icon: 'calendar-outline', color: PRIMARY_COLOR, bg: LIGHT_PRIMARY },
+                    ].map(item => (
+                      <TouchableOpacity key={item.label} style={{ marginRight: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: item.bg, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => { handleMarketing(item.label); setShowQuickReply(false); }}>
+                        <Ionicons name={item.icon} size={14} color={item.color} />
+                        <Text style={{ fontSize: 13, color: item.color }}>{item.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {/* 分类快捷话术 */}
+                  {Object.entries(quickReplies).map(([category, texts]) => (
+                    <View key={category} style={{ marginBottom: 6 }}>
+                      <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{category}</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                        {texts.map((text, idx) => (
+                          <TouchableOpacity key={idx} style={{ marginRight: 6, marginBottom: 3, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: LIGHT_PRIMARY }} onPress={async () => { setInputText(text); setShowQuickReply(false); setTimeout(() => { sendMessage('text'); }, 100); }}>
+                            <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{text}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
                   ))}
-                </View>
-              </View>
-            ))}
-          </View>
+                </ScrollView>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
         )}
         
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
