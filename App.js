@@ -139,11 +139,10 @@ const compressImage = async (uri, quality = 0.7) => {
   }
 };
 
-// ===== AI 聊天 =====
-async function fetchZhipuChat(msgList, prompt, signal) {
+// ===== AI 对话（多API自动切换）=====
+async function chatWithZhipu(msgList, prompt, signal) {
+  if (!ZHIPU_API_KEY) return null;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(ZHIPU_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
@@ -153,30 +152,119 @@ async function fetchZhipuChat(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: signal || controller.signal,
+      signal: signal,
     });
-    clearTimeout(timeoutId);
-    if (!res.ok) {
-      console.error('AI API error:', res.status, res.statusText);
-      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
-    }
+    if (!res.ok) { console.error('[Zhipu] API error:', res.status); return null; }
     const json = await res.json();
-    console.log('AI API response:', JSON.stringify(json).substring(0, 200));
-    if (json.error) {
-      console.error('AI API error detail:', json.error);
-      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
-    }
-    return json.choices?.[0]?.message?.content || generateLocalResponse(msgList[msgList.length -1]?.content || '');
+    if (json.error) { console.error('[Zhipu] error:', json.error); return null; }
+    return json.choices?.[0]?.message?.content || null;
   } catch (err) {
-    if (err.name === 'AbortError') return '已取消';
-    console.error('AI fetch error:', err);
-    return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[Zhipu] error:', err.message);
+    return null;
   }
 }
 
-// 本地AI回复生成器（离线后备）
+async function chatWithAlibaba(msgList, prompt, signal) {
+  if (!ALIBABA_API_KEY) return null;
+  try {
+    const res = await fetch(ALIBABA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ALIBABA_API_KEY}` },
+      body: JSON.stringify({
+        model: "qwen-plus",
+        messages: [{ role: "system", content: prompt }, ...msgList],
+        temperature: 0.7,
+        max_tokens: 1000
+      }),
+      signal: signal,
+    });
+    if (!res.ok) { console.error('[Alibaba] API error:', res.status); return null; }
+    const json = await res.json();
+    if (json.error) { console.error('[Alibaba] error:', json.error); return null; }
+    return json.choices?.[0]?.message?.content || null;
+  } catch (err) {
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[Alibaba] error:', err.message);
+    return null;
+  }
+}
+
+async function chatWithSiliconFlow(msgList, prompt, signal) {
+  if (!SILICONFLOW_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SILICONFLOW_API_KEY}` },
+      body: JSON.stringify({
+        model: 'Qwen/Qwen2.5-7B-Instruct',
+        messages: [{ role: "system", content: prompt }, ...msgList],
+        temperature: 0.7,
+        max_tokens: 1000
+      }),
+      signal: signal,
+    });
+    if (!res.ok) { console.error('[SiliconFlow] API error:', res.status); return null; }
+    const json = await res.json();
+    if (json.error) { console.error('[SiliconFlow] error:', json.error); return null; }
+    return json.choices?.[0]?.message?.content || null;
+  } catch (err) {
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[SiliconFlow] error:', err.message);
+    return null;
+  }
+}
+
+async function chatWithDoubao(msgList, prompt, signal) {
+  if (!DOUBAO_API_KEY) return null;
+  try {
+    const res = await fetch(DOUBAO_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${DOUBAO_API_KEY}` },
+      body: JSON.stringify({
+        model: 'doubao-pro-32k',
+        messages: [{ role: "system", content: prompt }, ...msgList],
+        temperature: 0.7,
+        max_tokens: 1000
+      }),
+      signal: signal,
+    });
+    if (!res.ok) { console.error('[Doubao] API error:', res.status); return null; }
+    const json = await res.json();
+    if (json.error) { console.error('[Doubao] error:', json.error); return null; }
+    return json.choices?.[0]?.message?.content || null;
+  } catch (err) {
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[Doubao] error:', err.message);
+    return null;
+  }
+}
+
+// 统一对话入口：多API自动切换，所有API失败返回明确错误标记
+async function fetchZhipuChat(msgList, prompt, signal) {
+  if (signal?.aborted) return '已取消';
+  const apis = [
+    { name: 'ZhipuAI', fn: () => chatWithZhipu(msgList, prompt, signal) },
+    { name: '阿里云百炼', fn: () => chatWithAlibaba(msgList, prompt, signal) },
+    { name: '硅基流动', fn: () => chatWithSiliconFlow(msgList, prompt, signal) },
+    { name: '豆包AI', fn: () => chatWithDoubao(msgList, prompt, signal) },
+  ];
+  for (const api of apis) {
+    if (signal?.aborted) return '已取消';
+    const result = await api.fn();
+    if (result === 'ABORTED') return '已取消';
+    if (result && result.trim()) {
+      console.log(`[AI对话] ${api.name} 成功`);
+      return result;
+    }
+    console.log(`[AI对话] ${api.name} 失败，尝试下一个`);
+  }
+  console.error('[AI对话] 所有API均不可用');
+  return '__AI_SERVICE_UNAVAILABLE__';
+}
+
+// 本地AI回复生成器（仅用于离线调试，不再作为默认降级）
 function generateLocalResponse(userText) {
-  const text = userText.toLowerCase();
   const responses = [
     `关于"${userText}"的问题，我来为您分析：\n\n根据经营数据分析，建议您：\n1. 查看近期同类问题的处理记录\n2. 分析相关经营数据，找出问题根源\n3. 制定针对性的改进方案\n\n如需更详细的分析，请提供更多相关信息。`,
     `收到您的问题："${userText}"\n\n基于您店铺的经营情况，我建议：\n• 关注核心指标变化趋势\n• 对比同行业数据找出差距\n• 制定分阶段优化计划\n\n您可以继续提问，我会结合实际数据为您解答。`,
@@ -185,7 +273,9 @@ function generateLocalResponse(userText) {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
-async function fetchZhipuImage(prompt, signal) {
+// ===== AI 图片生成（多API自动切换）=====
+async function genImageWithZhipu(prompt, signal) {
+  if (!ZHIPU_API_KEY) return null;
   try {
     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
       method: "POST",
@@ -198,11 +288,9 @@ async function fetchZhipuImage(prompt, signal) {
       }),
       signal: signal,
     });
+    if (!res.ok) { console.error('[ZhipuImg] error:', res.status); return null; }
     const json = await res.json();
-    if (!res.ok) {
-      console.error('Image generation failed:', json);
-      return null;
-    }
+    if (json.error) { console.error('[ZhipuImg] error:', json.error); return null; }
     const imageData = json.data?.[0];
     if (imageData?.b64_json) {
       return `data:image/png;base64,${imageData.b64_json}`;
@@ -212,17 +300,71 @@ async function fetchZhipuImage(prompt, signal) {
         const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
         const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
         return `data:image/png;base64,${base64}`;
-      } catch (e) {
-        console.error('Failed to fetch image URL:', e);
-        return null;
-      }
+      } catch (e) { console.error('[ZhipuImg] download fail:', e); return null; }
     }
     return null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'aborted';
-    console.error('Image generation error:', err);
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[ZhipuImg] error:', err.message);
     return null;
   }
+}
+
+async function genImageWithSiliconFlow(prompt, signal) {
+  if (!SILICONFLOW_API_KEY) return null;
+  try {
+    const res = await fetch('https://api.siliconflow.cn/v1/images/generations', {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SILICONFLOW_API_KEY}` },
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3',
+        prompt: prompt,
+        image_size: "1024x1024",
+        num_images: 1
+      }),
+      signal: signal,
+    });
+    if (!res.ok) { console.error('[SiliconImg] error:', res.status); return null; }
+    const json = await res.json();
+    if (json.error) { console.error('[SiliconImg] error:', json.error); return null; }
+    const imageData = json.data?.[0];
+    if (imageData?.b64_json) {
+      return `data:image/png;base64,${imageData.b64_json}`;
+    } else if (imageData?.url) {
+      try {
+        const fileName = `temp_img_${Date.now()}.png`;
+        const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
+        const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
+        return `data:image/png;base64,${base64}`;
+      } catch (e) { console.error('[SiliconImg] download fail:', e); return null; }
+    }
+    return null;
+  } catch (err) {
+    if (err.name === 'AbortError') return 'ABORTED';
+    console.error('[SiliconImg] error:', err.message);
+    return null;
+  }
+}
+
+// 统一图片生成入口：多API自动切换
+async function fetchZhipuImage(prompt, signal) {
+  if (signal?.aborted) return null;
+  const apis = [
+    { name: 'ZhipuAI(cogView)', fn: () => genImageWithZhipu(prompt, signal) },
+    { name: '硅基流动', fn: () => genImageWithSiliconFlow(prompt, signal) },
+  ];
+  for (const api of apis) {
+    if (signal?.aborted) return null;
+    const result = await api.fn();
+    if (result === 'ABORTED') return null;
+    if (result) {
+      console.log(`[图片生成] ${api.name} 成功`);
+      return result;
+    }
+    console.log(`[图片生成] ${api.name} 失败，尝试下一个`);
+  }
+  console.error('[图片生成] 所有API均不可用');
+  return null;
 }
 
 async function fetchZhipuVision(imageUri, prompt, signal) {
@@ -2670,6 +2812,7 @@ const ProductOverview = () => {
       setLoadingPlatform(platform);
       const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
     } catch (error) {
@@ -2685,6 +2828,7 @@ const ProductOverview = () => {
       setLoadingPlatform('all');
       const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
     } catch (error) {
@@ -3451,6 +3595,7 @@ const StockManage = () => {
       setLoadingPlatform(platform);
       const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
     } catch (error) {
@@ -5855,6 +6000,14 @@ ${businessContext}
         abortControllerRef.current = null;
         return;
       }
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
+        setLoading(false);
+        abortControllerRef.current = null;
+        showToast('AI服务暂时不可用，请检查网络或稍后重试');
+        const errMsg = { id: (Date.now()+1).toString(), text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。', from: 'ai', time: new Date().toISOString() };
+        setMessages(prev => [...prev, errMsg]);
+        return;
+      }
       const aiMsg = {
         id: (Date.now()+1).toString(),
         text: reply,
@@ -5862,7 +6015,6 @@ ${businessContext}
         time: new Date().toISOString(),
       };
       setMessages(prev => [...prev, aiMsg]);
-      // 自动语音播报
       speakText(reply);
       setLoading(false);
       abortControllerRef.current = null;
@@ -6213,6 +6365,11 @@ const MerchantAssistant = () => {
         const abortController = new AbortController();
         fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
           .then(async result => {
+            if (result === '__AI_SERVICE_UNAVAILABLE__') {
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n⚠️ AI服务当前不可用，部分功能可能受限。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+              return;
+            }
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
@@ -6493,6 +6650,21 @@ ${businessContext}
       if (abortControllerRef.current?.signal.aborted) {
         setLoading(false);
         abortControllerRef.current = null;
+        return;
+      }
+      // 检查AI服务是否全部不可用
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
+        setLoading(false);
+        abortControllerRef.current = null;
+        showToast('AI服务暂时不可用，请稍后重试或检查网络');
+        const errorMsg = {
+          id: Date.now().toString(),
+          text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。',
+          from: 'ai',
+          time: new Date().toISOString(),
+        };
+        dispatch({ type: 'ADD_AI_MESSAGE', payload: errorMsg });
+        messagesRef.current = [...(messagesRef.current || []), errorMsg];
         return;
       }
       // 使用流式效果显示AI回复
@@ -6929,6 +7101,13 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
       const systemPrompt = `你是「${shopName}」${industry}店铺的专属智能助手，服务商家${userName}。店铺实时数据：${businessContext}。回答要简洁直接、基于真实数据、用"您"称呼商家。`;
       const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
       if (abortControllerRef.current?.signal.aborted) { setLoading(false); return; }
+      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
+        setLoading(false);
+        showToast('AI服务暂时不可用，请检查网络或稍后重试');
+        const errMsg = { id: (Date.now()+1).toString(), text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。', from: 'ai', time: new Date().toISOString() };
+        setMessages(prev => [...prev, errMsg]);
+        return;
+      }
       const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
       speakText(reply);
@@ -8623,7 +8802,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.1</Text>
       </Animated.View>
     </Animated.View>
   );
