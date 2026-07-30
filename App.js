@@ -141,7 +141,7 @@ const compressImage = async (uri, quality = 0.7) => {
 
 // ===== 带超时的fetch辅助 =====
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
-  const controller = new Abor​​tController();
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
@@ -156,7 +156,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
 // ===== AI 对话（多API自动切换，每个API独立15秒超时）=====
 async function chatWithZhipu(msgList, prompt, signal) {
   if (!ZHIPU_API_KEY) return null;
-  const controller = new Abor​​tController();
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   const effectiveSignal = signal || controller.signal;
   try {
@@ -190,7 +190,7 @@ async function chatWithZhipu(msgList, prompt, signal) {
 
 async function chatWithAlibaba(msgList, prompt, signal) {
   if (!ALIBABA_API_KEY) return null;
-  const controller = new abor​​tController();
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   const effectiveSignal = signal || controller.signal;
   try {
@@ -223,7 +223,7 @@ async function chatWithAlibaba(msgList, prompt, signal) {
 
 async function chatWithSiliconFlow(msgList, prompt, signal) {
   if (!SILICONFLOW_API_KEY) return null;
-  const controller = new abor​​tController();
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   const effectiveSignal = signal || controller.signal;
   try {
@@ -256,7 +256,7 @@ async function chatWithSiliconFlow(msgList, prompt, signal) {
 
 async function chatWithDoubao(msgList, prompt, signal) {
   if (!DOUBAO_API_KEY) return null;
-  const controller = new abor​​tController();
+  const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   const effectiveSignal = signal || controller.signal;
   try {
@@ -5771,7 +5771,7 @@ const VoiceAssistant = () => {
   const [recording, setRecording] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const scrollViewRef = useRef(null);
-  const abortControllerRef = useRef(null);
+  const AbortControllerRef = useRef(null);
   const recognitionRef = useRef(null);
 
   const industry = state.shopInfo?.industry || '待识别';
@@ -5827,9 +5827,9 @@ const VoiceAssistant = () => {
   // 组件卸载时清理资源
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        try { abortControllerRef.current.abort(); } catch (e) {}
-        abortControllerRef.current = null;
+      if (AbortControllerRef.current) {
+        try { AbortControllerRef.current.abort(); } catch (e) {}
+        AbortControllerRef.current = null;
       }
       try { Speech.stop(); } catch (e) {}
       try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
@@ -5925,7 +5925,7 @@ const VoiceAssistant = () => {
     };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
-    abortControllerRef.current = new AbortController();
+    AbortControllerRef.current = new AbortController();
     setLoading(true);
 
     try {
@@ -5960,10 +5960,10 @@ ${businessContext}
 - 用"您"称呼商家
 - 重点突出，不啰嗦`;
 
-      const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
-      if (abortControllerRef.current?.signal.aborted) {
+      const reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
+      if (AbortControllerRef.current?.signal.aborted) {
         setLoading(false);
-        abortControllerRef.current = null;
+        AbortControllerRef.current = null;
         return;
       }
 
@@ -5976,20 +5976,20 @@ ${businessContext}
       setMessages(prev => [...prev, aiMsg]);
       speakText(reply);
       setLoading(false);
-      abortControllerRef.current = null;
+      AbortControllerRef.current = null;
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       if (error.name === 'AbortError') {}
       else { showToast('发送失败'); }
       setLoading(false);
-      abortControllerRef.current = null;
+      AbortControllerRef.current = null;
     }
   };
 
   const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (AbortControllerRef.current) {
+      AbortControllerRef.current.abort();
+      AbortControllerRef.current = null;
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     setLoading(false);
@@ -6097,7 +6097,7 @@ const MerchantAssistant = () => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [downloading, setDownloading] = useState(false);
   const [streamingMsgId, setStreamingMsgId] = useState(null);
-  const abortControllerRef = useRef(null);
+  const AbortControllerRef = useRef(null);
 
   // Keep messagesRef in sync with state
   useEffect(() => {
@@ -6107,9 +6107,9 @@ const MerchantAssistant = () => {
   // 组件卸载时中止AI请求,防止内存泄漏和状态更新到已卸载组件
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        try { abortControllerRef.current.abort(); } catch (e) {}
-        abortControllerRef.current = null;
+      if (AbortControllerRef.current) {
+        try { AbortControllerRef.current.abort(); } catch (e) {}
+        AbortControllerRef.current = null;
       }
     };
   }, []);
@@ -6172,7 +6172,7 @@ const MerchantAssistant = () => {
     const chars = Array.from(fullText);
     let currentText = '';
     for (let i = 0; i < chars.length; i++) {
-      if (abortControllerRef.current?.signal?.aborted) return;
+      if (AbortControllerRef.current?.signal?.aborted) return;
       currentText += chars[i];
       // 每2个字符更新一次，提升流畅度
       if (i % 2 === 0 || i === chars.length - 1) {
@@ -6321,8 +6321,8 @@ const MerchantAssistant = () => {
           } catch (e) {}
         }
         // 首次登录时识别类型
-        const abortController = new AbortController();
-        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
+        const AbortController = new AbortController();
+        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, AbortController.signal)
           .then(async result => {
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
@@ -6438,9 +6438,9 @@ const MerchantAssistant = () => {
   };
 
   const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (AbortControllerRef.current) {
+      AbortControllerRef.current.abort();
+      AbortControllerRef.current = null;
       setLoading(false);
       showToast('已停止生成');
     }
@@ -6491,7 +6491,7 @@ const MerchantAssistant = () => {
         return;
       }
 
-      abortControllerRef.current = new AbortController();
+      AbortControllerRef.current = new AbortController();
       setLoading(true);
 
       // 收集所有真实数据
@@ -6552,8 +6552,8 @@ ${styleDesc}
 - 电商平台主图（美团、大众点评、抖音商城）
 
 请生成一张具有强烈视觉吸引力、专业级别的商业图片，让观众一眼就被吸引！`;
-          const imageResult = await fetchZhipuImage(fullPrompt, abortControllerRef.current.signal);
-          if (!abortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
+          const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
+          if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
               id: (Date.now()+1).toString(),
               text: '🎨 已为您生成图片，结合了' + industry + '行业当前流行的爆款设计风格：',
@@ -6563,7 +6563,7 @@ ${styleDesc}
             };
             dispatch({ type: 'ADD_AI_MESSAGE', payload: aiMsg });
             setLoading(false);
-            abortControllerRef.current = null;
+            AbortControllerRef.current = null;
             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
             return;
           } else {
@@ -6572,7 +6572,7 @@ ${styleDesc}
         } catch (e) {
           if (e.name === 'AbortError') {
             setLoading(false);
-            abortControllerRef.current = null;
+            AbortControllerRef.current = null;
             return;
           }
           reply = '图片生成失败，请稍后重试';
@@ -6599,11 +6599,11 @@ ${businessContext}
 - 用"您"称呼商家
 - 重点突出，分段清晰
 - 必要时用数字和百分比说话`;
-        reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
+        reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
       }
-      if (abortControllerRef.current?.signal.aborted) {
+      if (AbortControllerRef.current?.signal.aborted) {
         setLoading(false);
-        abortControllerRef.current = null;
+        AbortControllerRef.current = null;
         return;
       }
       // 使用流式效果显示AI回复
@@ -6619,7 +6619,7 @@ ${businessContext}
       messagesRef.current = [...(messagesRef.current || []), emptyAiMsg];
       setLoading(false);
       setStreamingMsgId(aiMsgId);
-      abortControllerRef.current = null;
+      AbortControllerRef.current = null;
       // 立即滚动到底部
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
       // 开始流式显示
@@ -6628,7 +6628,7 @@ ${businessContext}
       if (error.name === 'AbortError') {}
       else { showToast('发送失败'); }
       setLoading(false);
-      abortControllerRef.current = null;
+      AbortControllerRef.current = null;
     }
   };
 
@@ -6871,7 +6871,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
   const [voiceMode, setVoiceMode] = useState(true);
   const [speaking, setSpeaking] = useState(false);
   const scrollViewRef = useRef(null);
-  const abortControllerRef = useRef(null);
+  const AbortControllerRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechTimerRef = useRef(null);
 
@@ -6913,9 +6913,9 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
   // 组件卸载时清理资源,防止内存泄漏和音频继续播放
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        try { abortControllerRef.current.abort(); } catch (e) {}
-        abortControllerRef.current = null;
+      if (AbortControllerRef.current) {
+        try { AbortControllerRef.current.abort(); } catch (e) {}
+        AbortControllerRef.current = null;
       }
       if (speechTimerRef.current) {
         clearTimeout(speechTimerRef.current);
@@ -7030,7 +7030,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     const userMsg = { id: Date.now().toString(), text, from: 'user', time: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
-    abortControllerRef.current = new AbortController();
+    AbortControllerRef.current = new AbortController();
     setLoading(true);
     try {
       const allData = collectAllBusinessData();
@@ -7038,8 +7038,8 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
       const msgList = messages.slice(-6).map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
       msgList.push({ role: 'user', content: text });
       const systemPrompt = `你是「${shopName}」${industry}店铺的专属智能助手，服务商家${userName}。店铺实时数据：${businessContext}。回答要简洁直接、基于真实数据、用"您"称呼商家。`;
-      const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
-      if (abortControllerRef.current?.signal.aborted) { setLoading(false); return; }
+      const reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
+      if (AbortControllerRef.current?.signal.aborted) { setLoading(false); return; }
 
       const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
@@ -7070,7 +7070,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
             <Text style={{ color: '#fff', fontSize: 11, marginLeft: 4 }}>{voiceMode ? '语音' : '静默'}</Text>
           </TouchableOpacity>
           {loading && (
-            <TouchableOpacity onPress={() => { abortControllerRef.current?.abort(); stopSpeaking(); setLoading(false); }} style={{ paddingHorizontal: 8, paddingVertical: 6, marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => { AbortControllerRef.current?.abort(); stopSpeaking(); setLoading(false); }} style={{ paddingHorizontal: 8, paddingVertical: 6, marginLeft: 4 }}>
               <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>⏹</Text>
             </TouchableOpacity>
           )}
