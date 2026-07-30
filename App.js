@@ -7,7 +7,7 @@ import {
   AppState
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer, useNavigation, createNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -240,7 +240,7 @@ async function chatWithDoubao(msgList, prompt, signal) {
   }
 }
 
-// 统一对话入口：多API自动切换，所有API失败返回明确错误标记
+// 统一对话入口：多API自动切换，所有API失败时降级为离线模式
 async function fetchZhipuChat(msgList, prompt, signal) {
   if (signal?.aborted) return '已取消';
   const apis = [
@@ -259,8 +259,10 @@ async function fetchZhipuChat(msgList, prompt, signal) {
     }
     console.log(`[AI对话] ${api.name} 失败，尝试下一个`);
   }
-  console.error('[AI对话] 所有API均不可用');
-  return '__AI_SERVICE_UNAVAILABLE__';
+  // 所有在线API均失败，降级为本地回复
+  console.error('[AI对话] 所有在线API均不可用，降级为本地回复');
+  const userText = msgList[msgList.length - 1]?.content || '您的问题';
+  return generateLocalResponse(userText);
 }
 
 // 本地AI回复生成器（仅用于离线调试，不再作为默认降级）
@@ -2812,7 +2814,7 @@ const ProductOverview = () => {
       setLoadingPlatform(platform);
       const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
+
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
     } catch (error) {
@@ -2828,7 +2830,7 @@ const ProductOverview = () => {
       setLoadingPlatform('all');
       const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
+
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
     } catch (error) {
@@ -3542,7 +3544,7 @@ const StockManage = () => {
       if (total > 0) {
         showToast(`✅ 识别完成，共 ${total} 件`);
       } else {
-        showToast('⚠️ 未识别到物品，请确保照片清晰并包含物品');
+        showToast('⚠️ AI识别服务暂不可用，请手动输入数量或检查网络后重试');
       }
     } catch (e) {
       console.error('[AI计数] 识别异常:', e);
@@ -3595,7 +3597,7 @@ const StockManage = () => {
       setLoadingPlatform(platform);
       const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') { showToast('AI服务暂时不可用，请稍后重试'); return; }
+
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
     } catch (error) {
@@ -4795,22 +4797,24 @@ const InternalChat = () => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
 
-  // Load saved background
-  useEffect(() => {
-    AsyncStorage.getItem('internalChatBg').then(saved => {
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.type === 'color') {
-            setChatBgColor(parsed.value);
-            setChatBgImage(null);
-          } else if (parsed.type === 'image') {
-            setChatBgImage(parsed.value);
-          }
-        } catch (e) {}
-      }
-    });
-  }, []);
+  // Load saved background - use useFocusEffect so it reloads every time page is focused
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('internalChatBg').then(saved => {
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.type === 'color') {
+              setChatBgColor(parsed.value);
+              setChatBgImage(null);
+            } else if (parsed.type === 'image') {
+              setChatBgImage(parsed.value);
+            }
+          } catch (e) {}
+        }
+      });
+    }, [])
+  );
 
   // 组件卸载时清理通话定时器,防止内存泄漏
   useEffect(() => {
@@ -6000,14 +6004,7 @@ ${businessContext}
         abortControllerRef.current = null;
         return;
       }
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
-        setLoading(false);
-        abortControllerRef.current = null;
-        showToast('AI服务暂时不可用，请检查网络或稍后重试');
-        const errMsg = { id: (Date.now()+1).toString(), text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。', from: 'ai', time: new Date().toISOString() };
-        setMessages(prev => [...prev, errMsg]);
-        return;
-      }
+
       const aiMsg = {
         id: (Date.now()+1).toString(),
         text: reply,
@@ -6365,11 +6362,6 @@ const MerchantAssistant = () => {
         const abortController = new AbortController();
         fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, abortController.signal)
           .then(async result => {
-            if (result === '__AI_SERVICE_UNAVAILABLE__') {
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n⚠️ AI服务当前不可用，部分功能可能受限。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-              return;
-            }
             let detectedIndustry = '餐饮类';
             if (result.includes('服务类')) detectedIndustry = '服务类';
             else if (result.includes('企业类')) detectedIndustry = '企业类';
@@ -6650,21 +6642,6 @@ ${businessContext}
       if (abortControllerRef.current?.signal.aborted) {
         setLoading(false);
         abortControllerRef.current = null;
-        return;
-      }
-      // 检查AI服务是否全部不可用
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
-        setLoading(false);
-        abortControllerRef.current = null;
-        showToast('AI服务暂时不可用，请稍后重试或检查网络');
-        const errorMsg = {
-          id: Date.now().toString(),
-          text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。',
-          from: 'ai',
-          time: new Date().toISOString(),
-        };
-        dispatch({ type: 'ADD_AI_MESSAGE', payload: errorMsg });
-        messagesRef.current = [...(messagesRef.current || []), errorMsg];
         return;
       }
       // 使用流式效果显示AI回复
@@ -7101,13 +7078,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
       const systemPrompt = `你是「${shopName}」${industry}店铺的专属智能助手，服务商家${userName}。店铺实时数据：${businessContext}。回答要简洁直接、基于真实数据、用"您"称呼商家。`;
       const reply = await fetchZhipuChat(msgList, systemPrompt, abortControllerRef.current.signal);
       if (abortControllerRef.current?.signal.aborted) { setLoading(false); return; }
-      if (reply === '__AI_SERVICE_UNAVAILABLE__') {
-        setLoading(false);
-        showToast('AI服务暂时不可用，请检查网络或稍后重试');
-        const errMsg = { id: (Date.now()+1).toString(), text: '⚠️ AI服务暂时不可用，所有API均连接失败。请检查网络或稍后再试。', from: 'ai', time: new Date().toISOString() };
-        setMessages(prev => [...prev, errMsg]);
-        return;
-      }
+
       const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
       speakText(reply);
@@ -8802,7 +8773,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.1</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.2</Text>
       </Animated.View>
     </Animated.View>
   );
