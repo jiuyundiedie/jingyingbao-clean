@@ -139,9 +139,26 @@ const compressImage = async (uri, quality = 0.7) => {
   }
 };
 
-// ===== AI 对话（多API自动切换）=====
+// ===== 带超时的fetch辅助 =====
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new Abor​​tController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+};
+
+// ===== AI 对话（多API自动切换，每个API独立15秒超时）=====
 async function chatWithZhipu(msgList, prompt, signal) {
   if (!ZHIPU_API_KEY) return null;
+  const controller = new Abor​​tController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const effectiveSignal = signal || controller.signal;
   try {
     const res = await fetch(ZHIPU_URL, {
       method: "POST",
@@ -152,14 +169,20 @@ async function chatWithZhipu(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: signal,
+      signal: effectiveSignal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) { console.error('[Zhipu] API error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[Zhipu] error:', json.error); return null; }
     return json.choices?.[0]?.message?.content || null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      if (signal?.aborted) return 'ABORTED';
+      console.log('[Zhipu] 请求超时');
+      return null;
+    }
     console.error('[Zhipu] error:', err.message);
     return null;
   }
@@ -167,6 +190,9 @@ async function chatWithZhipu(msgList, prompt, signal) {
 
 async function chatWithAlibaba(msgList, prompt, signal) {
   if (!ALIBABA_API_KEY) return null;
+  const controller = new abor​​tController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const effectiveSignal = signal || controller.signal;
   try {
     const res = await fetch(ALIBABA_URL, {
       method: "POST",
@@ -177,14 +203,19 @@ async function chatWithAlibaba(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: signal,
+      signal: effectiveSignal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) { console.error('[Alibaba] API error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[Alibaba] error:', json.error); return null; }
     return json.choices?.[0]?.message?.content || null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      if (signal?.aborted) return 'ABORTED';
+      return null;
+    }
     console.error('[Alibaba] error:', err.message);
     return null;
   }
@@ -192,6 +223,9 @@ async function chatWithAlibaba(msgList, prompt, signal) {
 
 async function chatWithSiliconFlow(msgList, prompt, signal) {
   if (!SILICONFLOW_API_KEY) return null;
+  const controller = new abor​​tController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const effectiveSignal = signal || controller.signal;
   try {
     const res = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
       method: "POST",
@@ -202,14 +236,19 @@ async function chatWithSiliconFlow(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: signal,
+      signal: effectiveSignal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) { console.error('[SiliconFlow] API error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[SiliconFlow] error:', json.error); return null; }
     return json.choices?.[0]?.message?.content || null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      if (signal?.aborted) return 'ABORTED';
+      return null;
+    }
     console.error('[SiliconFlow] error:', err.message);
     return null;
   }
@@ -217,6 +256,9 @@ async function chatWithSiliconFlow(msgList, prompt, signal) {
 
 async function chatWithDoubao(msgList, prompt, signal) {
   if (!DOUBAO_API_KEY) return null;
+  const controller = new abor​​tController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const effectiveSignal = signal || controller.signal;
   try {
     const res = await fetch(DOUBAO_URL, {
       method: "POST",
@@ -227,14 +269,19 @@ async function chatWithDoubao(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: signal,
+      signal: effectiveSignal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) { console.error('[Doubao] API error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[Doubao] error:', json.error); return null; }
     return json.choices?.[0]?.message?.content || null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      if (signal?.aborted) return 'ABORTED';
+      return null;
+    }
     console.error('[Doubao] error:', err.message);
     return null;
   }
@@ -645,62 +692,41 @@ async function countWithAlibaba(base64, width, height) {
   if (!ALIBABA_API_KEY) return null;
   try {
     console.log('[Alibaba] 开始识别...');
-    // 第一步：计数
-    const res1 = await fetch(ALIBABA_URL, {
+    const res1 = await fetchWithTimeout(ALIBABA_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ALIBABA_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ALIBABA_API_KEY}` },
       body: JSON.stringify({
         model: 'qwen-plus',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_ONLY_PROMPT }
-          ]
-        }],
-        max_tokens: 20,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: COUNT_ONLY_PROMPT }
+        ]}],
+        max_tokens: 20, temperature: 0
       })
-    });
+    }, 15000);
     const json1 = await res1.json();
-    console.log('[Alibaba] 计数响应:', JSON.stringify(json1).substring(0, 300));
     if (json1.error) { console.error('[Alibaba] 计数错误:', json1.error); return null; }
     const text1 = json1.choices?.[0]?.message?.content || '';
-    console.log('[Alibaba] 计数回答:', text1);
     const numMatch = text1.match(/(\d+)/);
     const count = numMatch ? parseInt(numMatch[1]) : 0;
     if (count <= 0) { return null; }
     
-    // 第二步：获取坐标
-    const res2 = await fetch(ALIBABA_URL, {
+    const res2 = await fetchWithTimeout(ALIBABA_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ALIBABA_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ALIBABA_API_KEY}` },
       body: JSON.stringify({
         model: 'qwen-plus',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: GET_COORDS_PROMPT(count) }
-          ]
-        }],
-        max_tokens: 300,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: GET_COORDS_PROMPT(count) }
+        ]}],
+        max_tokens: 300, temperature: 0
       })
-    });
+    }, 15000);
     const json2 = await res2.json();
-    console.log('[Alibaba] 坐标响应:', JSON.stringify(json2).substring(0, 300));
     const text2 = json2.choices?.[0]?.message?.content || '';
-    
     const items = parseCoordsResult(text2, width, height);
     console.log('[Alibaba] 解析到', items.length, '个物品坐标');
-    
     return { count, items };
   } catch (err) {
     console.error('[Alibaba] 失败:', err.message);
@@ -708,70 +734,48 @@ async function countWithAlibaba(base64, width, height) {
   }
 }
 
-// 2. 硅基流动 SiliconFlow API（OpenAI兼容格式）- 使用32B模型
+// 2. 硅基流动 SiliconFlow API - 使用32B模型
 async function countWithSiliconFlow(base64, width, height) {
   if (!SILICONFLOW_API_KEY) return null;
+  const SF_URL = 'https://api.siliconflow.cn/v1/chat/completions';
   try {
     console.log('[SiliconFlow] 开始识别...');
-    // 第一步：使用32B模型计数（更准确）
-    const res1 = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+    const res1 = await fetchWithTimeout(SF_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SILICONFLOW_API_KEY}` },
       body: JSON.stringify({
         model: 'Qwen/Qwen3-VL-32B-Instruct',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_ONLY_PROMPT }
-          ]
-        }],
-        max_tokens: 20,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: COUNT_ONLY_PROMPT }
+        ]}],
+        max_tokens: 20, temperature: 0
       })
-    });
+    }, 20000);
     const json1 = await res1.json();
-    console.log('[SiliconFlow] 计数响应:', JSON.stringify(json1).substring(0, 300));
     if (json1.error) { console.error('[SiliconFlow] 计数错误:', json1.error); return null; }
     const text1 = json1.choices?.[0]?.message?.content || '';
-    console.log('[SiliconFlow] 计数回答:', text1);
     const numMatch = text1.match(/(\d+)/);
     const count = numMatch ? parseInt(numMatch[1]) : 0;
     if (count <= 0) { return null; }
     
-    // 第二步：使用8B模型获取坐标（32B太慢，8B足够返回坐标）
     console.log('[SiliconFlow] 获取坐标...');
-    const res2 = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+    const res2 = await fetchWithTimeout(SF_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SILICONFLOW_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SILICONFLOW_API_KEY}` },
       body: JSON.stringify({
         model: 'Qwen/Qwen3-VL-8B-Instruct',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: GET_COORDS_PROMPT(count) }
-          ]
-        }],
-        max_tokens: 500,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: GET_COORDS_PROMPT(count) }
+        ]}],
+        max_tokens: 500, temperature: 0
       })
-    });
+    }, 15000);
     const json2 = await res2.json();
-    console.log('[SiliconFlow] 坐标响应:', JSON.stringify(json2).substring(0, 300));
     const text2 = json2.choices?.[0]?.message?.content || '';
-    console.log('[SiliconFlow] 坐标回答:', text2);
-    
-    // 解析坐标
     const items = parseCoordsResult(text2, width, height);
     console.log('[SiliconFlow] 解析到', items.length, '个物品坐标');
-    
     return { count, items };
   } catch (err) {
     console.error('[SiliconFlow] 失败:', err.message);
@@ -779,67 +783,46 @@ async function countWithSiliconFlow(base64, width, height) {
   }
 }
 
-// 3. 豆包AI（火山引擎，国内可用）- 两步策略
+// 3. 豆包AI
 async function countWithDoubao(base64, width, height) {
   if (!DOUBAO_API_KEY) return null;
   try {
     console.log('[Doubao] 开始识别...');
-    // 第一步：计数
-    const res1 = await fetch(DOUBAO_URL, {
+    const res1 = await fetchWithTimeout(DOUBAO_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DOUBAO_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DOUBAO_API_KEY}` },
       body: JSON.stringify({
         model: 'doubao-vision-pro',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_ONLY_PROMPT }
-          ]
-        }],
-        max_tokens: 20,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: COUNT_ONLY_PROMPT }
+        ]}],
+        max_tokens: 20, temperature: 0
       })
-    });
+    }, 15000);
     const json1 = await res1.json();
-    console.log('[Doubao] 计数响应:', JSON.stringify(json1).substring(0, 300));
     if (json1.error) { console.error('[Doubao] 计数错误:', json1.error); return null; }
     const text1 = json1.choices?.[0]?.message?.content || '';
-    console.log('[Doubao] 计数回答:', text1);
     const numMatch = text1.match(/(\d+)/);
     const count = numMatch ? parseInt(numMatch[1]) : 0;
     if (count <= 0) { return null; }
     
-    // 第二步：获取坐标
-    const res2 = await fetch(DOUBAO_URL, {
+    const res2 = await fetchWithTimeout(DOUBAO_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DOUBAO_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DOUBAO_API_KEY}` },
       body: JSON.stringify({
         model: 'doubao-vision-pro',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: GET_COORDS_PROMPT(count) }
-          ]
-        }],
-        max_tokens: 300,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: GET_COORDS_PROMPT(count) }
+        ]}],
+        max_tokens: 300, temperature: 0
       })
-    });
+    }, 15000);
     const json2 = await res2.json();
-    console.log('[Doubao] 坐标响应:', JSON.stringify(json2).substring(0, 300));
     const text2 = json2.choices?.[0]?.message?.content || '';
-    
     const items = parseCoordsResult(text2, width, height);
     console.log('[Doubao] 解析到', items.length, '个物品坐标');
-    
     return { count, items };
   } catch (err) {
     console.error('[Doubao] 失败:', err.message);
@@ -847,67 +830,46 @@ async function countWithDoubao(base64, width, height) {
   }
 }
 
-// 4. 智谱GLM-4V API - 两步策略
+// 4. 智谱GLM-4V
 async function countWithZhipu(base64, width, height) {
   if (!ZHIPU_API_KEY) return null;
   try {
     console.log('[ZhipuAI] 开始识别...');
-    // 第一步：计数
-    const res1 = await fetch(ZHIPU_URL, {
+    const res1 = await fetchWithTimeout(ZHIPU_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ZHIPU_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_API_KEY}` },
       body: JSON.stringify({
         model: 'glm-4v',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: COUNT_ONLY_PROMPT }
-          ]
-        }],
-        max_tokens: 20,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: COUNT_ONLY_PROMPT }
+        ]}],
+        max_tokens: 20, temperature: 0
       })
-    });
+    }, 15000);
     const json1 = await res1.json();
-    console.log('[ZhipuAI] 计数响应:', JSON.stringify(json1).substring(0, 300));
     if (json1.error) { console.error('[ZhipuAI] 计数错误:', json1.error); return null; }
     const text1 = json1.choices?.[0]?.message?.content || '';
-    console.log('[ZhipuAI] 计数回答:', text1);
     const numMatch = text1.match(/(\d+)/);
     const count = numMatch ? parseInt(numMatch[1]) : 0;
     if (count <= 0) { return null; }
     
-    // 第二步：获取坐标
-    const res2 = await fetch(ZHIPU_URL, {
+    const res2 = await fetchWithTimeout(ZHIPU_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ZHIPU_API_KEY}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ZHIPU_API_KEY}` },
       body: JSON.stringify({
         model: 'glm-4v',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-            { type: 'text', text: GET_COORDS_PROMPT(count) }
-          ]
-        }],
-        max_tokens: 300,
-        temperature: 0
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          { type: 'text', text: GET_COORDS_PROMPT(count) }
+        ]}],
+        max_tokens: 300, temperature: 0
       })
-    });
+    }, 15000);
     const json2 = await res2.json();
-    console.log('[ZhipuAI] 坐标响应:', JSON.stringify(json2).substring(0, 300));
     const text2 = json2.choices?.[0]?.message?.content || '';
-    
     const items = parseCoordsResult(text2, width, height);
     console.log('[ZhipuAI] 解析到', items.length, '个物品坐标');
-    
     return { count, items };
   } catch (err) {
     console.error('[ZhipuAI] 失败:', err.message);
@@ -8773,7 +8735,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.2</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.3</Text>
       </Animated.View>
     </Animated.View>
   );
