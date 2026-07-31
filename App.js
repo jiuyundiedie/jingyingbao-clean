@@ -141,136 +141,143 @@ const compressImage = async (uri, quality = 0.7) => {
 
 // ===== 带超时的fetch辅助 =====
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return res;
+    const fetchPromise = fetch(url, options);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('请求超时(' + timeoutMs + 'ms)')), timeoutMs)
+    );
+    return await Promise.race([fetchPromise, timeoutPromise]);
   } catch (err) {
-    clearTimeout(timeoutId);
     throw err;
   }
-};
+}
 
 async function fetchZhipuChat(msgList, prompt, signal) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  // 检查是否已取消
+  if (signal && signal.aborted) return '已取消';
   
-
   // 验证API密钥
   if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) {
-    console.error("[AI] ZHIPU_API_KEY 未配置! length:", ZHIPU_API_KEY?.length || 0);
-  } else {
-    console.log("[AI] ZHIPU_API_KEY OK:", ZHIPU_API_KEY.substring(0,6) + "...");
+    console.error('[AI] ZHIPU_API_KEY 未配置! length:', ZHIPU_API_KEY?.length || 0);
+    return '抱歉，AI服务密钥未配置，请检查后重试';
   }
-  console.log("[AI] ZHIPU_URL:", ZHIPU_URL, "SILICONFLOW len:", SILICONFLOW_API_KEY?.length || 0);
+  console.log('[AI] ZHIPU_API_KEY OK:', ZHIPU_API_KEY.substring(0,6) + '...');
+  console.log('[AI] ZHIPU_URL:', ZHIPU_URL, 'SILICONFLOW len:', SILICONFLOW_API_KEY?.length || 0);
 
-  if (signal) {
-    if (signal.aborted) {
-      clearTimeout(timeoutId);
-      return '已取消';
-    }
-    // 使用轮询代替addEventListener（React Native兼容）
-    const pollTimer = setInterval(() => {
-      if (signal.aborted) {
-        controller.abort();
-        clearInterval(pollTimer);
-      }
-    }, 100);
-  }
-  
   try {
-    console.log("[AI] 开始请求智谱API...");
-    const res = await fetch(ZHIPU_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ZHIPU_API_KEY },
+    console.log('[AI] 开始请求智谱API...');
+    
+    // 使用 Promise.race 实现超时（React Native兼容方案，不依赖AbortController）
+    const fetchPromise = fetch(ZHIPU_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
       body: JSON.stringify({
-        model: ZHIPU_MODEL || 'glm-4-flash',
-        messages: [{ role: 'system', content: prompt }, ...msgList],
+        model: ZHIPU_MODEL || "glm-4-flash",
+        messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: controller.signal,
     });
-    clearTimeout(timeoutId);
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('AI请求超时(15秒)')), 15000)
+    );
+    
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    // 再次检查是否已取消
+    if (signal && signal.aborted) return '已取消';
+    
+    console.log('[AI] 智谱API响应状态:', res.status);
     
     if (!res.ok) {
       const errText = await res.text();
       console.error('[AI] 智谱API HTTP错误:', res.status, errText.substring(0, 300));
-      if (SILICONFLOW_API_KEY && msgList.length > 0) {
+      if (SILICONFLOW_API_KEY && SILICONFLOW_API_KEY.length >= 10 && msgList.length > 0) {
+        console.log('[AI] 智谱失败，尝试 SiliconFlow 备用...');
         const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
-        if (sfResult && sfResult !== '已取消') return sfResult;
+        if (sfResult && sfResult !== '已取消') {
+          console.log('[AI] SiliconFlow 备用成功');
+          return sfResult;
+        }
       }
-      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+      return 'AI服务暂时不可用(' + res.status + ')，请稍后重试';
     }
     
     const json = await res.json();
-    console.log('AI API response:', JSON.stringify(json).substring(0, 200));
+    console.log('[AI] 智谱API响应:', JSON.stringify(json).substring(0, 300));
     
     if (json.error) {
-      console.error('AI API error detail:', json.error);
-      if (SILICONFLOW_API_KEY && msgList.length > 0) {
+      console.error('[AI] 智谱API返回错误:', JSON.stringify(json.error).substring(0, 300));
+      if (SILICONFLOW_API_KEY && SILICONFLOW_API_KEY.length >= 10 && msgList.length > 0) {
+        console.log('[AI] 尝试 SiliconFlow 备用...');
         const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
-        if (sfResult && sfResult !== '已取消') return sfResult;
+        if (sfResult && sfResult !== '已取消') {
+          console.log('[AI] SiliconFlow 备用成功');
+          return sfResult;
+        }
       }
-      return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+      return 'AI服务返回错误，请稍后重试';
     }
     
-    return json.choices?.[0]?.message?.content || generateLocalResponse(msgList[msgList.length -1]?.content || '');
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') return '已取消';
-    console.error('[AI] fetchZhipuChat异常:', err.message);
-    if (SILICONFLOW_API_KEY && msgList.length > 0) {
-      const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
-      if (sfResult && sfResult !== '已取消') return sfResult;
+    const result = json.choices?.[0]?.message?.content;
+    if (result) {
+      console.log('[AI] 智谱API回复成功，长度:', result.length);
+      return result;
     }
-    return generateLocalResponse(msgList[msgList.length -1]?.content || '');
+    return 'AI回复内容为空，请重试';
+  } catch (err) {
+    if (signal && signal.aborted) return '已取消';
+    console.error('[AI] fetchZhipuChat异常:', err.message);
+    if (SILICONFLOW_API_KEY && SILICONFLOW_API_KEY.length >= 10 && msgList.length > 0) {
+      console.log('[AI] 尝试 SiliconFlow 备用...');
+      const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
+      if (sfResult && sfResult !== '已取消') {
+        console.log('[AI] SiliconFlow 备用成功');
+        return sfResult;
+      }
+    }
+    return 'AI服务连接失败(' + (err.message || '未知错误') + ')，请检查网络后重试';
   }
 }
 
 async function trySiliconFlowChat(msgList, prompt, signal) {
-  const sfController = new AbortController();
-  const sfTimeout = setTimeout(() => sfController.abort(), 15000);
-  
-  if (signal) {
-    if (signal.aborted) { clearTimeout(sfTimeout); return null; }
-    // 使用轮询代替addEventListener（React Native兼容）
-    const sfPollTimer = setInterval(() => {
-      if (signal.aborted) {
-        sfController.abort();
-        clearInterval(sfPollTimer);
-      }
-    }, 100);
-  }
+  if (!SILICONFLOW_API_KEY || SILICONFLOW_API_KEY.length < 10) return null;
+  if (signal && signal.aborted) return null;
   
   try {
-    const sfRes = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SILICONFLOW_API_KEY },
+    console.log('[AI] 尝试硅基流动备用...');
+    const sfFetchPromise = fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SILICONFLOW_API_KEY },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-7B-Instruct',
-        messages: [{ role: 'system', content: prompt }, ...msgList],
+        model: "Qwen/Qwen2.5-7B-Instruct",
+        messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7,
         max_tokens: 1000
       }),
-      signal: sfController.signal,
     });
-    clearTimeout(sfTimeout);
+    
+    const sfTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('硅基流动请求超时')), 15000)
+    );
+    
+    const sfRes = await Promise.race([sfFetchPromise, sfTimeoutPromise]);
+    
+    if (signal && signal.aborted) return null;
     
     if (sfRes.ok) {
       const sfJson = await sfRes.json();
       if (sfJson.choices?.[0]?.message?.content) {
-        console.log('[AI对话] SiliconFlow 成功');
+        console.log('[AI] SiliconFlow 成功');
         return sfJson.choices[0].message.content;
       }
     } else {
-      console.error('SiliconFlow error:', sfRes.status);
+      console.error('[AI] SiliconFlow HTTP错误:', sfRes.status);
     }
   } catch (sfErr) {
-    if (sfErr.name === 'AbortError') return '已取消';
-    console.error('SiliconFlow backup failed:', sfErr.message);
+    if (signal && signal.aborted) return null;
+    console.error('[AI] SiliconFlow异常:', sfErr.message);
   }
   return null;
 }
@@ -288,72 +295,82 @@ function generateLocalResponse(userText) {
 
 // ===== AI 图片生成（多API自动切换）=====
 async function genImageWithZhipu(prompt, signal) {
-  if (!ZHIPU_API_KEY) return null;
+  if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) return null;
+  if (signal && signal.aborted) return null;
   try {
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
+    const fetchPromise = fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
       body: JSON.stringify({
-        model: "cogview-3-plus",
+        model: "cogView-3-plus",
         prompt: prompt,
         image_size: "1024x1024",
         num_images: 1
       }),
-      signal: signal,
     });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('图片生成超时')), 30000)
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if (signal && signal.aborted) return null;
     if (!res.ok) { console.error('[ZhipuImg] error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[ZhipuImg] error:', json.error); return null; }
     const imageData = json.data?.[0];
     if (imageData?.b64_json) {
-      return `data:image/png;base64,${imageData.b64_json}`;
+      return 'data:image/png;base64,' + imageData.b64_json;
     } else if (imageData?.url) {
       try {
-        const fileName = `temp_img_${Date.now()}.png`;
+        const fileName = 'temp_img_' + Date.now() + '.png';
         const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
         const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
-        return `data:image/png;base64,${base64}`;
+        return 'data:image/png;base64,' + base64;
       } catch (e) { console.error('[ZhipuImg] download fail:', e); return null; }
     }
     return null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    if (signal && signal.aborted) return null;
     console.error('[ZhipuImg] error:', err.message);
     return null;
   }
 }
 
 async function genImageWithSiliconFlow(prompt, signal) {
-  if (!SILICONFLOW_API_KEY) return null;
+  if (!SILICONFLOW_API_KEY || SILICONFLOW_API_KEY.length < 10) return null;
+  if (signal && signal.aborted) return null;
   try {
-    const res = await fetch('https://api.siliconflow.cn/v1/images/generations', {
+    const fetchPromise = fetch('https://api.siliconflow.cn/v1/images/generations', {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SILICONFLOW_API_KEY}` },
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SILICONFLOW_API_KEY },
       body: JSON.stringify({
-        model: 'deepseek-ai/DeepSeek-V3',
+        model: "deepseek-ai/DeepSeek-V3",
         prompt: prompt,
         image_size: "1024x1024",
         num_images: 1
       }),
-      signal: signal,
     });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('图片生成超时')), 30000)
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    if (signal && signal.aborted) return null;
     if (!res.ok) { console.error('[SiliconImg] error:', res.status); return null; }
     const json = await res.json();
     if (json.error) { console.error('[SiliconImg] error:', json.error); return null; }
     const imageData = json.data?.[0];
     if (imageData?.b64_json) {
-      return `data:image/png;base64,${imageData.b64_json}`;
+      return 'data:image/png;base64,' + imageData.b64_json;
     } else if (imageData?.url) {
       try {
-        const fileName = `temp_img_${Date.now()}.png`;
+        const fileName = 'temp_img_' + Date.now() + '.png';
         const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
         const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
-        return `data:image/png;base64,${base64}`;
+        return 'data:image/png;base64,' + base64;
       } catch (e) { console.error('[SiliconImg] download fail:', e); return null; }
     }
     return null;
   } catch (err) {
-    if (err.name === 'AbortError') return 'ABORTED';
+    if (signal && signal.aborted) return null;
     console.error('[SiliconImg] error:', err.message);
     return null;
   }
@@ -381,15 +398,16 @@ async function fetchZhipuImage(prompt, signal) {
 }
 
 async function fetchZhipuVision(imageUri, prompt, signal) {
+  if (signal && signal.aborted) return null;
   try {
     const base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
-    console.log(`[VisionAPI] base64长度: ${base64.length}`);
-    console.log(`[VisionAPI] prompt: ${prompt}`);
+    console.log('[VisionAPI] base64长度:', base64.length);
+    console.log('[VisionAPI] prompt:', prompt);
     
-    const dataUri = `data:image/jpeg;base64,${base64}`;
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+    const dataUri = 'data:image/jpeg;base64,' + base64;
+    const fetchPromise = fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${ZHIPU_API_KEY}` },
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
       body: JSON.stringify({
         model: "glm-4v-plus",
         messages: [{
@@ -402,12 +420,16 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
         max_tokens: 100,
         temperature: 0.1,
       }),
-      signal: signal,
     });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('视觉API超时(20秒)')), 20000)
+    );
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
     
-    console.log(`[VisionAPI] HTTP状态码: ${res.status}`);
+    console.log('[VisionAPI] HTTP状态码:', res.status);
+    if (signal && signal.aborted) return null;
     const json = await res.json();
-    console.log(`[VisionAPI] 完整响应:`, JSON.stringify(json));
+    console.log('[VisionAPI] 响应:', JSON.stringify(json).substring(0, 300));
     
     if (!res.ok) {
       console.error('Vision API failed:', json);
@@ -415,10 +437,10 @@ async function fetchZhipuVision(imageUri, prompt, signal) {
     }
     
     const content = json.choices?.[0]?.message?.content || '';
-    console.log(`[VisionAPI] 返回内容: "${content}"`);
+    console.log('[VisionAPI] 返回内容:', content);
     return content;
   } catch (err) {
-    if (err.name === 'AbortError') return 'aborted';
+    if (signal && signal.aborted) return 'aborted';
     console.error('Vision API error:', err);
     return null;
   }
