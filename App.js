@@ -157,15 +157,31 @@ async function fetchZhipuChat(msgList, prompt, signal) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
   
+
+  // 验证API密钥
+  if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) {
+    console.error("[AI] ZHIPU_API_KEY 未配置! length:", ZHIPU_API_KEY?.length || 0);
+  } else {
+    console.log("[AI] ZHIPU_API_KEY OK:", ZHIPU_API_KEY.substring(0,6) + "...");
+  }
+  console.log("[AI] ZHIPU_URL:", ZHIPU_URL, "SILICONFLOW len:", SILICONFLOW_API_KEY?.length || 0);
+
   if (signal) {
     if (signal.aborted) {
       clearTimeout(timeoutId);
       return '已取消';
     }
-    signal.addEventListener('abort', () => controller.abort());
+    // 使用轮询代替addEventListener（React Native兼容）
+    const pollTimer = setInterval(() => {
+      if (signal.aborted) {
+        controller.abort();
+        clearInterval(pollTimer);
+      }
+    }, 100);
   }
   
   try {
+    console.log("[AI] 开始请求智谱API...");
     const res = await fetch(ZHIPU_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ZHIPU_API_KEY },
@@ -181,7 +197,7 @@ async function fetchZhipuChat(msgList, prompt, signal) {
     
     if (!res.ok) {
       const errText = await res.text();
-      console.error('AI API error:', res.status, errText.substring(0, 200));
+      console.error('[AI] 智谱API HTTP错误:', res.status, errText.substring(0, 300));
       if (SILICONFLOW_API_KEY && msgList.length > 0) {
         const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
         if (sfResult && sfResult !== '已取消') return sfResult;
@@ -205,7 +221,7 @@ async function fetchZhipuChat(msgList, prompt, signal) {
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') return '已取消';
-    console.error('AI fetch error:', err);
+    console.error('[AI] fetchZhipuChat异常:', err.message);
     if (SILICONFLOW_API_KEY && msgList.length > 0) {
       const sfResult = await trySiliconFlowChat(msgList, prompt, signal);
       if (sfResult && sfResult !== '已取消') return sfResult;
@@ -220,7 +236,13 @@ async function trySiliconFlowChat(msgList, prompt, signal) {
   
   if (signal) {
     if (signal.aborted) { clearTimeout(sfTimeout); return null; }
-    signal.addEventListener('abort', () => sfController.abort());
+    // 使用轮询代替addEventListener（React Native兼容）
+    const sfPollTimer = setInterval(() => {
+      if (signal.aborted) {
+        sfController.abort();
+        clearInterval(sfPollTimer);
+      }
+    }, 100);
   }
   
   try {
