@@ -81,25 +81,26 @@ const SHADOW = {
 };
 
 // ===== AI视觉模型配置（多API自动切换）=====
+// 注意：process.env 在APK构建时可能为空，以下是硬编码的密钥作为保底
 // 1. 阿里云百炼（国内可用，新用户送7000万Tokens）
 const ALIBABA_API_KEY = process.env.EXPO_PUBLIC_ALIBABA_API_KEY || "";
 const ALIBABA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
 // 2. 硅基流动 SiliconFlow（国内平台，新用户送14元）
-const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "";
+const SILICONFLOW_API_KEY = process.env.EXPO_PUBLIC_SILICONFLOW_API_KEY || "sk-bevcesyyysluduherrbpqezjsazawntlspvmqattomtmaxik";
 
 // 3. 豆包AI（火山引擎，国内可用，新用户有免费额度）
 const DOUBAO_API_KEY = process.env.EXPO_PUBLIC_DOUBAO_API_KEY || "";
 const DOUBAO_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
-// 4. 智谱AI（备用）
-const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "";
+// 4. 智谱AI（主力）
+const ZHIPU_API_KEY = process.env.EXPO_PUBLIC_ZHIPU_API_KEY || "1cca44e3c1124a999d501621e9fe8305.xf2xNXly5CkSBe5p";
 const ZHIPU_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const ZHIPU_MODEL = "glm-4-flash";
 
 // 5. 百度AI（备用）
-const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "";
-const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "";
+const BAIDU_API_KEY = process.env.EXPO_PUBLIC_BAIDU_API_KEY || "2X4R2K4qq9u3K9769BOjDXtq";
+const BAIDU_SECRET_KEY = process.env.EXPO_PUBLIC_BAIDU_SECRET_KEY || "oHTvqHAZvXUyAMBTrF8n93GnoE41lqri";
 
 // ===== 日期工具 =====
 const getTodayStr = () => {
