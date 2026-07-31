@@ -299,6 +299,7 @@ async function genImageWithZhipu(prompt, signal) {
   if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) return null;
   if (signal && signal.aborted) return null;
   try {
+    console.log('[ZhipuImg] 开始生成图片...');
     const fetchPromise = fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
@@ -314,24 +315,30 @@ async function genImageWithZhipu(prompt, signal) {
     );
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if (signal && signal.aborted) return null;
-    if (!res.ok) { console.error('[ZhipuImg] error:', res.status); return null; }
-    const json = await res.json();
-    if (json.error) { console.error('[ZhipuImg] error:', json.error); return null; }
-    const imageData = json.data?.[0];
-    if (imageData?.b64_json) {
-      return 'data:image/png;base64,' + imageData.b64_json;
-    } else if (imageData?.url) {
-      try {
-        const fileName = 'temp_img_' + Date.now() + '.png';
-        const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
-        const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
-        return 'data:image/png;base64,' + base64;
-      } catch (e) { console.error('[ZhipuImg] download fail:', e); return null; }
+    if (!res.ok) { 
+      const errText = await res.text();
+      console.error('[ZhipuImg] HTTP错误:', res.status, errText.substring(0, 200)); 
+      return null; 
     }
+    const json = await res.json();
+    if (json.error) { 
+      console.error('[ZhipuImg] API错误:', JSON.stringify(json.error).substring(0, 200)); 
+      return null; 
+    }
+    const imageData = json.data?.[0];
+    if (imageData?.url) {
+      console.log('[ZhipuImg] 生成成功，返回URL');
+      return imageData.url;
+    }
+    if (imageData?.b64_json) {
+      console.log('[ZhipuImg] 生成成功，返回base64');
+      return 'data:image/png;base64,' + imageData.b64_json;
+    }
+    console.error('[ZhipuImg] 无图片数据');
     return null;
   } catch (err) {
     if (signal && signal.aborted) return null;
-    console.error('[ZhipuImg] error:', err.message);
+    console.error('[ZhipuImg] 异常:', err.message);
     return null;
   }
 }
@@ -340,6 +347,7 @@ async function genImageWithSiliconFlow(prompt, signal) {
   if (!SILICONFLOW_API_KEY || SILICONFLOW_API_KEY.length < 10) return null;
   if (signal && signal.aborted) return null;
   try {
+    console.log('[SiliconImg] 开始生成图片...');
     const fetchPromise = fetch('https://api.siliconflow.cn/v1/images/generations', {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SILICONFLOW_API_KEY },
@@ -355,24 +363,30 @@ async function genImageWithSiliconFlow(prompt, signal) {
     );
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if (signal && signal.aborted) return null;
-    if (!res.ok) { console.error('[SiliconImg] error:', res.status); return null; }
-    const json = await res.json();
-    if (json.error) { console.error('[SiliconImg] error:', json.error); return null; }
-    const imageData = json.data?.[0];
-    if (imageData?.b64_json) {
-      return 'data:image/png;base64,' + imageData.b64_json;
-    } else if (imageData?.url) {
-      try {
-        const fileName = 'temp_img_' + Date.now() + '.png';
-        const downloadRes = await FileSystem.downloadAsync(imageData.url, FileSystem.documentDirectory + fileName);
-        const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
-        return 'data:image/png;base64,' + base64;
-      } catch (e) { console.error('[SiliconImg] download fail:', e); return null; }
+    if (!res.ok) { 
+      const errText = await res.text();
+      console.error('[SiliconImg] HTTP错误:', res.status, errText.substring(0, 200)); 
+      return null; 
     }
+    const json = await res.json();
+    if (json.error) { 
+      console.error('[SiliconImg] API错误:', JSON.stringify(json.error).substring(0, 200)); 
+      return null; 
+    }
+    const imageData = json.data?.[0];
+    if (imageData?.url) {
+      console.log('[SiliconImg] 生成成功，返回URL');
+      return imageData.url;
+    }
+    if (imageData?.b64_json) {
+      console.log('[SiliconImg] 生成成功，返回base64');
+      return 'data:image/png;base64,' + imageData.b64_json;
+    }
+    console.error('[SiliconImg] 无图片数据');
     return null;
   } catch (err) {
     if (signal && signal.aborted) return null;
-    console.error('[SiliconImg] error:', err.message);
+    console.error('[SiliconImg] 异常:', err.message);
     return null;
   }
 }
