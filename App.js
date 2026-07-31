@@ -4,7 +4,7 @@ import {
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
   Modal, Image, FlatList, RefreshControl, StatusBar, SafeAreaView,
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
-  AppState
+  AppState, Linking
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
@@ -2111,6 +2111,7 @@ const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => 
 // ================== 设置抽屉 ==================
 const SettingDrawer = ({ visible, onClose }) => {
   const { state, dispatch } = useApp();
+  const navigation = useNavigation();
   const user = state.user || {};
   const shopInfo = state.shopInfo || { shopName: '', phone: '', industry: '餐饮类' };
   const isEmployee = user.role === '员工';
@@ -2357,6 +2358,36 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>隐私政策</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('UserAgreement'), 300); }}>
+                  <Ionicons name="document-text-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>用户协议</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('Feedback'), 300); }}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>意见反馈</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('ClearCache'), 300); }}>
+                  <Ionicons name="trash-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>清除缓存</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={async () => { showToast('正在检查更新...'); const r = await checkAppUpdate(true); if (r?.hasUpdate) { Alert.alert('发现新版本 v' + r.version, r.notes, [{ text: '稍后更新' }, { text: '立即更新', onPress: () => { if (Platform.OS === 'android') { Linking.openURL(r.url); } } }]); } }}>
+                  <Ionicons name="cloud-download-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>检查更新</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('About'), 300); }}>
+                  <Ionicons name="information-circle-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>关于我们</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }} onPress={handleLogout}>
@@ -2366,8 +2397,15 @@ const SettingDrawer = ({ visible, onClose }) => {
                 </View>
               </TouchableOpacity>
 
+              <TouchableOpacity style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('AccountDelete'), 300); }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
+                  <Ionicons name="close-circle-outline" size={22} color={TEXT_THIRD} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_THIRD }}>注销账号</Text>
+                </View>
+              </TouchableOpacity>
+
               <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v 1.0.0</Text>
+                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.55.0</Text>
               </View>
             </View>
           </ScrollView>
@@ -2603,6 +2641,394 @@ const SettingDrawer = ({ visible, onClose }) => {
 };
 
 
+
+// ================== 应用市场合规功能组件 ==================
+
+// 用户协议页面
+const UserAgreementScreen = ({ navigation }) => {
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="用户协议" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>经营宝用户服务协议</Text>
+        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 20, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>一、服务条款的接受</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          1.1 欢迎您使用经营宝（以下简称"本应用"）。使用本应用即表示您同意本协议的全部条款。{'\n'}
+          1.2 如果您不同意本协议的任何内容，请立即停止使用本应用。{'\n'}
+          1.3 本协议可能根据业务发展进行更新，更新后的协议自公布之日起生效。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>二、服务内容</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          2.1 本应用为商家提供店铺经营管理服务，包括但不限于：订单核销、库存管理、员工管理、客户沟通、AI智能助手等功能。{'\n'}
+          2.2 本应用的数据存储在用户本地设备上，不上传至云端服务器。{'\n'}
+          2.3 部分AI功能需要联网调用第三方大模型API，网络不可用时将降级为本地功能。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>三、用户行为规范</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          3.1 用户应保证注册信息真实、准确。{'\n'}
+          3.2 用户不得利用本应用从事任何违法违规活动。{'\n'}
+          3.3 用户应妥善保管账号信息，因账号泄露造成的损失由用户自行承担。{'\n'}
+          3.4 用户应对自己的业务数据负责，建议定期进行数据备份。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>四、知识产权</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          4.1 本应用的软件代码、界面设计、图标等知识产权归开发者所有。{'\n'}
+          4.2 用户在使用过程中产生的业务数据归用户所有。{'\n'}
+          4.3 未经授权，不得复制、修改、传播本应用的任何部分。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>五、免责声明</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          5.1 本应用不保证所有功能在任何情况下均可用。{'\n'}
+          5.2 因网络故障、设备问题、第三方API变更等导致的服务中断，开发者不承担责任。{'\n'}
+          5.3 AI助手生成的内容仅供参考，用户应自行判断其准确性和适用性。{'\n'}
+          5.4 用户应自行承担因使用本应用产生的业务风险。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>六、账号注销</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          6.1 用户有权随时注销账号。{'\n'}
+          6.2 注销账号后，该账号下的所有本地数据将被清除且不可恢复。{'\n'}
+          6.3 账号注销操作不可逆，请谨慎操作。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>七、协议变更</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 24 }}>
+          7.1 本协议可能不时更新，更新后的协议将在应用内展示。{'\n'}
+          7.2 继续使用本应用即视为同意更新后的协议。
+        </Text>
+      </ScrollView>
+    </View>
+  );
+};
+
+// 账号注销页面
+const AccountDeleteScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [confirmText, setConfirmText] = useState('');
+  const [step, setStep] = useState(1);
+
+  const handleDelete = async () => {
+    try {
+      // 清除所有本地数据
+      const keys = await AsyncStorage.getAllKeys();
+      await AsyncStorage.multiRemove(keys);
+      dispatch({ type: 'LOGOUT' });
+      showToast('账号已注销');
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    } catch (error) {
+      showToast('注销失败，请重试');
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="账号注销" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <ScrollView style={{ flex: 1, padding: 16 }}>
+        {step === 1 ? (
+          <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: DANGER_COLOR, marginBottom: 16 }}>⚠️ 注销须知</Text>
+            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 8 }}>
+              注销账号将执行以下操作，且不可恢复：{'\n\n'}
+              1. 删除您的账号信息{'\n'}
+              2. 清除所有本地业务数据（订单、库存、聊天记录等）{'\n'}
+              3. 清除所有设置和配置{'\n'}
+              4. 该手机号可重新注册{'\n\n'}
+              如需备份重要数据，请在注销前通过设置-数据备份进行导出。
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F5F7FA', borderRadius: 12, alignItems: 'center' }} onPress={() => navigation.goBack()}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN }}>再想想</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: DANGER_COLOR, borderRadius: 12, alignItems: 'center' }} onPress={() => setStep(2)}>
+                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>继续注销</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16 }}>确认注销</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>
+              请输入"确认注销"以完成操作：
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 20 }}
+              value={confirmText}
+              onChangeText={setConfirmText}
+              placeholder="请输入 确认注销"
+            />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F5F7FA', borderRadius: 12, alignItems: 'center' }} onPress={() => navigation.goBack()}>
+                <Text style={{ fontSize: 16, color: TEXT_MAIN }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 14, backgroundColor: confirmText === '确认注销' ? DANGER_COLOR : '#ccc', borderRadius: 12, alignItems: 'center' }}
+                disabled={confirmText !== '确认注销'}
+                onPress={handleDelete}
+              >
+                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>确认注销</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+// 关于页面
+const AboutScreen = ({ navigation }) => {
+  const APP_VERSION = '5.55.0';
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <ScrollView style={{ flex: 1, padding: 16 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+          <Image source={require('./assets/icon.png')} style={{ width: 80, height: 80, borderRadius: 20, marginBottom: 16 }} />
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+          <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 4 }}>版本 {APP_VERSION}</Text>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 8 }}>店铺经营管理一体化工具</Text>
+        </View>
+
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>应用介绍</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+            经营宝是一款专为中小商家打造的店铺经营管理应用，提供订单核销、库存管理、员工协作、AI智能助手等核心功能，帮助商家高效管理日常经营。
+          </Text>
+        </View>
+
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>核心功能</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+            • 订单核销：支持美团、抖音、大众点评扫码核销{'\n'}
+            • 库存管理：出入库记录、商品管理、AI拍照盘点{'\n'}
+            • 员工协作：内部沟通、私聊、员工管理{'\n'}
+            • AI助手：智能问答、图片生成、经营分析{'\n'}
+            • 数据报表：日报、周报、月报自动生成
+          </Text>
+        </View>
+
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>联系方式</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+            官方邮箱：support@jingyingbao.app{'\n'}
+            客服QQ：123456789{'\n'}
+            官方网站：www.jingyingbao.app
+          </Text>
+        </View>
+
+        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 4 }}>Copyright © 2026 经营宝</Text>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD }}>All Rights Reserved</Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+// 意见反馈页面
+const FeedbackScreen = ({ navigation }) => {
+  const { state } = useApp();
+  const [feedbackType, setFeedbackType] = useState('功能建议');
+  const [content, setContent] = useState('');
+  const [contact, setContact] = useState('');
+  const types = ['功能建议', '问题反馈', '体验优化', '其他'];
+
+  const handleSubmit = async () => {
+    if (!content.trim()) { showToast('请输入反馈内容'); return; }
+    try {
+      const feedback = {
+        id: Date.now().toString(),
+        type: feedbackType,
+        content: content.trim(),
+        contact: contact.trim(),
+        phone: state.user?.phone || '',
+        version: '5.55.0',
+        time: new Date().toISOString(),
+      };
+      const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
+      existing.push(feedback);
+      await AsyncStorage.setItem('user_feedbacks', JSON.stringify(existing));
+      showToast('反馈已提交，感谢您的支持！');
+      navigation.goBack();
+    } catch (e) { showToast('提交失败，请重试'); }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="意见反馈" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <ScrollView style={{ flex: 1, padding: 16 }}>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>反馈类型</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+          {types.map(t => (
+            <TouchableOpacity
+              key={t}
+              style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: feedbackType === t ? PRIMARY_COLOR : BG_CARD, borderWidth: 1, borderColor: feedbackType === t ? PRIMARY_COLOR : BORDER_COLOR }}
+              onPress={() => setFeedbackType(t)}
+            >
+              <Text style={{ fontSize: 14, color: feedbackType === t ? '#fff' : TEXT_MAIN }}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>反馈内容</Text>
+        <TextInput
+          style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, fontSize: 15, minHeight: 120, textAlignVertical: 'top', marginBottom: 20 }}
+          value={content}
+          onChangeText={setContent}
+          placeholder="请详细描述您的建议或遇到的问题..."
+          multiline
+          maxLength={500}
+        />
+        <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'right', marginBottom: 20 }}>{content.length}/500</Text>
+
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 12 }}>联系方式（选填）</Text>
+        <TextInput
+          style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, fontSize: 15, marginBottom: 24 }}
+          value={contact}
+          onChangeText={setContact}
+          placeholder="邮箱或手机号，方便我们回复您"
+          maxLength={50}
+        />
+
+        <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, padding: 16, alignItems: 'center' }} onPress={handleSubmit}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>提交反馈</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+};
+
+// 版本更新检查
+async function checkAppUpdate(showToastIfLatest = false) {
+  try {
+    const currentVersion = '5.55.0';
+    // GitHub Releases API 检查最新版本
+    const res = await fetch('https://api.github.com/repos/jiuyundiedie/jingyingbao-clean/releases/latest');
+    if (!res.ok) {
+      if (showToastIfLatest) showToast('检查更新失败');
+      return null;
+    }
+    const data = await res.json();
+    const latestVersion = (data.tag_name || '').replace('v', '');
+    if (latestVersion && latestVersion !== currentVersion) {
+      return { hasUpdate: true, version: latestVersion, notes: data.body || '', url: data.html_url };
+    }
+    if (showToastIfLatest) showToast('当前已是最新版本');
+    return { hasUpdate: false };
+  } catch (e) {
+    if (showToastIfLatest) showToast('检查更新失败，请检查网络');
+    return null;
+  }
+}
+
+// 清除缓存页面
+const ClearCacheScreen = ({ navigation }) => {
+  const { dispatch } = useApp();
+  const [cacheSize, setCacheSize] = useState('计算中...');
+  const [clearing, setClearing] = useState(false);
+
+  const getCacheSize = async () => {
+    try {
+      const cacheDir = FileSystem.cacheDirectory;
+      if (cacheDir) {
+        const info = await FileSystem.getInfoAsync(cacheDir);
+        if (info.exists && info.size) {
+          const mb = (info.size / 1024 / 1024).toFixed(1);
+          setCacheSize(mb + ' MB');
+        } else {
+          setCacheSize('0 MB');
+        }
+      } else {
+        setCacheSize('0 MB');
+      }
+    } catch (e) { setCacheSize('未知'); }
+  };
+
+  useEffect(() => { getCacheSize(); }, []);
+
+  const handleClear = async () => {
+    setClearing(true);
+    try {
+      await FileSystem.deleteAsync(FileSystem.cacheDirectory, { idempotent: true });
+      setCacheSize('0 MB');
+      showToast('缓存已清除');
+    } catch (e) { showToast('清除失败'); }
+    setClearing(false);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="清除缓存" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <View style={{ padding: 16 }}>
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 20, alignItems: 'center' }}>
+          <Ionicons name="trash-outline" size={48} color={PRIMARY_COLOR} style={{ marginBottom: 12 }} />
+          <Text style={{ fontSize: 16, color: TEXT_MAIN, marginBottom: 4 }}>当前缓存大小</Text>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: PRIMARY_COLOR, marginBottom: 20 }}>{cacheSize}</Text>
+          <Text style={{ fontSize: 13, color: TEXT_THIRD, textAlign: 'center', marginBottom: 24 }}>
+            清除缓存不会删除您的业务数据、账号信息和聊天记录，仅清理临时文件和图片缓存。
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: clearing ? '#ccc' : PRIMARY_COLOR, borderRadius: 12, padding: 16, alignItems: 'center', width: '100%' }}
+            onPress={handleClear}
+            disabled={clearing}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{clearing ? '清除中...' : '清除缓存'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// 新手引导页
+const OnboardingScreen = ({ navigation, onDone }) => {
+  const [step, setStep] = useState(0);
+  const steps = [
+    { icon: 'qr-code', color: '#5B6DF0', title: '订单核销', desc: '支持美团、抖音、大众点评扫码核销，一键完成订单验证，提升效率' },
+    { icon: 'swap-horizontal', color: '#00B42A', title: '库存管理', desc: '出入库记录、商品管理、AI拍照智能盘点，让库存管理更轻松' },
+    { icon: 'people', color: '#FF7D00', title: '团队协作', desc: '内部沟通、私聊、员工管理，打造高效协作团队' },
+    { icon: 'star', color: '#7B61FF', title: 'AI智能助手', desc: '智能问答、图片生成、经营分析，您的专属经营顾问' },
+  ];
+
+  const handleFinish = async () => {
+    await AsyncStorage.setItem('onboarding_completed', 'true');
+    if (onDone) { onDone(); return; }
+    if (navigation) navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+        <View style={{ width: 120, height: 120, borderRadius: 30, backgroundColor: steps[step].color + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 30 }}>
+          <Ionicons name={steps[step].icon} size={60} color={steps[step].color} />
+        </View>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16 }}>{steps[step].title}</Text>
+        <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center', lineHeight: 26 }}>{steps[step].desc}</Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30 }}>
+        {steps.map((_, i) => (
+          <View key={i} style={{ width: i === step ? 24 : 8, height: 8, borderRadius: 4, backgroundColor: i === step ? PRIMARY_COLOR : BORDER_COLOR, marginHorizontal: 4 }} />
+        ))}
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 30, paddingBottom: 40 }}>
+        <TouchableOpacity onPress={handleFinish}>
+          <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => step < steps.length - 1 ? setStep(step + 1) : handleFinish()}>
+          <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '600' }}>{step < steps.length - 1 ? '下一步' : '开始使用'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
 
 // ================== 切换账号页面（保留兼容性） ==================
 const SwitchAccountScreen = ({ navigation }) => {
@@ -8756,6 +9182,12 @@ function AppStack() {
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
+      <Stack.Screen name="UserAgreement" component={UserAgreementScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="AccountDelete" component={AccountDeleteScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="About" component={AboutScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="ClearCache" component={ClearCacheScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ gestureEnabled: false, headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -8870,23 +9302,26 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && !isFirstLaunch) {
-        // 从后台返回，不显示开屏
         setShowSplash(false);
       }
     });
-
-    return () => {
-      appStateListener.remove();
-    };
+    return () => { appStateListener.remove(); };
   }, [isFirstLaunch]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        // 检查是否首次启动（是否已完成新手引导）
+        const onboardingDone = await AsyncStorage.getItem('onboarding_completed');
+        if (!onboardingDone) {
+          setShowOnboarding(true);
+        }
+
         const appData = await loadAllData();
         if (appData) {
           dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
@@ -8917,23 +9352,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      saveAllData(state);
-    }
+    if (!loading) { saveAllData(state); }
   }, [state, loading]);
 
-  // 开屏完成后显示主应用
   const handleSplashComplete = () => {
     setShowSplash(false);
     setIsFirstLaunch(false);
   };
 
-  // 显示开屏界面（仅首次启动显示）
   if (showSplash && isFirstLaunch) {
     return <SplashScreenComponent onComplete={handleSplashComplete} />;
   }
 
-  // 数据加载中
+  // 首次使用显示新手引导
+  if (showOnboarding) {
+    return (
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Onboarding">
+            {(props) => <OnboardingScreen {...props} onDone={() => setShowOnboarding(false)} />}
+          </Stack.Screen>
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  }
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
