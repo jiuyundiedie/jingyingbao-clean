@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Cache npm dependencies
         uses: actions/cache@v4
@@ -69,10 +69,12 @@ jobs:
           rm -rf android/app/.cxx
 
       - name: Build APK (arm64-v8a + armeabi-v7a for Google Play)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+          ./gradlew clean assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --stacktrace
 
       - name: Get version from app.json
         id: get_version
