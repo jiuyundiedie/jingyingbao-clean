@@ -2,7 +2,7 @@
   "expo": {
     "name": "经营宝",
     "slug": "jingyingbao",
-    "version": "5.56.5",
+    "version": "5.57.0",
     "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.jingyingbao.app",
-      "versionCode": 102,
+      "versionCode": 103,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -40,7 +40,9 @@
         "RECORD_AUDIO",
         "VIBRATE",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
       ]
     },
     "extra": {
@@ -67,6 +69,12 @@
         {
           "photosPermission": "允许访问相册以选择图片",
           "cameraPermission": "允许访问相机以拍摄照片"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#5B6DF0"
         }
       ]
     ]

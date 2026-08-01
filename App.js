@@ -18,6 +18,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
+import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
@@ -3117,11 +3118,14 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [drawPaths, setDrawPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
 
-  // 缩放状态（使用useRef保存实际值，Animated.Value驱动UI）
-  const scaleValue = useRef(1);
-  const translateXValue = useRef(0);
-  const translateYValue = useRef(0);
-  const [, forceUpdate] = useState(0);
+  // 缩放状态（使用Animated.Value驱动原生线程，避免闪动）
+  const scaleValue = useRef(new Animated.Value(1)).current;
+  const translateXValue = useRef(new Animated.Value(0)).current;
+  const translateYValue = useRef(new Animated.Value(0)).current;
+  // 用普通ref存当前值，不触发重渲染
+  const currentScale = useRef(1);
+  const currentX = useRef(0);
+  const currentY = useRef(0);
   const lastTapTime = useRef(0);
   const initialDistance = useRef(0);
   const initialScale = useRef(1);
@@ -3129,6 +3133,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const panStartY = useRef(0);
   const panStartTranslateX = useRef(0);
   const panStartTranslateY = useRef(0);
+  const [, forceUpdate] = useState(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3173,7 +3178,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     })
   ).current;
 
-  // 缩放/拖拽 PanResponder
+  // 缩放/拖拽 PanResponder（使用Animated.Value，原生线程驱动，不闪动）
   const zoomResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !drawMode,
@@ -3181,12 +3186,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       onPanResponderGrant: (evt) => {
         if (evt.nativeEvent.touches.length === 2) {
           initialDistance.current = getDistance(evt.nativeEvent.touches);
-          initialScale.current = scaleValue.current;
-        } else if (evt.nativeEvent.touches.length === 1 && scaleValue.current > 1) {
+          initialScale.current = currentScale.current;
+        } else if (evt.nativeEvent.touches.length === 1 && currentScale.current > 1) {
           panStartX.current = evt.nativeEvent.touches[0].locationX;
           panStartY.current = evt.nativeEvent.touches[0].locationY;
-          panStartTranslateX.current = translateXValue.current;
-          panStartTranslateY.current = translateYValue.current;
+          panStartTranslateX.current = currentX.current;
+          panStartTranslateY.current = currentY.current;
         }
       },
       onPanResponderMove: (evt) => {
@@ -3194,27 +3199,29 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           const distance = getDistance(evt.nativeEvent.touches);
           if (initialDistance.current > 0) {
             let newScale = (distance / initialDistance.current) * initialScale.current;
-            newScale = Math.max(0.5, Math.min(5, newScale));
-            scaleValue.current = newScale;
-            forceUpdate(v => v + 1);
+            newScale = Math.max(0.5, Math.min(10, newScale));
+            currentScale.current = newScale;
+            scaleValue.setValue(newScale);
           }
-        } else if (evt.nativeEvent.touches.length === 1 && scaleValue.current > 1) {
+        } else if (evt.nativeEvent.touches.length === 1 && currentScale.current > 1) {
           const touch = evt.nativeEvent.touches[0];
-          translateXValue.current = panStartTranslateX.current + (touch.locationX - panStartX.current);
-          translateYValue.current = panStartTranslateY.current + (touch.locationY - panStartY.current);
-          forceUpdate(v => v + 1);
+          const newX = panStartTranslateX.current + (touch.locationX - panStartX.current);
+          const newY = panStartTranslateY.current + (touch.locationY - panStartY.current);
+          currentX.current = newX;
+          currentY.current = newY;
+          translateXValue.setValue(newX);
+          translateYValue.setValue(newY);
         }
       },
       onPanResponderRelease: () => {
         initialDistance.current = 0;
-        if (scaleValue.current < 1) {
-          scaleValue.current = 1;
-          translateXValue.current = 0;
-          translateYValue.current = 0;
-          forceUpdate(v => v + 1);
-        } else if (scaleValue.current > 3) {
-          scaleValue.current = 3;
-          forceUpdate(v => v + 1);
+        if (currentScale.current < 1) {
+          currentScale.current = 1;
+          currentX.current = 0;
+          currentY.current = 0;
+          Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+          Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
+          Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
         }
       },
     })
@@ -3224,14 +3231,17 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const handleDoubleTap = () => {
     const now = Date.now();
     if (now - lastTapTime.current < 300) {
-      if (scaleValue.current > 1) {
-        scaleValue.current = 1;
-        translateXValue.current = 0;
-        translateYValue.current = 0;
+      if (currentScale.current > 1) {
+        currentScale.current = 1;
+        currentX.current = 0;
+        currentY.current = 0;
+        Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+        Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
+        Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
       } else {
-        scaleValue.current = 2.5;
+        currentScale.current = 2.5;
+        Animated.spring(scaleValue, { toValue: 2.5, useNativeDriver: true, friction: 7 }).start();
       }
-      forceUpdate(v => v + 1);
     }
     lastTapTime.current = now;
   };
@@ -3289,17 +3299,19 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setCropMode(false);
     setDrawPaths([]);
     setCurrentPath([]);
-    scaleValue.current = 1;
-    translateXValue.current = 0;
-    translateYValue.current = 0;
-    forceUpdate(v => v + 1);
+    currentScale.current = 1;
+    currentX.current = 0;
+    currentY.current = 0;
+    Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+    Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
+    Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
   };
 
   const containerStyle = {
     transform: [
-      { scale: drawMode ? 1 : scaleValue.current },
-      { translateX: drawMode ? 0 : translateXValue.current },
-      { translateY: drawMode ? 0 : translateYValue.current },
+      { scale: scaleValue },
+      { translateX: translateXValue },
+      { translateY: translateYValue },
       { rotate: `${rotation}deg` },
     ],
   };
@@ -3312,7 +3324,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : scaleValue.current > 1 ? `缩放 ${scaleValue.current.toFixed(1)}x` : '图片预览'}</Text>
+          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : currentScale.current > 1 ? `缩放 ${currentScale.current.toFixed(1)}x` : '图片预览'}</Text>
           <TouchableOpacity style={{ padding: 8 }} onPress={() => { if (editMode) resetAll(); setEditMode(!editMode); }}>
             <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={26} color="#fff" />
           </TouchableOpacity>
@@ -3323,7 +3335,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           {...(drawMode ? drawResponder : zoomResponder).panHandlers}
           onTouchStart={!drawMode && handleDoubleTap}
         >
-          <View style={containerStyle}>
+          <Animated.View style={containerStyle}>
             <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
             {(drawMode || drawPaths.length > 0) && (
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
@@ -3335,7 +3347,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
                 ))}
               </View>
             )}
-          </View>
+          </Animated.View>
           {processing && (
             <View style={{ position: 'absolute', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -5693,12 +5705,32 @@ const InternalChat = () => {
   const callTimerRef = useRef(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [showMentionList, setShowMentionList] = useState(false);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
+
+  // @艾特：构建可艾特的成员列表（群聊中所有已批准员工 + 老板）
+  const mentionableMembers = useMemo(() => {
+    const members = [];
+    // 老板
+    if (state.shopInfo?.phone) {
+      members.push({ name: state.shopInfo?.name || '老板', phone: state.shopInfo?.phone });
+    }
+    // 已批准的员工（排除自己）
+    (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== state.user?.phone).forEach(s => {
+      members.push({ name: s.name, phone: s.phone });
+    });
+    return members;
+  }, [state.staffMemberList, state.shopInfo, state.user]);
+
+  const handleMention = (member) => {
+    setInputText(prev => prev + `@${member.name} `);
+    setShowMentionList(false);
+  };
 
   // Load saved background - use useFocusEffect so it reloads every time page is focused
   useFocusEffect(
@@ -6019,10 +6051,38 @@ const InternalChat = () => {
             <TouchableOpacity onPress={() => setShowEmoji(!showEmoji)}>
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowMentionList(true)}>
+              <Ionicons name="at-outline" size={24} color={PRIMARY_COLOR} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
               <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
             </TouchableOpacity>
           </View>
+          {showMentionList && (
+            <View style={{ maxHeight: 200, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+              <ScrollView>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: BORDER_COLOR }}
+                  onPress={() => handleMention({ name: '所有人' })}
+                >
+                  <Ionicons name="people-outline" size={20} color={PRIMARY_COLOR} style={{ marginRight: 10 }} />
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN, fontWeight: '500' }}>@所有人</Text>
+                </TouchableOpacity>
+                {mentionableMembers.map((member, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: BORDER_COLOR }}
+                    onPress={() => handleMention(member)}
+                  >
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{member.name.substring(0, 1)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{member.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
       {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
@@ -8860,10 +8920,23 @@ const PrivateChat = ({ route, navigation }) => {
   const [selectedImages, setSelectedImages] = useState([]);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
-  
+  const [showMentionList, setShowMentionList] = useState(false);
+
   // 当前用户信息
   const currentUser = state.user;
   const isEmployee = currentUser?.role === '员工';
+
+  // @艾特：可艾特的员工列表（排除当前聊天对方和自己）
+  const mentionableStaff = useMemo(() => {
+    return (state.staffMemberList || [])
+      .filter(s => s.status === 'approved' && s.phone !== state.user?.phone && s.phone !== phone)
+      .map(s => ({ name: s.name, phone: s.phone }));
+  }, [state.staffMemberList, state.user, phone]);
+
+  const handleMention = (member) => {
+    setInputText(prev => prev + `@${member.name} `);
+    setShowMentionList(false);
+  };
 
   useEffect(() => {
     const savedMessages = state.privateChatMessages[phone] || [];
@@ -9117,6 +9190,7 @@ const PrivateChat = ({ route, navigation }) => {
       )}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowMentionList(true)} style={{ paddingHorizontal: 4 }}><Ionicons name="at-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={styles.inputBox}
           placeholder="输入消息..."
@@ -9129,6 +9203,28 @@ const PrivateChat = ({ route, navigation }) => {
           <TouchableOpacity style={[styles.sendBtn, { backgroundColor: SUCCESS_COLOR, marginLeft: 4 }]} onPress={() => sendMessage('image')}><Text style={styles.sendTxt}>📷 发送</Text></TouchableOpacity>
         )}
       </View>
+      {showMentionList && (
+        <View style={{ maxHeight: 200, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <ScrollView>
+            {mentionableStaff.length === 0 ? (
+              <Text style={{ padding: 16, textAlign: 'center', color: TEXT_THIRD }}>暂无可艾特的员工</Text>
+            ) : (
+              mentionableStaff.map((member, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: BORDER_COLOR }}
+                  onPress={() => handleMention(member)}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF9800', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>{member.name.substring(0, 1)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{member.name}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      )}
       <View style={{ height: 56 }} />
       <Modal visible={showVoiceModal} transparent animationType="fade">
         <View style={styles.modalMask}>
@@ -9603,20 +9699,95 @@ class GlobalErrorBoundary extends React.Component {
 }
 
 // ================== App 容器 ==================
+// 通知处理配置：前台时显示横幅
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// 全局App状态引用，供消息发送时判断是否在后台
+const appStateRef = { current: 'active' };
+
+// 发送本地通知（仅当App在后台或锁屏时）
+async function sendLocalNotification(title, body, data = {}) {
+  if (appStateRef.current === 'active') return; // 前台时不发通知，只显示红点
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: title || '经营宝',
+        body: body || '您有新消息',
+        data,
+        sound: 'default',
+      },
+      trigger: null, // 立即发送
+    });
+  } catch (e) {
+    console.warn('发送通知失败', e);
+  }
+}
+
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const notificationListener = useRef(null);
+  const responseListener = useRef(null);
 
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      appStateRef.current = nextAppState;
       if (nextAppState === 'active' && !isFirstLaunch) {
         setShowSplash(false);
       }
     });
     return () => { appStateListener.remove(); };
   }, [isFirstLaunch]);
+
+  // 申请通知权限 + 注册通知监听
+  useEffect(() => {
+    (async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.warn('通知权限未授予');
+      }
+    })();
+
+    // 监听前台收到的通知
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      // 前台时收到通知只更新红点，不重复弹通知
+    });
+
+    // 监听用户点击通知
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data?.screen && navigationRef.current) {
+        // 根据通知点击跳转到对应页面
+        if (data.screen === 'internal') {
+          navigationRef.current.navigate('MainTabs', { screen: '内部' });
+        } else if (data.screen === 'customerService') {
+          navigationRef.current.navigate('MainTabs', { screen: '客服' });
+        } else if (data.screen === 'privateChat' && data.phone && data.name) {
+          navigationRef.current.navigate('PrivateChat', { phone: data.phone, name: data.name });
+        }
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
+      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -9653,6 +9824,52 @@ export default function App() {
   useEffect(() => {
     if (!loading) { saveAllData(state); }
   }, [state, loading]);
+
+  // 监听新消息，在后台时发送系统通知
+  const lastMsgCountRef = useRef({ group: 0, private: 0, customer: 0 });
+  useEffect(() => {
+    if (!state.user || loading) return;
+    // 统计群聊新消息
+    let groupTotal = 0;
+    Object.values(state.groupChatMessages || {}).forEach(msgs => { groupTotal += (msgs?.length || 0); });
+    // 统计私聊新消息
+    let privateTotal = 0;
+    Object.values(state.privateChatMessages || {}).forEach(msgs => { privateTotal += (msgs?.length || 0); });
+    // 统计客服消息
+    let customerTotal = 0;
+    Object.values(state.messages || {}).forEach(msgs => { customerTotal += (msgs?.length || 0); });
+
+    const prev = lastMsgCountRef.current;
+    // 群聊新消息
+    if (groupTotal > prev.group && appStateRef.current !== 'active') {
+      const allGroupMsgs = Object.values(state.groupChatMessages || {}).flat();
+      const newMsg = allGroupMsgs[allGroupMsgs.length - 1];
+      if (newMsg && newMsg.fromPhone !== state.user?.phone) {
+        sendLocalNotification(`内部消息 - ${newMsg.from || '同事'}`, newMsg.text || newMsg.image ? '[图片]' : '新消息', { screen: 'internal' });
+      }
+    }
+    // 私聊新消息
+    if (privateTotal > prev.private && appStateRef.current !== 'active') {
+      for (const [chatPhone, msgs] of Object.entries(state.privateChatMessages || {})) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.fromPhone !== state.user?.phone) {
+          sendLocalNotification(`私聊 - ${lastMsg.fromName || '联系人'}`, lastMsg.text || (lastMsg.image ? '[图片]' : '新消息'), { screen: 'privateChat', phone: chatPhone, name: lastMsg.fromName || '联系人' });
+          break;
+        }
+      }
+    }
+    // 客服新消息
+    if (customerTotal > prev.customer && appStateRef.current !== 'active') {
+      for (const [chatPhone, msgs] of Object.entries(state.messages || {})) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.from === 'customer') {
+          sendLocalNotification(`客服消息 - ${chatPhone}`, lastMsg.text || '新消息', { screen: 'customerService' });
+          break;
+        }
+      }
+    }
+    lastMsgCountRef.current = { group: groupTotal, private: privateTotal, customer: customerTotal };
+  }, [state.groupChatMessages, state.privateChatMessages, state.messages, state.user, loading]);
 
   const handleSplashComplete = () => {
     setShowSplash(false);
