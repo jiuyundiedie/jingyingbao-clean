@@ -1647,6 +1647,7 @@ const LoginScreen = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const previousAccounts = state.previousAccounts || [];
 
   useEffect(() => {
@@ -1660,6 +1661,10 @@ const LoginScreen = () => {
 
   const handleLogin = async () => {
     if (loading) return;
+    if (!agreeTerms) {
+      showToast('请先阅读并同意用户协议');
+      return;
+    }
     setLoading(true);
     try {
       console.log('[Login] Login started');
@@ -1824,7 +1829,20 @@ const LoginScreen = () => {
           <TextInput style={styles.formInput} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
         </>
       )}
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+        <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 8 }}>
+          <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+            {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>
+          我已阅读并同意
+          <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}>《用户协议》</Text>
+          和
+          <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}>《隐私政策》</Text>
+        </Text>
+      </View>
+      <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
         <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -2942,49 +2960,7 @@ const ClearCacheScreen = ({ navigation }) => {
   );
 };
 
-// 新手引导页
-const OnboardingScreen = ({ navigation, onDone }) => {
-  const [step, setStep] = useState(0);
-  const steps = [
-    { icon: 'qr-code', color: '#5B6DF0', title: '订单核销', desc: '支持美团、抖音、大众点评扫码核销，一键完成订单验证，提升效率' },
-    { icon: 'swap-horizontal', color: '#00B42A', title: '库存管理', desc: '出入库记录、商品管理、AI拍照智能盘点，让库存管理更轻松' },
-    { icon: 'people', color: '#FF7D00', title: '团队协作', desc: '内部沟通、私聊、员工管理，打造高效协作团队' },
-    { icon: 'star', color: '#7B61FF', title: 'AI智能助手', desc: '智能问答、图片生成、经营分析，您的专属经营顾问' },
-  ];
 
-  const handleFinish = async () => {
-    await AsyncStorage.setItem('onboarding_completed', 'true');
-    if (onDone) { onDone(); return; }
-    if (navigation) navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-        <View style={{ width: 120, height: 120, borderRadius: 30, backgroundColor: steps[step].color + '15', justifyContent: 'center', alignItems: 'center', marginBottom: 30 }}>
-          <Ionicons name={steps[step].icon} size={60} color={steps[step].color} />
-        </View>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16 }}>{steps[step].title}</Text>
-        <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center', lineHeight: 26 }}>{steps[step].desc}</Text>
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 30 }}>
-        {steps.map((_, i) => (
-          <View key={i} style={{ width: i === step ? 24 : 8, height: 8, borderRadius: 4, backgroundColor: i === step ? PRIMARY_COLOR : BORDER_COLOR, marginHorizontal: 4 }} />
-        ))}
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 30, paddingBottom: 40 }}>
-        <TouchableOpacity onPress={handleFinish}>
-          <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => step < steps.length - 1 ? setStep(step + 1) : handleFinish()}>
-          <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '600' }}>{step < steps.length - 1 ? '下一步' : '开始使用'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
 
 // ================== 使用帮助轮播弹窗（登录后弹出） ==================
 const HelpGuideCarousel = ({ visible, onClose }) => {
@@ -5640,7 +5616,7 @@ const CustomerService = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -6011,7 +5987,7 @@ const InternalChat = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -7778,7 +7754,7 @@ ${businessContext}
           </Modal>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -9496,7 +9472,6 @@ function AppStack() {
       <Stack.Screen name="About" component={AboutScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="ClearCache" component={ClearCacheScreen} options={{ gestureEnabled: true }} />
-      <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ gestureEnabled: false, headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -9611,7 +9586,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', (nextAppState) => {
@@ -9625,12 +9599,6 @@ export default function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 检查是否首次启动（是否已完成新手引导）
-        const onboardingDone = await AsyncStorage.getItem('onboarding_completed');
-        if (!onboardingDone) {
-          setShowOnboarding(true);
-        }
-
         const appData = await loadAllData();
         if (appData) {
           dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
@@ -9671,19 +9639,6 @@ export default function App() {
 
   if (showSplash && isFirstLaunch) {
     return <SplashScreenComponent onComplete={handleSplashComplete} />;
-  }
-
-  // 首次使用显示新手引导
-  if (showOnboarding) {
-    return (
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Onboarding">
-            {(props) => <OnboardingScreen {...props} onDone={() => setShowOnboarding(false)} />}
-          </Stack.Screen>
-        </Stack.Navigator>
-      </NavigationContainer>
-    );
   }
 
   if (loading) {
