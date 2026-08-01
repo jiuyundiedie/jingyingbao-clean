@@ -2252,8 +2252,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     }
   };
 
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHelpCarousel, setShowHelpCarousel] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   if (!visible) return null;
@@ -2348,12 +2346,6 @@ const SettingDrawer = ({ visible, onClose }) => {
               )}
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpCarousel(true)}>
-                  <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
-                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
-                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
-                </TouchableOpacity>
-                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowPrivacyModal(true)}>
                   <Ionicons name="shield-checkmark-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>隐私政策</Text>
@@ -2558,45 +2550,6 @@ const SettingDrawer = ({ visible, onClose }) => {
         </Modal>
       </>
     )}
-
-    <Modal visible={showHelpModal} transparent animationType="fade" onRequestClose={() => setShowHelpModal(false)}>
-      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
-        <View style={{ width: '85%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 16, padding: 20 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>📖 使用帮助</Text>
-          <ScrollView style={{ maxHeight: 400 }}>
-            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22, marginBottom: 12 }}>
-              欢迎使用经营宝！这是一款专为商家设计的智能管理工具，帮助您高效管理店铺运营。
-
-            </Text>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📱 主要功能</Text>
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
-              • 首页：查看店铺概览、日报推送设置\n
-              • 核销：扫码核销顾客订单\n
-              • 客服：与顾客进行聊天沟通\n
-              • 出入库：管理商品库存，支持拍照识别\n
-              • 内部：员工之间内部沟通\n
-              • AI助手：智能生成文案、海报、日报等
-            </Text>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>🔧 常见问题</Text>
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 8 }}>
-              Q: 拍照识别数量不准确怎么办？\n
-              A: 请确保照片清晰，物品摆放整齐，避免过度重叠。识别后可手动调整数量。
-
-              Q: 如何切换账号？\n
-              A: 在设置中点击"切换账号"，可选择历史账号或添加新账号。
-
-              Q: 数据会丢失吗？\n
-              A: 建议定期进行数据备份，备份文件可分享保存到其他设备。
-            </Text>
-          </ScrollView>
-          <TouchableOpacity style={{ marginTop: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8, alignItems: 'center' }} onPress={() => setShowHelpModal(false)}>
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>知道了</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-
-    <HelpGuideCarousel visible={showHelpCarousel} onClose={() => setShowHelpCarousel(false)} />
 
     <Modal visible={showPrivacyModal} transparent animationType="fade" onRequestClose={() => setShowPrivacyModal(false)}>
       <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowPrivacyModal(false)}>
@@ -3037,6 +2990,7 @@ const OnboardingScreen = ({ navigation, onDone }) => {
 const HelpGuideCarousel = ({ visible, onClose }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const scrollRef = useRef(null);
+  const autoScrollTimer = useRef(null);
   const pages = [
     {
       icon: 'storefront',
@@ -3087,6 +3041,28 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
       onClose();
     }
   };
+
+  useEffect(() => {
+    if (visible) {
+      autoScrollTimer.current = setInterval(() => {
+        setCurrentPage(prev => {
+          const next = prev + 1;
+          if (next < pages.length) {
+            scrollRef.current?.scrollTo({ x: width * next, animated: true });
+            return next;
+          } else {
+            return 0;
+          }
+        });
+      }, 3500);
+    }
+    return () => {
+      if (autoScrollTimer.current) {
+        clearInterval(autoScrollTimer.current);
+        autoScrollTimer.current = null;
+      }
+    };
+  }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -3167,77 +3143,18 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [drawPaths, setDrawPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
 
-  // 缩放状态
-  const scale = useRef(new Animated.Value(1)).current;
-  const lastScale = useRef(1);
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const lastTranslateX = useRef(0);
-  const lastTranslateY = useRef(0);
-
-  // 手绘 PanResponder
-  const drawResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => drawMode,
-      onMoveShouldSetPanResponder: () => drawMode,
-      onPanResponderGrant: (evt) => {
-        if (drawMode) {
-          setCurrentPath([{ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }]);
-        }
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        if (drawMode) {
-          setCurrentPath(prev => [...prev, {
-            x: evt.nativeEvent.locationX,
-            y: evt.nativeEvent.locationY,
-          }]);
-        }
-      },
-      onPanResponderRelease: () => {
-        if (drawMode && currentPath.length > 0) {
-          setDrawPaths(prev => [...prev, { color: drawColor, points: currentPath }]);
-          setCurrentPath([]);
-        }
-      },
-    })
-  ).current;
-
-  // 缩放 PanResponder
-  const zoomResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !drawMode,
-      onMoveShouldSetPanResponder: () => !drawMode,
-      onPanResponderMove: (evt, gestureState) => {
-        if (evt.nativeEvent.touches.length === 2) {
-          // 双指缩放
-          const dx = evt.nativeEvent.touches[0].locationX - evt.nativeEvent.touches[1].locationX;
-          const dy = evt.nativeEvent.touches[0].locationY - evt.nativeEvent.touches[1].locationY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (!lastScale.current) lastScale.current = distance;
-          const newScale = Math.max(0.5, Math.min(4, (distance / lastScale.current) * scale._value));
-          scale.setValue(newScale);
-        } else if (evt.nativeEvent.touches.length === 1 && scale._value > 1) {
-          // 单指平移（仅在放大时）
-          translateX.setValue(lastTranslateX.current + gestureState.dx);
-          translateY.setValue(lastTranslateY.current + gestureState.dy);
-        }
-      },
-      onPanResponderRelease: () => {
-        lastScale.current = 1;
-        lastTranslateX.current = translateX._value;
-        lastTranslateY.current = translateY._value;
-        if (scale._value < 1) {
-          Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
-          translateX.setValue(0);
-          translateY.setValue(0);
-          lastTranslateX.current = 0;
-          lastTranslateY.current = 0;
-        }
-      },
-    })
-  ).current;
-
-  if (!visible) return null;
+  // 缩放状态（使用useRef保存实际值，Animated.Value驱动UI）
+  const scaleValue = useRef(1);
+  const translateXValue = useRef(0);
+  const translateYValue = useRef(0);
+  const [, forceUpdate] = useState(0);
+  const lastTapTime = useRef(0);
+  const initialDistance = useRef(0);
+  const initialScale = useRef(1);
+  const panStartX = useRef(0);
+  const panStartY = useRef(0);
+  const panStartTranslateX = useRef(0);
+  const panStartTranslateY = useRef(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3249,8 +3166,103 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   ];
 
   const colors = ['#F53F3F', '#00B42A', '#5B6DF0', '#FF7D00', '#000000', '#FFFFFF'];
-
   const currentImageUri = processedImageUri || imageUri;
+
+  // 计算双指距离
+  const getDistance = (touches) => {
+    const dx = touches[0].locationX - touches[1].locationX;
+    const dy = touches[0].locationY - touches[1].locationY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // 手绘 PanResponder
+  const drawResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => drawMode,
+      onMoveShouldSetPanResponder: () => drawMode,
+      onPanResponderGrant: (evt) => {
+        if (drawMode) {
+          setCurrentPath([{ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }]);
+        }
+      },
+      onPanResponderMove: (evt) => {
+        if (drawMode) {
+          setCurrentPath(prev => [...prev, { x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }]);
+        }
+      },
+      onPanResponderRelease: () => {
+        if (drawMode && currentPath.length > 0) {
+          setDrawPaths(prev => [...prev, { color: drawColor, points: currentPath }]);
+          setCurrentPath([]);
+        }
+      },
+    })
+  ).current;
+
+  // 缩放/拖拽 PanResponder
+  const zoomResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !drawMode,
+      onMoveShouldSetPanResponder: () => !drawMode,
+      onPanResponderGrant: (evt) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          initialDistance.current = getDistance(evt.nativeEvent.touches);
+          initialScale.current = scaleValue.current;
+        } else if (evt.nativeEvent.touches.length === 1 && scaleValue.current > 1) {
+          panStartX.current = evt.nativeEvent.touches[0].locationX;
+          panStartY.current = evt.nativeEvent.touches[0].locationY;
+          panStartTranslateX.current = translateXValue.current;
+          panStartTranslateY.current = translateYValue.current;
+        }
+      },
+      onPanResponderMove: (evt) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          const distance = getDistance(evt.nativeEvent.touches);
+          if (initialDistance.current > 0) {
+            let newScale = (distance / initialDistance.current) * initialScale.current;
+            newScale = Math.max(0.5, Math.min(5, newScale));
+            scaleValue.current = newScale;
+            forceUpdate(v => v + 1);
+          }
+        } else if (evt.nativeEvent.touches.length === 1 && scaleValue.current > 1) {
+          const touch = evt.nativeEvent.touches[0];
+          translateXValue.current = panStartTranslateX.current + (touch.locationX - panStartX.current);
+          translateYValue.current = panStartTranslateY.current + (touch.locationY - panStartY.current);
+          forceUpdate(v => v + 1);
+        }
+      },
+      onPanResponderRelease: () => {
+        initialDistance.current = 0;
+        if (scaleValue.current < 1) {
+          scaleValue.current = 1;
+          translateXValue.current = 0;
+          translateYValue.current = 0;
+          forceUpdate(v => v + 1);
+        } else if (scaleValue.current > 3) {
+          scaleValue.current = 3;
+          forceUpdate(v => v + 1);
+        }
+      },
+    })
+  ).current;
+
+  // 双击缩放
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapTime.current < 300) {
+      if (scaleValue.current > 1) {
+        scaleValue.current = 1;
+        translateXValue.current = 0;
+        translateYValue.current = 0;
+      } else {
+        scaleValue.current = 2.5;
+      }
+      forceUpdate(v => v + 1);
+    }
+    lastTapTime.current = now;
+  };
+
+  if (!visible) return null;
 
   const handleSave = async () => {
     try {
@@ -3303,12 +3315,19 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setCropMode(false);
     setDrawPaths([]);
     setCurrentPath([]);
-    scale.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    lastScale.current = 1;
-    lastTranslateX.current = 0;
-    lastTranslateY.current = 0;
+    scaleValue.current = 1;
+    translateXValue.current = 0;
+    translateYValue.current = 0;
+    forceUpdate(v => v + 1);
+  };
+
+  const containerStyle = {
+    transform: [
+      { scale: drawMode ? 1 : scaleValue.current },
+      { translateX: drawMode ? 0 : translateXValue.current },
+      { translateY: drawMode ? 0 : translateYValue.current },
+      { rotate: `${rotation}deg` },
+    ],
   };
 
   return (
@@ -3319,35 +3338,30 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : '图片预览'}</Text>
+          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : scaleValue.current > 1 ? `缩放 ${scaleValue.current.toFixed(1)}x` : '图片预览'}</Text>
           <TouchableOpacity style={{ padding: 8 }} onPress={() => { if (editMode) resetAll(); setEditMode(!editMode); }}>
             <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={26} color="#fff" />
           </TouchableOpacity>
         </View>
 
         {/* 图片区域 */}
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} {...(drawMode ? drawResponder : zoomResponder).panHandlers}>
-          <Animated.View style={{
-            transform: [
-              { scale: drawMode ? 1 : scale },
-              { translateX: drawMode ? 0 : translateX },
-              { translateY: drawMode ? 0 : translateY },
-              { rotate: `${rotation}deg` },
-            ],
-          }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          {...(drawMode ? drawResponder : zoomResponder).panHandlers}
+          onTouchStart={!drawMode && handleDoubleTap}
+        >
+          <View style={containerStyle}>
             <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-            {/* 手绘覆盖层 */}
             {(drawMode || drawPaths.length > 0) && (
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
                 {drawPaths.map((path, i) => path.points.map((p, j) => (
-                  <View key={`${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
+                  <View key={`p-${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
                 )))}
                 {currentPath.map((p, j) => (
-                  <View key={`curr-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
+                  <View key={`c-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
                 ))}
               </View>
             )}
-          </Animated.View>
+          </View>
           {processing && (
             <View style={{ position: 'absolute', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -3432,7 +3446,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           </View>
         )}
 
-        {/* 底部操作栏 */}
+        {/* 底部操作栏（非编辑模式） */}
         {!editMode && !drawMode && !cropMode && (
           <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', paddingBottom: Platform.OS === 'ios' ? 50 : 30, paddingTop: 16 }}>
             <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleSave}>
@@ -3442,6 +3456,10 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleShare}>
               <Ionicons name="share-outline" size={24} color="#fff" />
               <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>分享</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setEditMode(true)}>
+              <Ionicons name="create-outline" size={24} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>编辑</Text>
             </TouchableOpacity>
             {isOwnMessage && onDelete && (
               <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleDelete}>
@@ -5622,7 +5640,7 @@ const CustomerService = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: 0 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -5993,7 +6011,7 @@ const InternalChat = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: 0 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -7760,7 +7778,7 @@ ${businessContext}
           </Modal>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 84 : 64 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
