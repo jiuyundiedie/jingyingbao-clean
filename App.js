@@ -5622,7 +5622,7 @@ const CustomerService = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -6001,7 +6001,7 @@ const InternalChat = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -7776,7 +7776,7 @@ ${businessContext}
           </Modal>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
