@@ -3043,13 +3043,6 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        {/* 顶部跳过按钮 */}
-        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 50 : 20, right: 20, zIndex: 10 }}>
-          <TouchableOpacity onPress={onClose} style={{ padding: 8 }}>
-            <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* 轮播内容 */}
         <ScrollView
           ref={scrollRef}
@@ -3092,14 +3085,19 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
               }} />
             ))}
           </View>
-          <TouchableOpacity
-            style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center' }}
-            onPress={goNext}
-          >
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
-              {currentPage < pages.length - 1 ? '下一页' : '开始体验'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center' }}
+              onPress={goNext}
+            >
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+                {currentPage < pages.length - 1 ? '下一页' : '开始体验'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={{ marginLeft: 16, padding: 12 }}>
+              <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -5143,6 +5141,8 @@ const StockManage = () => {
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
   const [currentPlatform, setCurrentPlatform] = useState('美团');
   const [messages, setMessages] = useState([]);
@@ -5158,6 +5158,12 @@ const CustomerService = () => {
   const [escalateToBoss, setEscalateToBoss] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // 收集所有顾客（按手机号）
   const allCustomers = Object.keys(state.privateChatMessages || {});
@@ -5616,7 +5622,7 @@ const CustomerService = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -5671,6 +5677,8 @@ const CustomerService = () => {
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const scrollViewRef = useRef(null);
@@ -5685,6 +5693,12 @@ const InternalChat = () => {
   const callTimerRef = useRef(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // Load saved background - use useFocusEffect so it reloads every time page is focused
   useFocusEffect(
@@ -5987,7 +6001,7 @@ const InternalChat = () => {
           </View>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
@@ -7008,6 +7022,8 @@ ${businessContext}
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const messages = state.aiChatMessages || [];
   const messagesRef = useRef(messages);
   const [inputText, setInputText] = useState('');
@@ -7036,6 +7052,12 @@ const MerchantAssistant = () => {
         AbortControllerRef.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
   const industry = state.shopInfo?.industry || '待识别';
@@ -7754,7 +7776,7 @@ ${businessContext}
           </Modal>
         )}
         
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: Platform.OS === 'ios' ? 42 : 32 }}>
+        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
