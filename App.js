@@ -2253,6 +2253,7 @@ const SettingDrawer = ({ visible, onClose }) => {
   };
 
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHelpCarousel, setShowHelpCarousel] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   if (!visible) return null;
@@ -2347,7 +2348,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               )}
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpModal(true)}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => setShowHelpCarousel(true)}>
                   <Ionicons name="book" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>使用帮助</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
@@ -2594,6 +2595,8 @@ const SettingDrawer = ({ visible, onClose }) => {
         </View>
       </TouchableOpacity>
     </Modal>
+
+    <HelpGuideCarousel visible={showHelpCarousel} onClose={() => setShowHelpCarousel(false)} />
 
     <Modal visible={showPrivacyModal} transparent animationType="fade" onRequestClose={() => setShowPrivacyModal(false)}>
       <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setShowPrivacyModal(false)}>
@@ -3027,6 +3030,429 @@ const OnboardingScreen = ({ navigation, onDone }) => {
         </TouchableOpacity>
       </View>
     </View>
+  );
+};
+
+// ================== 使用帮助轮播弹窗（登录后弹出） ==================
+const HelpGuideCarousel = ({ visible, onClose }) => {
+  const [currentPage, setCurrentPage] = useState(0);
+  const scrollRef = useRef(null);
+  const pages = [
+    {
+      icon: 'storefront',
+      color: '#5B6DF0',
+      title: '欢迎使用经营宝',
+      desc: '专为商家打造的智能经营管理工具\n订单核销 · 库存管理 · AI助手 · 团队协作',
+      features: ['一键扫码核销，支持美团/抖音/点评', 'AI拍照盘点，智能识别库存数量', '内部团队沟通，高效协作管理'],
+    },
+    {
+      icon: 'qr-code',
+      color: '#00B42A',
+      title: '订单核销',
+      desc: '支持多平台扫码核销，快速验证顾客订单',
+      features: ['点击核销按钮打开扫码', '支持美团、抖音、大众点评', '核销记录自动保存，可随时查看'],
+    },
+    {
+      icon: 'swap-horizontal',
+      color: '#FF7D00',
+      title: '出入库管理',
+      desc: '商品库存一目了然，AI拍照智能盘点',
+      features: ['入库出库一键记录', '拍照自动识别物品数量', '商品列表灵活管理'],
+    },
+    {
+      icon: 'chatbubble-ellipses',
+      color: '#7B61FF',
+      title: '客服与内部沟通',
+      desc: '顾客客服沟通 + 员工内部协作',
+      features: ['客服页面与顾客实时聊天', '内部沟通支持群聊和私聊', '支持发送图片、语音消息'],
+    },
+    {
+      icon: 'sparkles',
+      color: '#F53F3F',
+      title: 'AI智能助手',
+      desc: '您的专属经营顾问，随时解答问题',
+      features: ['智能问答，联网获取真实回复', 'AI生成营销海报和图片', '经营数据分析与建议'],
+    },
+  ];
+
+  const handleScroll = (e) => {
+    const page = Math.round(e.nativeEvent.contentOffset.x / width);
+    setCurrentPage(page);
+  };
+
+  const goNext = () => {
+    if (currentPage < pages.length - 1) {
+      scrollRef.current?.scrollTo({ x: width * (currentPage + 1), animated: true });
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        {/* 顶部跳过按钮 */}
+        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 50 : 20, right: 20, zIndex: 10 }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 8 }}>
+            <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 轮播内容 */}
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          style={{ flex: 1 }}
+        >
+          {pages.map((page, index) => (
+            <View key={index} style={{ width, flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+              <View style={{
+                width: 140, height: 140, borderRadius: 35,
+                backgroundColor: page.color + '12',
+                justifyContent: 'center', alignItems: 'center', marginBottom: 40,
+              }}>
+                <Ionicons name={page.icon} size={70} color={page.color} />
+              </View>
+              <Text style={{ fontSize: 26, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16 }}>{page.title}</Text>
+              <Text style={{ fontSize: 16, color: TEXT_SECOND, textAlign: 'center', lineHeight: 26, marginBottom: 30 }}>{page.desc}</Text>
+              {page.features.map((f, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: page.color, marginRight: 10 }} />
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{f}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* 底部指示器和按钮 */}
+        <View style={{ paddingBottom: Platform.OS === 'ios' ? 50 : 30, paddingHorizontal: 40 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 24 }}>
+            {pages.map((_, i) => (
+              <View key={i} style={{
+                width: i === currentPage ? 28 : 8, height: 8, borderRadius: 4,
+                backgroundColor: i === currentPage ? PRIMARY_COLOR : BORDER_COLOR,
+                marginHorizontal: 4,
+              }} />
+            ))}
+          </View>
+          <TouchableOpacity
+            style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center' }}
+            onPress={goNext}
+          >
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+              {currentPage < pages.length - 1 ? '下一页' : '开始体验'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// ================== 增强版图片查看器（支持缩放、裁剪、手绘） ==================
+const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
+  const [editMode, setEditMode] = useState(false);
+  const [rotation, setRotation] = useState(0);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [processedImageUri, setProcessedImageUri] = useState(null);
+  const [drawMode, setDrawMode] = useState(false);
+  const [cropMode, setCropMode] = useState(false);
+  const [drawColor, setDrawColor] = useState('#F53F3F');
+  const [drawPaths, setDrawPaths] = useState([]);
+  const [currentPath, setCurrentPath] = useState([]);
+
+  // 缩放状态
+  const scale = useRef(new Animated.Value(1)).current;
+  const lastScale = useRef(1);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastTranslateX = useRef(0);
+  const lastTranslateY = useRef(0);
+
+  // 手绘 PanResponder
+  const drawResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => drawMode,
+      onMoveShouldSetPanResponder: () => drawMode,
+      onPanResponderGrant: (evt) => {
+        if (drawMode) {
+          setCurrentPath([{ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }]);
+        }
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (drawMode) {
+          setCurrentPath(prev => [...prev, {
+            x: evt.nativeEvent.locationX,
+            y: evt.nativeEvent.locationY,
+          }]);
+        }
+      },
+      onPanResponderRelease: () => {
+        if (drawMode && currentPath.length > 0) {
+          setDrawPaths(prev => [...prev, { color: drawColor, points: currentPath }]);
+          setCurrentPath([]);
+        }
+      },
+    })
+  ).current;
+
+  // 缩放 PanResponder
+  const zoomResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !drawMode,
+      onMoveShouldSetPanResponder: () => !drawMode,
+      onPanResponderMove: (evt, gestureState) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          // 双指缩放
+          const dx = evt.nativeEvent.touches[0].locationX - evt.nativeEvent.touches[1].locationX;
+          const dy = evt.nativeEvent.touches[0].locationY - evt.nativeEvent.touches[1].locationY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (!lastScale.current) lastScale.current = distance;
+          const newScale = Math.max(0.5, Math.min(4, (distance / lastScale.current) * scale._value));
+          scale.setValue(newScale);
+        } else if (evt.nativeEvent.touches.length === 1 && scale._value > 1) {
+          // 单指平移（仅在放大时）
+          translateX.setValue(lastTranslateX.current + gestureState.dx);
+          translateY.setValue(lastTranslateY.current + gestureState.dy);
+        }
+      },
+      onPanResponderRelease: () => {
+        lastScale.current = 1;
+        lastTranslateX.current = translateX._value;
+        lastTranslateY.current = translateY._value;
+        if (scale._value < 1) {
+          Animated.spring(scale, { toValue: 1, useNativeDriver: false }).start();
+          translateX.setValue(0);
+          translateY.setValue(0);
+          lastTranslateX.current = 0;
+          lastTranslateY.current = 0;
+        }
+      },
+    })
+  ).current;
+
+  if (!visible) return null;
+
+  const filters = [
+    { name: '原图', value: null },
+    { name: '暖色', value: 'warm' },
+    { name: '冷色', value: 'cool' },
+    { name: '黑白', value: 'mono' },
+    { name: '复古', value: 'sepia' },
+    { name: '鲜艳', value: 'vibrant' },
+  ];
+
+  const colors = ['#F53F3F', '#00B42A', '#5B6DF0', '#FF7D00', '#000000', '#FFFFFF'];
+
+  const currentImageUri = processedImageUri || imageUri;
+
+  const handleSave = async () => {
+    try {
+      const fileUri = `${FileSystem.documentDirectory}img_${Date.now()}.jpg`;
+      await FileSystem.downloadAsync(currentImageUri, fileUri);
+      showToast('已保存到本地');
+    } catch (e) { showToast('保存失败'); }
+  };
+
+  const handleShare = async () => {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(currentImageUri);
+      } else { showToast('分享不可用'); }
+    } catch (e) { showToast('分享失败'); }
+  };
+
+  const handleDelete = () => {
+    Alert.alert('删除图片', '确定要删除这张图片吗？', [
+      { text: '取消', style: 'cancel' },
+      { text: '删除', style: 'destructive', onPress: () => { if (onDelete) onDelete(); onClose(); showToast('图片已删除'); } }
+    ]);
+  };
+
+  const handleCrop = async () => {
+    setProcessing(true);
+    try {
+      const manipResult = await ImageManipulator.manipulateAsync(
+        currentImageUri,
+        [{ rotate: rotation }, { resize: { width: 800 } }],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setProcessedImageUri(manipResult.uri);
+      showToast('裁剪完成');
+      setCropMode(false);
+    } catch (e) { showToast('裁剪失败'); }
+    setProcessing(false);
+  };
+
+  const clearDrawing = () => {
+    setDrawPaths([]);
+    setCurrentPath([]);
+  };
+
+  const resetAll = () => {
+    setRotation(0);
+    setProcessedImageUri(null);
+    setShowFilterPanel(false);
+    setDrawMode(false);
+    setCropMode(false);
+    setDrawPaths([]);
+    setCurrentPath([]);
+    scale.setValue(1);
+    translateX.setValue(0);
+    translateY.setValue(0);
+    lastScale.current = 1;
+    lastTranslateX.current = 0;
+    lastTranslateY.current = 0;
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        {/* 顶部栏 */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 20, paddingHorizontal: 16, paddingBottom: 12 }}>
+          <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
+            <Ionicons name="close" size={26} color="#fff" />
+          </TouchableOpacity>
+          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : '图片预览'}</Text>
+          <TouchableOpacity style={{ padding: 8 }} onPress={() => { if (editMode) resetAll(); setEditMode(!editMode); }}>
+            <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={26} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 图片区域 */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} {...(drawMode ? drawResponder : zoomResponder).panHandlers}>
+          <Animated.View style={{
+            transform: [
+              { scale: drawMode ? 1 : scale },
+              { translateX: drawMode ? 0 : translateX },
+              { translateY: drawMode ? 0 : translateY },
+              { rotate: `${rotation}deg` },
+            ],
+          }}>
+            <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+            {/* 手绘覆盖层 */}
+            {(drawMode || drawPaths.length > 0) && (
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
+                {drawPaths.map((path, i) => path.points.map((p, j) => (
+                  <View key={`${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
+                )))}
+                {currentPath.map((p, j) => (
+                  <View key={`curr-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
+                ))}
+              </View>
+            )}
+          </Animated.View>
+          {processing && (
+            <View style={{ position: 'absolute', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+              <Text style={{ color: '#fff', marginTop: 8 }}>处理中...</Text>
+            </View>
+          )}
+        </View>
+
+        {/* 编辑工具栏 */}
+        {editMode && !drawMode && !cropMode && (
+          <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setRotation(rotation - 90); }}>
+                <Ionicons name="refresh-back" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>左转</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setRotation(rotation + 90); }}>
+                <Ionicons name="refresh-forward" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>右转</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setShowFilterPanel(!showFilterPanel)}>
+                <Ionicons name="color-palette-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>滤镜</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setCropMode(true)}>
+                <Ionicons name="crop-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>裁剪</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setDrawMode(true); setDrawPaths([]); }}>
+                <Ionicons name="brush-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>手绘</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={resetAll}>
+                <Ionicons name="refresh" size={22} color="#aaa" />
+                <Text style={{ color: '#aaa', fontSize: 11, marginTop: 4 }}>重置</Text>
+              </TouchableOpacity>
+            </View>
+            {showFilterPanel && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                {filters.map(f => (
+                  <TouchableOpacity key={f.name} style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 8 }}>
+                    <Text style={{ color: '#fff', fontSize: 14 }}>{f.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {/* 手绘模式工具栏 */}
+        {drawMode && (
+          <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row' }}>
+                {colors.map(c => (
+                  <TouchableOpacity key={c} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c, marginRight: 8, borderWidth: drawColor === c ? 2 : 0, borderColor: '#fff' }} onPress={() => setDrawColor(c)} />
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row' }}>
+                <TouchableOpacity style={{ padding: 8, marginRight: 8 }} onPress={clearDrawing}>
+                  <Ionicons name="trash-outline" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={{ padding: 8 }} onPress={() => { setDrawMode(false); setDrawPaths([]); }}>
+                  <Ionicons name="checkmark-circle" size={24} color="#00B42A" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* 裁剪模式工具栏 */}
+        {cropMode && (
+          <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
+              <TouchableOpacity style={{ padding: 12, marginRight: 20 }} onPress={() => setCropMode(false)}>
+                <Text style={{ color: '#fff', fontSize: 16 }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ padding: 12 }} onPress={handleCrop}>
+                <Text style={{ color: '#00B42A', fontSize: 16, fontWeight: '600' }}>确认裁剪</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* 底部操作栏 */}
+        {!editMode && !drawMode && !cropMode && (
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', paddingBottom: Platform.OS === 'ios' ? 50 : 30, paddingTop: 16 }}>
+            <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleSave}>
+              <Ionicons name="download-outline" size={24} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>保存</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleShare}>
+              <Ionicons name="share-outline" size={24} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>分享</Text>
+            </TouchableOpacity>
+            {isOwnMessage && onDelete && (
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleDelete}>
+                <Ionicons name="trash-outline" size={24} color={DANGER_COLOR} />
+                <Text style={{ color: DANGER_COLOR, fontSize: 12, marginTop: 4 }}>删除</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    </Modal>
   );
 };
 
@@ -5230,7 +5656,7 @@ const CustomerService = () => {
         </View>
       </KeyboardAvoidingView>
     {fullscreenImage && (
-      <FullscreenImageViewer
+      <EnhancedImageViewer
         visible={!!fullscreenImage}
         imageUri={fullscreenImage}
         onClose={() => setFullscreenImage(null)}
@@ -5675,7 +6101,7 @@ const InternalChat = () => {
         </View>
       )}
     {fullscreenImage && (
-        <FullscreenImageViewer
+        <EnhancedImageViewer
           visible={!!fullscreenImage}
           imageUri={fullscreenImage}
           onClose={() => setFullscreenImage(null)}
@@ -7195,7 +7621,7 @@ ${businessContext}
 
   return (
     <View style={styles.container}>
-      <FullscreenImageViewer
+      <EnhancedImageViewer
         visible={!!fullscreenImage}
         imageUri={fullscreenImage}
         onClose={() => setFullscreenImage(null)}
@@ -7663,7 +8089,7 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 };
 
 // ================== AI助手图片全屏查看器 ==================
-const FullscreenImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
+const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
   const [editMode, setEditMode] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [filter, setFilter] = useState(null);
@@ -7861,6 +8287,19 @@ const HomePage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
+  const [showHelpGuide, setShowHelpGuide] = useState(false);
+
+  // 登录后检查是否需要弹出使用帮助轮播
+  useEffect(() => {
+    const checkHelpGuide = async () => {
+      const shown = await AsyncStorage.getItem('help_guide_shown');
+      if (!shown) {
+        setShowHelpGuide(true);
+        await AsyncStorage.setItem('help_guide_shown', 'true');
+      }
+    };
+    checkHelpGuide();
+  }, []);
 
   if (!user) {
     return (
@@ -8081,6 +8520,7 @@ const HomePage = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+      <HelpGuideCarousel visible={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
       <CommonHeader 
         title="经营宝" 
         rightComponent={<TouchableOpacity onPress={() => setSettingOpen(true)}><Ionicons name="settings-outline" size={24} color={TEXT_SECOND} /></TouchableOpacity>}
@@ -8887,7 +9327,7 @@ const PrivateChat = ({ route, navigation }) => {
         </View>
       </Modal>
     {fullscreenImage && (
-      <FullscreenImageViewer
+      <EnhancedImageViewer
         visible={!!fullscreenImage}
         imageUri={fullscreenImage}
         onClose={() => setFullscreenImage(null)}
@@ -9108,25 +9548,41 @@ function RootTabs() {
   const { state, dispatch } = useApp();
   const isEmployee = state.user?.role === '员工';
 
+  // 经营宝专属图标映射 - 更符合产品定位
+  const tabIcons = {
+    '首页': { active: 'storefront', inactive: 'storefront-outline', color: '#5B6DF0' },
+    '核销': { active: 'scan', inactive: 'scan-outline', color: '#00B42A' },
+    '客服': { active: 'headset', inactive: 'headset-outline', color: '#FF7D00' },
+    '出入库': { active: 'cube', inactive: 'cube-outline', color: '#7B61FF' },
+    '内部': { active: 'people-circle', inactive: 'people-circle-outline', color: '#3790FA' },
+    'AI助手': { active: 'sparkles', inactive: 'sparkles-outline', color: '#F53F3F' },
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === '首页') iconName = focused ? 'home' : 'home-outline';
-          else if (route.name === '核销') iconName = focused ? 'qr-code' : 'qr-code-outline';
-          else if (route.name === '客服') iconName = focused ? 'chatbox' : 'chatbox-outline';
-          else if (route.name === '出入库') iconName = focused ? 'swap-horizontal' : 'swap-horizontal-outline';
-          else if (route.name === '内部') iconName = focused ? 'people' : 'people-outline';
-          else if (route.name === 'AI助手') iconName = focused ? 'star' : 'star-outline';
-          
+          const iconConfig = tabIcons[route.name] || { active: 'ellipse', inactive: 'ellipse-outline' };
+          const iconName = focused ? iconConfig.active : iconConfig.inactive;
+          const iconColor = focused ? iconConfig.color : TEXT_THIRD;
           const hasRedDot = state.newMessageRedDots?.[route.name] || false;
           
           return (
-            <View style={{ position: 'relative' }}>
-              <Ionicons name={iconName} size={size} color={color} />
+            <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+              {/* 选中时背景高亮 */}
+              {focused && (
+                <View style={{
+                  position: 'absolute', top: -6, width: 36, height: 36, borderRadius: 12,
+                  backgroundColor: iconConfig.color + '15',
+                }} />
+              )}
+              <Ionicons name={iconName} size={focused ? 24 : 22} color={iconColor} />
               {hasRedDot && (
-                <View style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, backgroundColor: DANGER_COLOR, borderRadius: 4 }} />
+                <View style={{
+                  position: 'absolute', top: -2, right: -8,
+                  width: 8, height: 8, backgroundColor: DANGER_COLOR, borderRadius: 4,
+                  borderWidth: 1.5, borderColor: '#fff',
+                }} />
               )}
             </View>
           );
@@ -9134,10 +9590,33 @@ function RootTabs() {
         tabBarActiveTintColor: PRIMARY_COLOR,
         tabBarInactiveTintColor: TEXT_THIRD,
         headerShown: false,
-        tabBarStyle: { height: Platform.OS === 'ios' ? 80 : 60, paddingBottom: Platform.OS === 'ios' ? 20 : 8 },
-        tabBarLabel: ({ focused, children }) => (
-          <Text style={{ fontSize: 10, color: focused ? PRIMARY_COLOR : TEXT_THIRD }}>{children}</Text>
-        ),
+        tabBarStyle: {
+          height: Platform.OS === 'ios' ? 84 : 64,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingTop: 6,
+          backgroundColor: '#fff',
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          borderTopWidth: 0,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
+          position: 'absolute',
+          overflow: 'visible',
+        },
+        tabBarLabel: ({ focused, children }) => {
+          const config = tabIcons[route.name];
+          return (
+            <Text style={{
+              fontSize: 10,
+              color: focused ? (config ? config.color : PRIMARY_COLOR) : TEXT_THIRD,
+              fontWeight: focused ? '600' : '400',
+              marginTop: 2,
+            }}>{children}</Text>
+          );
+        },
       })}
       listeners={{
         tabPress: ({ route }) => {
