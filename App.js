@@ -3213,6 +3213,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const lastTapRef = useRef(0);
+  const baseScale = useSharedValue(1);
 
   const filters = [
     { name: '原图', value: null },
@@ -3238,30 +3239,43 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     };
   });
 
-  const handleDoubleTap = useCallback(() => {
-    if (scale.value > 1.01) {
-      scale.value = withTiming(1, { duration: 200 });
-      translateX.value = withTiming(0, { duration: 200 });
-      translateY.value = withTiming(0, { duration: 200 });
-      runOnJS(setScaleDisplay)(1);
+  // 双击缩放（通过onTouchEnd检测，不干扰手势系统）
+  const handleTouchEnd = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (scale.value > 1.01) {
+        scale.value = withTiming(1, { duration: 200 });
+        translateX.value = withTiming(0, { duration: 200 });
+        translateY.value = withTiming(0, { duration: 200 });
+        baseScale.value = 1;
+        runOnJS(setScaleDisplay)(1);
+      } else {
+        scale.value = withTiming(2.5, { duration: 200 });
+        baseScale.value = 2.5;
+        runOnJS(setScaleDisplay)(2.5);
+      }
+      lastTapRef.current = 0;
     } else {
-      scale.value = withTiming(2.5, { duration: 200 });
-      runOnJS(setScaleDisplay)(2.5);
+      lastTapRef.current = now;
     }
   }, []);
 
-  // 捏合手势
+  // 捏合手势 - 使用baseScale实现增量缩放
   const pinchGesture = Gesture.Pinch()
+    .onBegin(() => {
+      baseScale.value = scale.value;
+    })
     .onUpdate((e) => {
-      const newScale = Math.max(0.5, Math.min(10, e.scale));
+      const newScale = Math.max(0.5, Math.min(10, baseScale.value * e.scale));
       scale.value = newScale;
       runOnJS(setScaleDisplay)(newScale);
     })
-    .onEnd((e) => {
-      if (e.scale < 1) {
+    .onEnd(() => {
+      if (scale.value < 1.01) {
         scale.value = withSpring(1);
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
+        baseScale.value = 1;
         runOnJS(setScaleDisplay)(1);
       }
     });
@@ -3282,25 +3296,10 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       }
     });
 
-  // 单击手势：用于双击检测（与捏合/拖动并行，但不阻塞）
-  const tapGesture = Gesture.Tap()
-    .numberOfTaps(1)
-    .maxDuration(300)
-    .onEnd(() => {
-      const now = Date.now();
-      if (now - lastTapRef.current < 300) {
-        runOnJS(handleDoubleTap)();
-        lastTapRef.current = 0;
-      } else {
-        lastTapRef.current = now;
-      }
-    });
-
-  // 组合手势：捏合+拖动+单击
+  // 组合手势：仅捏合+拖动（不包含Tap，避免干扰捏合）
   const composedGesture = Gesture.Simultaneous(
     pinchGesture,
-    panGesture,
-    tapGesture
+    panGesture
   );
 
   // 手绘 PanResponder
@@ -3383,32 +3382,35 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     scale.value = withTiming(1, { duration: 200 });
     translateX.value = withTiming(0, { duration: 200 });
     translateY.value = withTiming(0, { duration: 200 });
+    baseScale.value = 1;
     setScaleDisplay(1);
   };
+
+  const statusBarHeight = Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 24);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        {/* 顶部栏 */}
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: Platform.OS === 'ios' ? 50 : 20, paddingHorizontal: 16, paddingBottom: 12 }}>
+        {/* 顶部栏 - 避开状态栏/刘海 */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: statusBarHeight + 8, paddingHorizontal: 16, paddingBottom: 12 }}>
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
           <Text style={{ color: '#fff', fontSize: 15 }}>
             {drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : scaleDisplay > 1 ? `缩放 ${scaleDisplay.toFixed(1)}x` : '图片预览'}
           </Text>
-          <TouchableOpacity style={{ padding: 8 }} onPress={() => { if (editMode) resetAll(); setEditMode(!editMode); }}>
-            <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={26} color="#fff" />
-          </TouchableOpacity>
+          <View style={{ width: 42 }} />
         </View>
 
-        {/* 图片区域 - 使用GestureDetector包裹实现流畅手势 */}
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        {/* 图片区域 - 双击检测通过onTouchEnd，手势通过GestureDetector */}
+        <View
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+          onTouchEnd={!drawMode && !editMode ? handleTouchEnd : undefined}
           {...(drawMode ? drawResponder : {}).panHandlers}
         >
           {!drawMode && !editMode ? (
-            <GestureDetector gesture={composedGesture} style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
-              <Animated.View style={animatedStyle}>
+            <GestureDetector gesture={composedGesture}>
+              <Animated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
                 <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
                 {(drawMode || drawPaths.length > 0) && (
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
