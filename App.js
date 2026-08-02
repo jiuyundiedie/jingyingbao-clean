@@ -1687,6 +1687,7 @@ const styles = StyleSheet.create({
   editBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 },
   editBtnText: { color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' },
   modalMask: { position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  modalInput: { borderWidth: 1, borderColor: '#E4E7ED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 12, color: '#333' },
   modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 24, padding: 24, ...SHADOW },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
@@ -9947,11 +9948,16 @@ const StockAlertScreen = ({ navigation }) => {
   const stockAlerts = state.stockAlerts || {};
   const stockRecords = state.globalStockRecord || [];
 
-  // 计算每个商品当前库存
-  const getStockCount = (goodsId) => {
+  // 计算每个商品当前库存（兼容productName和goodsName两种字段名）
+  const getStockCount = (goods) => {
+    // 优先使用goodsList中记录的stock字段
+    if (goods.stock !== undefined) return goods.stock;
+    // 兜底：从出入库记录计算
     let count = 0;
+    const goodsName = goods.name || goods.goodsName;
     stockRecords.forEach(r => {
-      if (r.goodsId === goodsId || r.goodsName === goodsList.find(g => g.id === goodsId)?.name) {
+      const rName = r.productName || r.goodsName;
+      if (rName === goodsName) {
         count += (r.type === '入库' ? 1 : -1) * (r.count || r.quantity || 0);
       }
     });
@@ -9960,7 +9966,7 @@ const StockAlertScreen = ({ navigation }) => {
 
   const lowStockGoods = goodsList.filter(g => {
     const threshold = stockAlerts[g.id] || 10;
-    return getStockCount(g.id) <= threshold;
+    return getStockCount(g) <= threshold;
   });
 
   return (
@@ -9994,7 +10000,7 @@ const StockAlertScreen = ({ navigation }) => {
           </View>
         ) : (
           goodsList.map(goods => {
-            const count = getStockCount(goods.id);
+            const count = getStockCount(goods);
             const threshold = stockAlerts[goods.id] || 10;
             const isLow = count <= threshold;
             return (
@@ -10044,9 +10050,9 @@ const DataExportScreen = ({ navigation }) => {
     switch (type) {
       case 'orders':
         content = `经营宝 - 订单记录导出\n导出时间：${now}\n\n`;
-        content += '序号\t时间\t商品\t金额\t状态\n';
+        content += '序号\t时间\t平台\t核销码\t金额\t核销人\n';
         (state.globalOrderRecord || []).forEach((r, i) => {
-          content += `${i + 1}\t${r.time || r.date || ''}\t${r.goodsName || r.productName || ''}\t¥${r.amount || r.price || 0}\t${r.status || '已完成'}\n`;
+          content += `${i + 1}\t${r.time || r.date || ''}\t${r.platform || ''}\t${r.code || ''}\t¥${r.couponPrice || r.amount || r.price || 0}\t${r.staff || ''}\n`;
         });
         break;
       case 'members':
@@ -10067,7 +10073,7 @@ const DataExportScreen = ({ navigation }) => {
         content = `经营宝 - 出入库记录导出\n导出时间：${now}\n\n`;
         content += '序号\t时间\t类型\t商品\t数量\n';
         (state.globalStockRecord || []).forEach((r, i) => {
-          content += `${i + 1}\t${r.time || r.date || ''}\t${r.type || ''}\t${r.goodsName || ''}\t${r.count || r.quantity || 0}\n`;
+          content += `${i + 1}\t${r.time || r.date || ''}\t${r.type || ''}\t${r.productName || r.goodsName || ''}\t${r.count || r.quantity || 0}\n`;
         });
         break;
       default: return;
