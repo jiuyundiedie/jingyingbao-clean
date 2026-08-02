@@ -3238,27 +3238,21 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     };
   });
 
-  // 双击缩放检测（在JS线程只处理检测，动画在UI线程）
   const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 300) {
-      if (scale.value > 1) {
-        scale.value = withTiming(1, { duration: 200 });
-        translateX.value = withTiming(0, { duration: 200 });
-        translateY.value = withTiming(0, { duration: 200 });
-        runOnJS(setScaleDisplay)(1);
-      } else {
-        scale.value = withTiming(2.5, { duration: 200 });
-        runOnJS(setScaleDisplay)(2.5);
-      }
+    if (scale.value > 1.01) {
+      scale.value = withTiming(1, { duration: 200 });
+      translateX.value = withTiming(0, { duration: 200 });
+      translateY.value = withTiming(0, { duration: 200 });
+      runOnJS(setScaleDisplay)(1);
+    } else {
+      scale.value = withTiming(2.5, { duration: 200 });
+      runOnJS(setScaleDisplay)(2.5);
     }
-    lastTapRef.current = now;
   }, []);
 
-  // 捏合手势（PinchGestureHandler）
+  // 捏合手势
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
-      // 限制缩放范围0.5~10
       const newScale = Math.max(0.5, Math.min(10, e.scale));
       scale.value = newScale;
       runOnJS(setScaleDisplay)(newScale);
@@ -3272,7 +3266,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       }
     });
 
-  // 拖动手势（PanGestureHandler）- 仅在放大时生效
+  // 拖动手势 - 仅在放大时生效
   const panGesture = Gesture.Pan()
     .enabled(!drawMode && !editMode)
     .onUpdate((e) => {
@@ -3282,17 +3276,31 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       }
     })
     .onEnd(() => {
-      if (scale.value < 1) {
+      if (scale.value < 1.01) {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
       }
     });
 
-  // 组合手势：捏合+拖动+双击
+  // 单击手势：用于双击检测（与捏合/拖动并行，但不阻塞）
+  const tapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .maxDuration(300)
+    .onEnd(() => {
+      const now = Date.now();
+      if (now - lastTapRef.current < 300) {
+        runOnJS(handleDoubleTap)();
+        lastTapRef.current = 0;
+      } else {
+        lastTapRef.current = now;
+      }
+    });
+
+  // 组合手势：捏合+拖动+单击
   const composedGesture = Gesture.Simultaneous(
     pinchGesture,
     panGesture,
-    Gesture.Tap().numberOfTaps(2).onStart(handleDoubleTap)
+    tapGesture
   );
 
   // 手绘 PanResponder
@@ -3399,7 +3407,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           {...(drawMode ? drawResponder : {}).panHandlers}
         >
           {!drawMode && !editMode ? (
-            <GestureDetector gesture={composedGesture}>
+            <GestureDetector gesture={composedGesture} style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
               <Animated.View style={animatedStyle}>
                 <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
                 {(drawMode || drawPaths.length > 0) && (
@@ -9895,27 +9903,32 @@ const MemberManageScreen = ({ navigation }) => {
       {/* 等级权益弹窗 */}
       <Modal visible={showBenefits} transparent animationType="fade" onRequestClose={() => setShowBenefits(false)}>
         <View style={styles.modalMask}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>会员等级权益</Text>
               <TouchableOpacity onPress={() => setShowBenefits(false)}>
                 <Ionicons name="close" size={22} color={TEXT_THIRD} />
               </TouchableOpacity>
             </View>
-            {Object.entries(levelBenefits).map(([level, benefit]) => (
-              <View key={level} style={{ backgroundColor: '#F9FAFC', borderRadius: 12, padding: 12, marginBottom: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: benefit.color, justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="star" size={14} color="#fff" />
+            <ScrollView contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+              {Object.entries(levelBenefits).map(([level, benefit]) => (
+                <View key={level} style={{ backgroundColor: '#F9FAFC', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: benefit.color, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="star" size={16} color="#fff" />
+                    </View>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginLeft: 10 }}>{level}</Text>
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginLeft: 8 }}>{level}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 13, color: TEXT_SECOND }}>折扣：{benefit.discount}</Text>
+                    <Text style={{ fontSize: 13, color: TEXT_SECOND }}>积分：{benefit.pointsRate}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD, lineHeight: 18 }}>
+                    享受会员专属折扣，消费自动累计积分，积分可用于兑换优惠券或服务，生日福利等更多专属权益。
+                  </Text>
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>折扣：{benefit.discount}</Text>
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>积分：{benefit.pointsRate}</Text>
-                </View>
-              </View>
-            ))}
+              ))}
+            </ScrollView>
             <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setShowBenefits(false)}>
               <Text style={styles.modalBtnPrimaryText}>知道了</Text>
             </TouchableOpacity>
