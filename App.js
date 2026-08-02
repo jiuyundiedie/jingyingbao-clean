@@ -1110,6 +1110,11 @@ const defaultState = {
     InternalChat: true,
     MerchantAssistant: true,
     ProductOverview: true,
+    MemberManage: true,
+    CouponManage: true,
+    SupplierManage: true,
+    StockAlert: true,
+    DataExport: true,
   },
   aiChatMessages: [],
   dailyReportConfig: { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
@@ -1118,6 +1123,10 @@ const defaultState = {
     '内部': false,
     'AI助手': false,
   },
+  members: [],
+  coupons: [],
+  suppliers: [],
+  stockAlerts: {},
 };
 
 const initialState = JSON.parse(JSON.stringify(defaultState));
@@ -1347,6 +1356,10 @@ function appReducer(state, action) {
         aiChatMessages: Array.isArray(r.aiChatMessages) ? r.aiChatMessages : [],
         dailyReportConfig: r.dailyReportConfig || { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
         newMessageRedDots: r.newMessageRedDots || { '客服': false, '内部': false, 'AI助手': false },
+        members: Array.isArray(r.members) ? r.members : [],
+        coupons: Array.isArray(r.coupons) ? r.coupons : [],
+        suppliers: Array.isArray(r.suppliers) ? r.suppliers : [],
+        stockAlerts: (r.stockAlerts && typeof r.stockAlerts === 'object') ? r.stockAlerts : {},
       };
     }
     case 'ADD_AI_MESSAGE': {
@@ -1366,6 +1379,64 @@ function appReducer(state, action) {
     }
     case 'CLEAR_ALL_RED_DOTS': {
       return { ...state, newMessageRedDots: { '客服': false, '内部': false, 'AI助手': false } };
+    }
+    // ===== 会员管理 =====
+    case 'ADD_MEMBER': {
+      const list = state.members || [];
+      if (list.find(m => m.phone === action.payload.phone)) return state;
+      return { ...state, members: [...list, { ...action.payload, id: Date.now().toString(), points: 0, totalSpent: 0, createdAt: new Date().toISOString() }] };
+    }
+    case 'UPDATE_MEMBER': {
+      const list = state.members || [];
+      const idx = list.findIndex(m => m.id === action.payload.id);
+      if (idx === -1) return state;
+      const newList = [...list];
+      newList[idx] = { ...newList[idx], ...action.payload };
+      return { ...state, members: newList };
+    }
+    case 'DELETE_MEMBER':
+      return { ...state, members: (state.members || []).filter(m => m.id !== action.payload) };
+    case 'ADD_MEMBER_POINTS': {
+      const list = state.members || [];
+      const idx = list.findIndex(m => m.id === action.payload.id);
+      if (idx === -1) return state;
+      const newList = [...list];
+      newList[idx] = { ...newList[idx], points: (newList[idx].points || 0) + action.payload.points, totalSpent: (newList[idx].totalSpent || 0) + (action.payload.amount || 0) };
+      return { ...state, members: newList };
+    }
+    // ===== 优惠券管理 =====
+    case 'ADD_COUPON':
+      return { ...state, coupons: [...(state.coupons || []), { ...action.payload, id: Date.now().toString(), used: 0, createdAt: new Date().toISOString() }] };
+    case 'DELETE_COUPON':
+      return { ...state, coupons: (state.coupons || []).filter(c => c.id !== action.payload) };
+    case 'USE_COUPON': {
+      const list = state.coupons || [];
+      const idx = list.findIndex(c => c.id === action.payload);
+      if (idx === -1) return state;
+      const newList = [...list];
+      newList[idx] = { ...newList[idx], used: (newList[idx].used || 0) + 1 };
+      return { ...state, coupons: newList };
+    }
+    // ===== 供应商管理 =====
+    case 'ADD_SUPPLIER':
+      return { ...state, suppliers: [...(state.suppliers || []), { ...action.payload, id: Date.now().toString(), createdAt: new Date().toISOString() }] };
+    case 'DELETE_SUPPLIER':
+      return { ...state, suppliers: (state.suppliers || []).filter(s => s.id !== action.payload) };
+    case 'UPDATE_SUPPLIER': {
+      const list = state.suppliers || [];
+      const idx = list.findIndex(s => s.id === action.payload.id);
+      if (idx === -1) return state;
+      const newList = [...list];
+      newList[idx] = { ...newList[idx], ...action.payload };
+      return { ...state, suppliers: newList };
+    }
+    // ===== 库存预警 =====
+    case 'SET_STOCK_ALERT':
+      return { ...state, stockAlerts: { ...(state.stockAlerts || {}), [action.payload.goodsId]: action.payload.threshold } };
+    case 'REMOVE_STOCK_ALERT': {
+      const alerts = { ...(state.stockAlerts || {}) };
+      delete alerts[action.payload];
+      return { ...state, stockAlerts: alerts };
     }
     default:
       return state;
@@ -1404,6 +1475,10 @@ const saveAllData = async (state) => {
       aiChatMessages: state.aiChatMessages || [],
       dailyReportConfig: state.dailyReportConfig || { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' },
       newMessageRedDots: state.newMessageRedDots || { '客服': false, '内部': false, 'AI助手': false },
+      members: state.members || [],
+      coupons: state.coupons || [],
+      suppliers: state.suppliers || [],
+      stockAlerts: state.stockAlerts || {},
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -8233,6 +8308,11 @@ const HomePage = () => {
     { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: '内部', screen: 'InternalChat' },
     { icon: "help-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
     { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
+    { icon: "card-outline", label: "会员管理", key: 'MemberManage', internal: true, screen: 'MemberManage' },
+    { icon: "ticket-outline", label: "营销工具", key: 'CouponManage', internal: true, screen: 'CouponManage' },
+    { icon: "cube-outline", label: "供应商", key: 'SupplierManage', internal: true, screen: 'SupplierManage' },
+    { icon: "warning-outline", label: "库存预警", key: 'StockAlert', internal: true, screen: 'StockAlert' },
+    { icon: "download-outline", label: "数据导出", key: 'DataExport', internal: true, screen: 'DataExport' },
   ];
   // 计算每个功能的消息数（按消息数从大到小排序）
   const calcMenuUnread = (key) => {
@@ -9550,6 +9630,483 @@ function RootTabs() {
   );
 }
 
+// ================== 会员管理 ==================
+const MemberManageScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [showAdd, setShowAdd] = useState(false);
+  const [editMember, setEditMember] = useState(null);
+  const [form, setForm] = useState({ name: '', phone: '', level: '普通会员', points: 0, amount: 0 });
+
+  const members = state.members || [];
+  const levelColors = { '普通会员': '#909399', '银卡会员': '#909399', '金卡会员': '#E6A23C', '钻石会员': '#5B6DF0' };
+
+  const handleSave = () => {
+    if (!form.name.trim() || !form.phone.trim()) { showToast('请填写姓名和手机号'); return; }
+    if (editMember) {
+      dispatch({ type: 'UPDATE_MEMBER', payload: { id: editMember.id, name: form.name, phone: form.phone, level: form.level } });
+      if (form.points > 0 || form.amount > 0) {
+        dispatch({ type: 'ADD_MEMBER_POINTS', payload: { id: editMember.id, points: Number(form.points) || 0, amount: Number(form.amount) || 0 } });
+      }
+      showToast('会员信息已更新');
+    } else {
+      dispatch({ type: 'ADD_MEMBER', payload: { name: form.name, phone: form.phone, level: form.level } });
+      showToast('会员添加成功');
+    }
+    setShowAdd(false); setEditMember(null); setForm({ name: '', phone: '', level: '普通会员', points: 0, amount: 0 });
+  };
+
+  const openEdit = (member) => {
+    setEditMember(member);
+    setForm({ name: member.name, phone: member.phone, level: member.level || '普通会员', points: 0, amount: 0 });
+    setShowAdd(true);
+  };
+
+  const totalPoints = members.reduce((s, m) => s + (m.points || 0), 0);
+  const totalSpent = members.reduce((s, m) => s + (m.totalSpent || 0), 0);
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="会员管理" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>会员总数</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{members.length}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>累计积分</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#E6A23C' }}>{totalPoints}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>累计消费</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{totalSpent.toFixed(0)}</Text>
+          </View>
+        </View>
+        {members.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Ionicons name="people-outline" size={60} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无会员，点击右下角添加</Text>
+          </View>
+        ) : (
+          members.map(member => (
+            <TouchableOpacity key={member.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }} onPress={() => openEdit(member)}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: levelColors[member.level] || '#909399', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{member.name?.substring(0, 1)}</Text>
+                  </View>
+                  <View style={{ marginLeft: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{member.name}</Text>
+                    <Text style={{ fontSize: 13, color: TEXT_THIRD }}>{member.phone}</Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View style={{ backgroundColor: (levelColors[member.level] || '#909399') + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
+                    <Text style={{ fontSize: 12, color: levelColors[member.level] || '#909399' }}>{member.level || '普通会员'}</Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#E6A23C', marginTop: 4 }}>{member.points || 0} 积分</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>消费 ¥{(member.totalSpent || 0).toFixed(0)}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
+      <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => { setEditMember(null); setForm({ name: '', phone: '', level: '普通会员', points: 0, amount: 0 }); setShowAdd(true); }}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+      <Modal visible={showAdd} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={styles.modalMask}>
+            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20, margin: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>{editMember ? '编辑会员' : '添加会员'}</Text>
+              <TextInput style={styles.modalInput} placeholder="姓名" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
+              <TextInput style={styles.modalInput} placeholder="手机号" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {['普通会员', '银卡会员', '金卡会员', '钻石会员'].map(lv => (
+                  <TouchableOpacity key={lv} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: form.level === lv ? PRIMARY_COLOR : '#F0F0F0', alignItems: 'center' }} onPress={() => setForm({ ...form, level: lv })}>
+                    <Text style={{ fontSize: 12, color: form.level === lv ? '#fff' : TEXT_SECOND }}>{lv.replace('会员', '')}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {editMember && (
+                <>
+                  <TextInput style={styles.modalInput} placeholder="增加积分（可为0）" value={String(form.points)} onChangeText={v => setForm({ ...form, points: v })} keyboardType="numeric" />
+                  <TextInput style={styles.modalInput} placeholder="消费金额（可为0）" value={String(form.amount)} onChangeText={v => setForm({ ...form, amount: v })} keyboardType="numeric" />
+                </>
+              )}
+              <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setShowAdd(false); setEditMember(null); }}>
+                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleSave}>
+                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
+                </TouchableOpacity>
+              </View>
+              {editMember && (
+                <TouchableOpacity style={{ marginTop: 8, padding: 8 }} onPress={() => { Alert.alert('删除会员', '确定删除该会员？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_MEMBER', payload: editMember.id }); setShowAdd(false); setEditMember(null); showToast('已删除'); } }]); }}>
+                  <Text style={{ textAlign: 'center', color: DANGER_COLOR, fontSize: 14 }}>删除会员</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 优惠券管理 ==================
+const CouponManageScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', type: 'discount', value: '', minSpend: '', validDays: '30', total: '100' });
+  const coupons = state.coupons || [];
+
+  const handleCreate = () => {
+    if (!form.name.trim() || !form.value.trim()) { showToast('请填写券名称和面值'); return; }
+    dispatch({ type: 'ADD_COUPON', payload: {
+      name: form.name, type: form.type,
+      value: Number(form.value) || 0,
+      minSpend: Number(form.minSpend) || 0,
+      validDays: Number(form.validDays) || 30,
+      total: Number(form.total) || 100,
+    }});
+    showToast('优惠券创建成功');
+    setShowAdd(false); setForm({ name: '', type: 'discount', value: '', minSpend: '', validDays: '30', total: '100' });
+  };
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="营销工具" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>优惠券总数</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{coupons.length}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>已使用</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: SUCCESS_COLOR }}>{coupons.reduce((s, c) => s + (c.used || 0), 0)}</Text>
+          </View>
+        </View>
+        {coupons.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Ionicons name="ticket-outline" size={60} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无优惠券</Text>
+          </View>
+        ) : (
+          coupons.map(coupon => (
+            <View key={coupon.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, marginBottom: 12, overflow: 'hidden', ...SHADOW }}>
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ width: 80, backgroundColor: coupon.type === 'discount' ? '#F53F3F' : '#7B61FF', justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }}>
+                  <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold' }}>{coupon.type === 'discount' ? `¥${coupon.value}` : `${coupon.value}折`}</Text>
+                  <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>{coupon.type === 'discount' ? '满减券' : '折扣券'}</Text>
+                </View>
+                <View style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{coupon.name}</Text>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>{coupon.minSpend > 0 ? `满¥${coupon.minSpend}可用` : '无门槛'}</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>有效期{coupon.validDays}天 · 已用{coupon.used || 0}/{coupon.total}张</Text>
+                </View>
+                <TouchableOpacity style={{ justifyContent: 'center', paddingRight: 12 }} onPress={() => { Alert.alert('删除优惠券', '确定删除？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_COUPON', payload: coupon.id }); showToast('已删除'); } }]); }}>
+                  <Ionicons name="trash-outline" size={20} color={DANGER_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: 1, backgroundColor: BORDER_COLOR, marginHorizontal: 12 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 }}>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>创建于 {new Date(coupon.createdAt).toLocaleDateString()}</Text>
+                <TouchableOpacity onPress={() => { dispatch({ type: 'USE_COUPON', payload: coupon.id }); showToast('核销成功'); }}>
+                  <Text style={{ fontSize: 13, color: PRIMARY_COLOR, fontWeight: '500' }}>核销使用</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+      <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+      <Modal visible={showAdd} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={styles.modalMask}>
+            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20, margin: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>创建优惠券</Text>
+              <TextInput style={styles.modalInput} placeholder="券名称（如：新客满减）" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: form.type === 'discount' ? PRIMARY_COLOR : '#F0F0F0', alignItems: 'center' }} onPress={() => setForm({ ...form, type: 'discount' })}>
+                  <Text style={{ color: form.type === 'discount' ? '#fff' : TEXT_SECOND }}>满减券</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: form.type === 'rebate' ? PRIMARY_COLOR : '#F0F0F0', alignItems: 'center' }} onPress={() => setForm({ ...form, type: 'rebate' })}>
+                  <Text style={{ color: form.type === 'rebate' ? '#fff' : TEXT_SECOND }}>折扣券</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput style={styles.modalInput} placeholder={form.type === 'discount' ? '减免金额（元）' : '折扣（如8.5表示85折）'} value={form.value} onChangeText={v => setForm({ ...form, value: v })} keyboardType="numeric" />
+              <TextInput style={styles.modalInput} placeholder="最低消费（元，0=无门槛）" value={form.minSpend} onChangeText={v => setForm({ ...form, minSpend: v })} keyboardType="numeric" />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput style={[styles.modalInput, { flex: 1 }]} placeholder="有效期(天)" value={form.validDays} onChangeText={v => setForm({ ...form, validDays: v })} keyboardType="numeric" />
+                <TextInput style={[styles.modalInput, { flex: 1 }]} placeholder="发放数量" value={form.total} onChangeText={v => setForm({ ...form, total: v })} keyboardType="numeric" />
+              </View>
+              <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => setShowAdd(false)}>
+                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleCreate}>
+                  <Text style={{ textAlign: 'center', color: '#fff' }}>创建</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 供应商管理 ==================
+const SupplierManageScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', contact: '', phone: '', address: '', remark: '' });
+  const suppliers = state.suppliers || [];
+
+  const handleSave = () => {
+    if (!form.name.trim()) { showToast('请填写供应商名称'); return; }
+    dispatch({ type: 'ADD_SUPPLIER', payload: form });
+    showToast('供应商添加成功');
+    setShowAdd(false); setForm({ name: '', contact: '', phone: '', address: '', remark: '' });
+  };
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="供应商管理" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {suppliers.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Ionicons name="cube-outline" size={60} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无供应商</Text>
+          </View>
+        ) : (
+          suppliers.map(supplier => (
+            <View key={supplier.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="cube" size={22} color="#fff" />
+                  </View>
+                  <View style={{ marginLeft: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{supplier.name}</Text>
+                    {supplier.contact ? <Text style={{ fontSize: 13, color: TEXT_THIRD }}>联系人：{supplier.contact}</Text> : null}
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => { Alert.alert('删除供应商', '确定删除？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_SUPPLIER', payload: supplier.id }); showToast('已删除'); } }]); }}>
+                  <Ionicons name="trash-outline" size={20} color={DANGER_COLOR} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+                {supplier.phone ? <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>电话：{supplier.phone}</Text> : null}
+                {supplier.address ? <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>地址：{supplier.address}</Text> : null}
+                {supplier.remark ? <Text style={{ fontSize: 13, color: TEXT_THIRD }}>备注：{supplier.remark}</Text> : null}
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+      <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+      <Modal visible={showAdd} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={styles.modalMask}>
+            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20, margin: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>添加供应商</Text>
+              <TextInput style={styles.modalInput} placeholder="供应商名称" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
+              <TextInput style={styles.modalInput} placeholder="联系人" value={form.contact} onChangeText={v => setForm({ ...form, contact: v })} />
+              <TextInput style={styles.modalInput} placeholder="联系电话" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
+              <TextInput style={styles.modalInput} placeholder="地址" value={form.address} onChangeText={v => setForm({ ...form, address: v })} />
+              <TextInput style={[styles.modalInput, { height: 60 }]} placeholder="备注" value={form.remark} onChangeText={v => setForm({ ...form, remark: v })} multiline />
+              <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => setShowAdd(false)}>
+                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#7B61FF', borderRadius: 8 }} onPress={handleSave}>
+                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 库存预警 ==================
+const StockAlertScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const goodsList = state.goodsList || [];
+  const stockAlerts = state.stockAlerts || {};
+  const stockRecords = state.globalStockRecord || [];
+
+  // 计算每个商品当前库存
+  const getStockCount = (goodsId) => {
+    let count = 0;
+    stockRecords.forEach(r => {
+      if (r.goodsId === goodsId || r.goodsName === goodsList.find(g => g.id === goodsId)?.name) {
+        count += (r.type === '入库' ? 1 : -1) * (r.count || r.quantity || 0);
+      }
+    });
+    return count;
+  };
+
+  const lowStockGoods = goodsList.filter(g => {
+    const threshold = stockAlerts[g.id] || 10;
+    return getStockCount(g.id) <= threshold;
+  });
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="库存预警" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>商品总数</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{goodsList.length}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>低库存</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: DANGER_COLOR }}>{lowStockGoods.length}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>已设预警</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#E6A23C' }}>{Object.keys(stockAlerts).length}</Text>
+          </View>
+        </View>
+        {lowStockGoods.length > 0 && (
+          <View style={{ backgroundColor: '#FFF7E6', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="warning-outline" size={20} color="#E6A23C" />
+            <Text style={{ fontSize: 14, color: '#E6A23C', marginLeft: 8 }}>{lowStockGoods.length} 个商品库存不足，请及时补货</Text>
+          </View>
+        )}
+        {goodsList.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Ionicons name="cube-outline" size={60} color={TEXT_THIRD} />
+            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无商品数据</Text>
+          </View>
+        ) : (
+          goodsList.map(goods => {
+            const count = getStockCount(goods.id);
+            const threshold = stockAlerts[goods.id] || 10;
+            const isLow = count <= threshold;
+            return (
+              <View key={goods.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{goods.name || goods.goodsName}</Text>
+                    <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>当前库存：{count} · 预警阈值：{threshold}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={{ backgroundColor: isLow ? DANGER_COLOR + '20' : SUCCESS_COLOR + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 13, color: isLow ? DANGER_COLOR : SUCCESS_COLOR, fontWeight: '500' }}>{isLow ? '库存不足' : '充足'}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD }}>预警阈值：</Text>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, width: 60, fontSize: 14 }}
+                    keyboardType="numeric"
+                    defaultValue={String(threshold)}
+                    onEndEditing={(e) => {
+                      const val = Number(e.nativeEvent.text) || 0;
+                      if (val > 0) {
+                        dispatch({ type: 'SET_STOCK_ALERT', payload: { goodsId: goods.id, threshold: val } });
+                        showToast('预警阈值已设置');
+                      }
+                    }}
+                  />
+                </View>
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+// ================== 数据导出 ==================
+const DataExportScreen = ({ navigation }) => {
+  const { state } = useApp();
+
+  const exportData = (type) => {
+    let content = '';
+    const now = new Date().toLocaleString();
+    switch (type) {
+      case 'orders':
+        content = `经营宝 - 订单记录导出\n导出时间：${now}\n\n`;
+        content += '序号\t时间\t商品\t金额\t状态\n';
+        (state.globalOrderRecord || []).forEach((r, i) => {
+          content += `${i + 1}\t${r.time || r.date || ''}\t${r.goodsName || r.productName || ''}\t¥${r.amount || r.price || 0}\t${r.status || '已完成'}\n`;
+        });
+        break;
+      case 'members':
+        content = `经营宝 - 会员数据导出\n导出时间：${now}\n\n`;
+        content += '序号\t姓名\t手机号\t等级\t积分\t累计消费\n';
+        (state.members || []).forEach((m, i) => {
+          content += `${i + 1}\t${m.name}\t${m.phone}\t${m.level || '普通会员'}\t${m.points || 0}\t¥${(m.totalSpent || 0).toFixed(0)}\n`;
+        });
+        break;
+      case 'business':
+        content = `经营宝 - 经营数据导出\n导出时间：${now}\n\n`;
+        content += '日期\t收入\t成本\t利润\t订单数\n';
+        (state.businessHistory || []).forEach(r => {
+          content += `${r.date}\t¥${r.income || 0}\t¥${r.purchaseCost || 0}\t¥${r.profit || 0}\t${r.totalOrder || 0}\n`;
+        });
+        break;
+      case 'stock':
+        content = `经营宝 - 出入库记录导出\n导出时间：${now}\n\n`;
+        content += '序号\t时间\t类型\t商品\t数量\n';
+        (state.globalStockRecord || []).forEach((r, i) => {
+          content += `${i + 1}\t${r.time || r.date || ''}\t${r.type || ''}\t${r.goodsName || ''}\t${r.count || r.quantity || 0}\n`;
+        });
+        break;
+      default: return;
+    }
+    const fileUri = `${FileSystem.documentDirectory}经营宝_${type}_${Date.now()}.txt`;
+    FileSystem.writeAsStringAsync(fileUri, content).then(() => {
+      Sharing.shareAsync(fileUri);
+    }).catch(() => showToast('导出失败'));
+  };
+
+  const exportItems = [
+    { type: 'orders', name: '订单记录', icon: 'receipt-outline', color: '#5B6DF0', desc: '导出所有订单交易记录' },
+    { type: 'members', name: '会员数据', icon: 'people-outline', color: '#E6A23C', desc: '导出会员信息与积分消费' },
+    { type: 'business', name: '经营数据', icon: 'bar-chart-outline', color: SUCCESS_COLOR, desc: '导出每日经营收支报表' },
+    { type: 'stock', name: '出入库记录', icon: 'cube-outline', color: '#7B61FF', desc: '导出商品出入库流水' },
+  ];
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="数据导出" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Text style={{ fontSize: 14, color: TEXT_THIRD, marginBottom: 16 }}>选择要导出的数据类型，导出后可分享或保存到本地</Text>
+        {exportItems.map(item => (
+          <TouchableOpacity key={item.type} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', ...SHADOW }} onPress={() => exportData(item.type)}>
+            <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: item.color + '15', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name={item.icon} size={24} color={item.color} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{item.name}</Text>
+              <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{item.desc}</Text>
+            </View>
+            <Ionicons name="download-outline" size={24} color={item.color} />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
+
 // ================== 主栈导航 ==================
 const Stack = createNativeStackNavigator();
 function AuthStack() {
@@ -9582,6 +10139,11 @@ function AppStack() {
       <Stack.Screen name="About" component={AboutScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="ClearCache" component={ClearCacheScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="MemberManage" component={MemberManageScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="CouponManage" component={CouponManageScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="SupplierManage" component={SupplierManageScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="StockAlert" component={StockAlertScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="DataExport" component={DataExportScreen} options={{ gestureEnabled: true }} />
     </Stack.Navigator>
   );
 }
