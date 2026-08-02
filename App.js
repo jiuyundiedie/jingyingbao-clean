@@ -3214,6 +3214,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const translateY = useSharedValue(0);
   const lastTapRef = useRef(0);
   const baseScale = useSharedValue(1);
+  const gestureActiveRef = useRef(false);
 
   const filters = [
     { name: '原图', value: null },
@@ -3241,6 +3242,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   // 双击缩放（通过onTouchEnd检测，不干扰手势系统）
   const handleTouchEnd = useCallback(() => {
+    // 手势刚结束时不触发双击检测
+    if (gestureActiveRef.current) {
+      gestureActiveRef.current = false;
+      lastTapRef.current = 0;
+      return;
+    }
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (scale.value > 1.01) {
@@ -3248,11 +3255,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         translateX.value = withTiming(0, { duration: 200 });
         translateY.value = withTiming(0, { duration: 200 });
         baseScale.value = 1;
-        runOnJS(setScaleDisplay)(1);
+        setScaleDisplay(1);
       } else {
         scale.value = withTiming(2.5, { duration: 200 });
         baseScale.value = 2.5;
-        runOnJS(setScaleDisplay)(2.5);
+        setScaleDisplay(2.5);
       }
       lastTapRef.current = 0;
     } else {
@@ -3264,11 +3271,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const pinchGesture = Gesture.Pinch()
     .onBegin(() => {
       baseScale.value = scale.value;
+      gestureActiveRef.current = true;
     })
     .onUpdate((e) => {
       const newScale = Math.max(0.5, Math.min(10, baseScale.value * e.scale));
       scale.value = newScale;
-      runOnJS(setScaleDisplay)(newScale);
+      // 不在onUpdate中调用runOnJS，避免频繁重渲染导致闪动
     })
     .onEnd(() => {
       if (scale.value < 1.01) {
@@ -3276,13 +3284,17 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
         baseScale.value = 1;
-        runOnJS(setScaleDisplay)(1);
       }
+      // 手势结束后更新显示
+      runOnJS(setScaleDisplay)(scale.value > 1.01 ? Math.round(scale.value * 10) / 10 : 1);
     });
 
   // 拖动手势 - 仅在放大时生效
   const panGesture = Gesture.Pan()
     .enabled(!drawMode && !editMode)
+    .onBegin(() => {
+      gestureActiveRef.current = true;
+    })
     .onUpdate((e) => {
       if (scale.value > 1) {
         translateX.value = e.translationX;
