@@ -6,8 +6,8 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
-import { GestureDetector, Gesture, PinchGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
-import { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -3422,7 +3422,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         >
           {!drawMode && !editMode ? (
             <GestureDetector gesture={composedGesture}>
-              <Animated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
+              <Reanimated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
                 <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
                 {(drawMode || drawPaths.length > 0) && (
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
@@ -3434,7 +3434,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
                     ))}
                   </View>
                 )}
-              </Animated.View>
+              </Reanimated.View>
             </GestureDetector>
           ) : (
             <View style={{ transform: [{ scale: 1 }, { rotate: `${rotation}deg` }] }}>
@@ -10832,16 +10832,18 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <GlobalErrorBoundary>
-        <AppContext.Provider value={{ state, dispatch }}>
-          <NavigationContainer ref={navigationRef}>
-            {state.user ? <AppStack /> : <AuthStack />}
-          </NavigationContainer>
-          <CustomToast />
-        </AppContext.Provider>
-      </GlobalErrorBoundary>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <GlobalErrorBoundary>
+          <AppContext.Provider value={{ state, dispatch }}>
+            <NavigationContainer ref={navigationRef}>
+              {state.user ? <AppStack /> : <AuthStack />}
+            </NavigationContainer>
+            <CustomToast />
+          </AppContext.Provider>
+        </GlobalErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 // ===== 第三段结束 =====
