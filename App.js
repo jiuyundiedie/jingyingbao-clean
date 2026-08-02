@@ -6,6 +6,8 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
+import { GestureDetector, Gesture, PinchGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
+import { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -1686,12 +1688,23 @@ const styles = StyleSheet.create({
   productPlatform: { fontSize: 12, color: TEXT_THIRD },
   editBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 },
   editBtnText: { color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' },
-  modalMask: { position: 'absolute', zIndex: 9999, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  modalInput: { borderWidth: 1, borderColor: '#E4E7ED', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginBottom: 12, color: '#333' },
-  modalWrap: { width: '100%', maxWidth: 480, backgroundColor: BG_CARD, borderRadius: 24, padding: 24, ...SHADOW },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalMask: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
+  modalInput: { borderWidth: 1, borderColor: '#E4E7ED', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 14, color: '#333', backgroundColor: '#F9FAFC' },
+  modalContent: { width: '100%', backgroundColor: BG_CARD, borderRadius: 20, padding: 24, ...SHADOW },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TEXT_MAIN },
   closeTxt: { fontSize: 24, color: TEXT_THIRD },
+  modalBtnRow: { flexDirection: 'row', marginTop: 16, gap: 12 },
+  modalBtnCancel: { flex: 1, paddingVertical: 14, backgroundColor: '#F0F2F5', borderRadius: 12, alignItems: 'center' },
+  modalBtnCancelText: { fontSize: 15, color: TEXT_SECOND, fontWeight: '500' },
+  modalBtnPrimary: { flex: 1, paddingVertical: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 12, alignItems: 'center', ...SHADOW },
+  modalBtnPrimaryText: { fontSize: 15, color: '#fff', fontWeight: '600' },
+  modalFieldLabel: { fontSize: 13, color: TEXT_SECOND, marginBottom: 6, fontWeight: '500' },
+  selectorRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  selectorItem: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
+  supplierActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 8 },
+  memberFeatureBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, ...SHADOW },
+  memberActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 8 },
   scannerContainer: { flex: 1, width: '100%', height: '100%', backgroundColor: '#000', position: 'relative' },
   cancelBtn: { position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.7)', padding: 10, borderRadius: 8 },
   cancelText: { color: '#fff', fontSize: 16 },
@@ -3193,34 +3206,13 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [drawColor, setDrawColor] = useState('#F53F3F');
   const [drawPaths, setDrawPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
+  const [scaleDisplay, setScaleDisplay] = useState(1);
 
-  // 缩放状态：用setNativeProps直接更新原生视图，完全绕过React渲染和Animated桥接
-  const imageWrapRef = useRef(null);
-  const currentScale = useRef(1);
-  const currentX = useRef(0);
-  const currentY = useRef(0);
-  const lastTapTime = useRef(0);
-  const initialDistance = useRef(0);
-  const initialScale = useRef(1);
-  const panStartX = useRef(0);
-  const panStartY = useRef(0);
-  const panStartTranslateX = useRef(0);
-  const panStartTranslateY = useRef(0);
-
-  // 直接更新原生视图transform，零延迟不闪动
-  const updateNativeTransform = () => {
-    if (!imageWrapRef.current) return;
-    imageWrapRef.current.setNativeProps({
-      style: {
-        transform: [
-          { scale: currentScale.current },
-          { translateX: currentX.current },
-          { translateY: currentY.current },
-          { rotate: `${rotation}deg` },
-        ],
-      },
-    });
-  };
+  // 使用Reanimated SharedValue进行流畅动画（在UI线程执行，零闪动）
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const lastTapRef = useRef(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3234,12 +3226,74 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const colors = ['#F53F3F', '#00B42A', '#5B6DF0', '#FF7D00', '#000000', '#FFFFFF'];
   const currentImageUri = processedImageUri || imageUri;
 
-  // 计算双指距离
-  const getDistance = (touches) => {
-    const dx = touches[0].locationX - touches[1].locationX;
-    const dy = touches[0].locationY - touches[1].locationY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
+  // 使用Reanimated的animatedStyle直接在UI线程更新transform
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: scale.value },
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { rotate: `${rotation}deg` },
+      ],
+    };
+  });
+
+  // 双击缩放检测（在JS线程只处理检测，动画在UI线程）
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (scale.value > 1) {
+        scale.value = withTiming(1, { duration: 200 });
+        translateX.value = withTiming(0, { duration: 200 });
+        translateY.value = withTiming(0, { duration: 200 });
+        runOnJS(setScaleDisplay)(1);
+      } else {
+        scale.value = withTiming(2.5, { duration: 200 });
+        runOnJS(setScaleDisplay)(2.5);
+      }
+    }
+    lastTapRef.current = now;
+  }, []);
+
+  // 捏合手势（PinchGestureHandler）
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      // 限制缩放范围0.5~10
+      const newScale = Math.max(0.5, Math.min(10, e.scale));
+      scale.value = newScale;
+      runOnJS(setScaleDisplay)(newScale);
+    })
+    .onEnd((e) => {
+      if (e.scale < 1) {
+        scale.value = withSpring(1);
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        runOnJS(setScaleDisplay)(1);
+      }
+    });
+
+  // 拖动手势（PanGestureHandler）- 仅在放大时生效
+  const panGesture = Gesture.Pan()
+    .enabled(!drawMode && !editMode)
+    .onUpdate((e) => {
+      if (scale.value > 1) {
+        translateX.value = e.translationX;
+        translateY.value = e.translationY;
+      }
+    })
+    .onEnd(() => {
+      if (scale.value < 1) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    });
+
+  // 组合手势：捏合+拖动+双击
+  const composedGesture = Gesture.Simultaneous(
+    pinchGesture,
+    panGesture,
+    Gesture.Tap().numberOfTaps(2).onStart(handleDoubleTap)
+  );
 
   // 手绘 PanResponder
   const drawResponder = useRef(
@@ -3264,66 +3318,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       },
     })
   ).current;
-
-  // 缩放/拖拽 PanResponder（setNativeProps直接更新原生视图，零闪动）
-  const zoomResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !drawMode,
-      onMoveShouldSetPanResponder: () => !drawMode,
-      onPanResponderGrant: (evt) => {
-        if (evt.nativeEvent.touches.length === 2) {
-          initialDistance.current = getDistance(evt.nativeEvent.touches);
-          initialScale.current = currentScale.current;
-        } else if (evt.nativeEvent.touches.length === 1 && currentScale.current > 1) {
-          panStartX.current = evt.nativeEvent.touches[0].locationX;
-          panStartY.current = evt.nativeEvent.touches[0].locationY;
-          panStartTranslateX.current = currentX.current;
-          panStartTranslateY.current = currentY.current;
-        }
-      },
-      onPanResponderMove: (evt) => {
-        if (evt.nativeEvent.touches.length === 2) {
-          const distance = getDistance(evt.nativeEvent.touches);
-          if (initialDistance.current > 0) {
-            let newScale = (distance / initialDistance.current) * initialScale.current;
-            newScale = Math.max(0.5, Math.min(10, newScale));
-            currentScale.current = newScale;
-            updateNativeTransform();
-          }
-        } else if (evt.nativeEvent.touches.length === 1 && currentScale.current > 1) {
-          const touch = evt.nativeEvent.touches[0];
-          currentX.current = panStartTranslateX.current + (touch.locationX - panStartX.current);
-          currentY.current = panStartTranslateY.current + (touch.locationY - panStartY.current);
-          updateNativeTransform();
-        }
-      },
-      onPanResponderRelease: () => {
-        initialDistance.current = 0;
-        if (currentScale.current < 1) {
-          currentScale.current = 1;
-          currentX.current = 0;
-          currentY.current = 0;
-          updateNativeTransform();
-        }
-      },
-    })
-  ).current;
-
-  // 双击缩放
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTapTime.current < 300) {
-      if (currentScale.current > 1) {
-        currentScale.current = 1;
-        currentX.current = 0;
-        currentY.current = 0;
-      } else {
-        currentScale.current = 2.5;
-      }
-      updateNativeTransform();
-    }
-    lastTapTime.current = now;
-  };
 
   if (!visible) return null;
 
@@ -3378,10 +3372,10 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setCropMode(false);
     setDrawPaths([]);
     setCurrentPath([]);
-    currentScale.current = 1;
-    currentX.current = 0;
-    currentY.current = 0;
-    updateNativeTransform();
+    scale.value = withTiming(1, { duration: 200 });
+    translateX.value = withTiming(0, { duration: 200 });
+    translateY.value = withTiming(0, { duration: 200 });
+    setScaleDisplay(1);
   };
 
   return (
@@ -3392,30 +3386,49 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 15 }}>{drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : currentScale.current > 1 ? `缩放 ${currentScale.current.toFixed(1)}x` : '图片预览'}</Text>
+          <Text style={{ color: '#fff', fontSize: 15 }}>
+            {drawMode ? '手绘模式' : cropMode ? '裁剪模式' : editMode ? '编辑模式' : scaleDisplay > 1 ? `缩放 ${scaleDisplay.toFixed(1)}x` : '图片预览'}
+          </Text>
           <TouchableOpacity style={{ padding: 8 }} onPress={() => { if (editMode) resetAll(); setEditMode(!editMode); }}>
             <Ionicons name={editMode ? 'close-circle' : 'create-outline'} size={26} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        {/* 图片区域 */}
+        {/* 图片区域 - 使用GestureDetector包裹实现流畅手势 */}
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-          {...(drawMode ? drawResponder : zoomResponder).panHandlers}
-          onTouchStart={!drawMode && handleDoubleTap}
+          {...(drawMode ? drawResponder : {}).panHandlers}
         >
-          <View ref={imageWrapRef} style={{ transform: [{ scale: 1 }, { translateX: 0 }, { translateY: 0 }, { rotate: `${rotation}deg` }] }}>
-            <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-            {(drawMode || drawPaths.length > 0) && (
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
-                {drawPaths.map((path, i) => path.points.map((p, j) => (
-                  <View key={`p-${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
-                )))}
-                {currentPath.map((p, j) => (
-                  <View key={`c-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
-                ))}
-              </View>
-            )}
-          </View>
+          {!drawMode && !editMode ? (
+            <GestureDetector gesture={composedGesture}>
+              <Animated.View style={animatedStyle}>
+                <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+                {(drawMode || drawPaths.length > 0) && (
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
+                    {drawPaths.map((path, i) => path.points.map((p, j) => (
+                      <View key={`p-${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
+                    )))}
+                    {currentPath.map((p, j) => (
+                      <View key={`c-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
+                    ))}
+                  </View>
+                )}
+              </Animated.View>
+            </GestureDetector>
+          ) : (
+            <View style={{ transform: [{ scale: 1 }, { rotate: `${rotation}deg` }] }}>
+              <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+              {(drawMode || drawPaths.length > 0) && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
+                  {drawPaths.map((path, i) => path.points.map((p, j) => (
+                    <View key={`p-${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
+                  )))}
+                  {currentPath.map((p, j) => (
+                    <View key={`c-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
           {processing && (
             <View style={{ position: 'absolute', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -9636,10 +9649,32 @@ const MemberManageScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const [showAdd, setShowAdd] = useState(false);
   const [editMember, setEditMember] = useState(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [showBenefits, setShowBenefits] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', level: '普通会员', points: 0, amount: 0 });
 
   const members = state.members || [];
+  const orders = state.globalOrderRecord || [];
+  const coupons = state.coupons || [];
+
   const levelColors = { '普通会员': '#909399', '银卡会员': '#909399', '金卡会员': '#E6A23C', '钻石会员': '#5B6DF0' };
+  const levelBenefits = {
+    '普通会员': { discount: '无折扣', pointsRate: '1元=1积分', color: '#909399' },
+    '银卡会员': { discount: '95折', pointsRate: '1元=1.5积分', color: '#909399' },
+    '金卡会员': { discount: '9折', pointsRate: '1元=2积分', color: '#E6A23C' },
+    '钻石会员': { discount: '85折', pointsRate: '1元=3积分', color: '#5B6DF0' },
+  };
+
+  // 搜索过滤
+  const filteredMembers = searchKeyword
+    ? members.filter(m => m.name?.includes(searchKeyword) || m.phone?.includes(searchKeyword))
+    : members;
+
+  // 计算会员消费记录
+  const getMemberOrders = (phone) => {
+    return orders.filter(o => o.memberPhone === phone);
+  };
 
   const handleSave = () => {
     if (!form.name.trim() || !form.phone.trim()) { showToast('请填写姓名和手机号'); return; }
@@ -9664,92 +9699,278 @@ const MemberManageScreen = ({ navigation }) => {
 
   const totalPoints = members.reduce((s, m) => s + (m.points || 0), 0);
   const totalSpent = members.reduce((s, m) => s + (m.totalSpent || 0), 0);
+  const totalOrders = members.reduce((s, m) => s + (m.orderCount || 0), 0);
+  const activeCoupons = coupons.filter(c => (c.total || 0) - (c.used || 0) > 0).length;
+
+  const handleGrantCoupon = (member) => {
+    if (coupons.length === 0) {
+      showToast('暂无可用优惠券，请先创建');
+      navigation.navigate('CouponManage');
+      return;
+    }
+    Alert.alert('发放优惠券', `确定给会员「${member.name}」发放优惠券？`, [
+      { text: '取消', style: 'cancel' },
+      { text: '确定', onPress: () => { showToast('优惠券已发放'); } }
+    ]);
+  };
+
+  const goToOrderHistory = (member) => {
+    const memberOrders = getMemberOrders(member.phone);
+    if (memberOrders.length === 0) {
+      showToast('该会员暂无消费记录');
+      return;
+    }
+    navigation.navigate('OrderRecord', { filterMember: member.phone });
+  };
 
   return (
     <View style={styles.container}>
       <CommonHeader title="会员管理" showBack navigation={navigation} />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {/* 统计卡片 */}
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
           <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
             <Text style={{ fontSize: 13, color: TEXT_THIRD }}>会员总数</Text>
             <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{members.length}</Text>
           </View>
           <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>累计消费</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{totalSpent.toFixed(0)}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
             <Text style={{ fontSize: 13, color: TEXT_THIRD }}>累计积分</Text>
             <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#E6A23C' }}>{totalPoints}</Text>
           </View>
-          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
-            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>累计消费</Text>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{totalSpent.toFixed(0)}</Text>
-          </View>
         </View>
-        {members.length === 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Ionicons name="people-outline" size={60} color={TEXT_THIRD} />
-            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无会员，点击右下角添加</Text>
+
+        {/* 功能快捷入口 */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <TouchableOpacity style={[styles.memberFeatureBtn, { backgroundColor: LIGHT_PRIMARY }]} onPress={() => setShowSearch(true)}>
+            <Ionicons name="search-outline" size={20} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 13, color: PRIMARY_COLOR, marginTop: 6, fontWeight: '500' }}>搜索会员</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.memberFeatureBtn, { backgroundColor: '#FFF7E6' }]} onPress={() => setShowBenefits(true)}>
+            <Ionicons name="gift-outline" size={20} color="#E6A23C" />
+            <Text style={{ fontSize: 13, color: '#E6A23C', marginTop: 6, fontWeight: '500' }}>等级权益</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.memberFeatureBtn, { backgroundColor: '#E8FFEA' }]} onPress={() => navigation.navigate('CouponManage')}>
+            <Ionicons name="ticket-outline" size={20} color={SUCCESS_COLOR} />
+            <Text style={{ fontSize: 13, color: SUCCESS_COLOR, marginTop: 6, fontWeight: '500' }}>优惠券</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.memberFeatureBtn, { backgroundColor: '#F0F2F5' }]} onPress={() => navigation.navigate('OrderRecord')}>
+            <Ionicons name="receipt-outline" size={20} color={TEXT_SECOND} />
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 6, fontWeight: '500' }}>消费记录</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 使用说明 */}
+        <View style={{ backgroundColor: '#F0F4FF', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="bulb-outline" size={16} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: PRIMARY_COLOR, marginLeft: 6 }}>这是你的顾客消费积分管理工具</Text>
+          </View>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>
+            不涉及充值储值，资金安全无忧。核销时输入顾客手机号自动积分，消费金额自动累计，可根据等级发放优惠券进行精准营销。
+          </Text>
+        </View>
+
+        {filteredMembers.length === 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 40, paddingVertical: 40 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="people-outline" size={40} color={TEXT_THIRD} />
+            </View>
+            <Text style={{ fontSize: 16, color: TEXT_MAIN, marginTop: 16, fontWeight: '500' }}>
+              {searchKeyword ? '未找到匹配的会员' : '暂无会员'}
+            </Text>
+            <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 8, textAlign: 'center', paddingHorizontal: 30 }}>
+              {searchKeyword ? '尝试其他关键词搜索' : '点击下方按钮添加会员，核销时可自动积分'}
+            </Text>
           </View>
         ) : (
-          members.map(member => (
-            <TouchableOpacity key={member.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }} onPress={() => openEdit(member)}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: levelColors[member.level] || '#909399', justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>{member.name?.substring(0, 1)}</Text>
+          filteredMembers.map(member => {
+            const orders = getMemberOrders(member.phone);
+            const benefits = levelBenefits[member.level] || levelBenefits['普通会员'];
+            return (
+              <View key={member.id} style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, marginBottom: 12, ...SHADOW }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: levelColors[member.level] || '#909399', justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>{member.name?.substring(0, 1)}</Text>
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{member.name}</Text>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{member.phone}</Text>
+                    </View>
                   </View>
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{member.name}</Text>
-                    <Text style={{ fontSize: 13, color: TEXT_THIRD }}>{member.phone}</Text>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <View style={{ backgroundColor: (levelColors[member.level] || '#909399') + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 }}>
+                      <Text style={{ fontSize: 12, color: levelColors[member.level] || '#909399', fontWeight: '500' }}>{member.level || '普通会员'}</Text>
+                    </View>
                   </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <View style={{ backgroundColor: (levelColors[member.level] || '#909399') + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                    <Text style={{ fontSize: 12, color: levelColors[member.level] || '#909399' }}>{member.level || '普通会员'}</Text>
+
+                {/* 数据统计 */}
+                <View style={{ flexDirection: 'row', marginTop: 12, padding: 10, backgroundColor: '#F9FAFC', borderRadius: 10 }}>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#E6A23C' }}>{member.points || 0}</Text>
+                    <Text style={{ fontSize: 11, color: TEXT_THIRD }}>可用积分</Text>
                   </View>
-                  <Text style={{ fontSize: 13, color: '#E6A23C', marginTop: 4 }}>{member.points || 0} 积分</Text>
-                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>消费 ¥{(member.totalSpent || 0).toFixed(0)}</Text>
+                  <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: BORDER_COLOR }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{(member.totalSpent || 0).toFixed(0)}</Text>
+                    <Text style={{ fontSize: 11, color: TEXT_THIRD }}>累计消费</Text>
+                  </View>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: PRIMARY_COLOR }}>{orders.length}</Text>
+                    <Text style={{ fontSize: 11, color: TEXT_THIRD }}>消费次数</Text>
+                  </View>
+                </View>
+
+                {/* 等级权益预览 */}
+                <View style={{ flexDirection: 'row', marginTop: 8, paddingHorizontal: 8, paddingVertical: 6 }}>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>权益：{benefits.discount} · {benefits.pointsRate}</Text>
+                </View>
+
+                {/* 操作按钮 */}
+                <View style={{ flexDirection: 'row', marginTop: 10, gap: 8 }}>
+                  <TouchableOpacity style={[styles.memberActionBtn, { backgroundColor: LIGHT_PRIMARY }]} onPress={() => openEdit(member)}>
+                    <Ionicons name="create-outline" size={14} color={PRIMARY_COLOR} />
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, marginLeft: 4 }}>编辑</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.memberActionBtn, { backgroundColor: '#FFF7E6' }]} onPress={() => goToOrderHistory(member)}>
+                    <Ionicons name="receipt-outline" size={14} color="#E6A23C" />
+                    <Text style={{ fontSize: 12, color: '#E6A23C', marginLeft: 4 }}>消费记录</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.memberActionBtn, { backgroundColor: '#E8FFEA' }]} onPress={() => handleGrantCoupon(member)}>
+                    <Ionicons name="ticket-outline" size={14} color={SUCCESS_COLOR} />
+                    <Text style={{ fontSize: 12, color: SUCCESS_COLOR, marginLeft: 4 }}>发券</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
-          ))
+            );
+          })
         )}
       </ScrollView>
       <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => { setEditMember(null); setForm({ name: '', phone: '', level: '普通会员', points: 0, amount: 0 }); setShowAdd(true); }}>
         <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
-      <Modal visible={showAdd} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1, justifyContent: 'center' }}>
-          <View style={styles.modalMask}>
-            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20, margin: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>{editMember ? '编辑会员' : '添加会员'}</Text>
-              <TextInput style={styles.modalInput} placeholder="姓名" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
-              <TextInput style={styles.modalInput} placeholder="手机号" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                {['普通会员', '银卡会员', '金卡会员', '钻石会员'].map(lv => (
-                  <TouchableOpacity key={lv} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: form.level === lv ? PRIMARY_COLOR : '#F0F0F0', alignItems: 'center' }} onPress={() => setForm({ ...form, level: lv })}>
-                    <Text style={{ fontSize: 12, color: form.level === lv ? '#fff' : TEXT_SECOND }}>{lv.replace('会员', '')}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {editMember && (
-                <>
-                  <TextInput style={styles.modalInput} placeholder="增加积分（可为0）" value={String(form.points)} onChangeText={v => setForm({ ...form, points: v })} keyboardType="numeric" />
-                  <TextInput style={styles.modalInput} placeholder="消费金额（可为0）" value={String(form.amount)} onChangeText={v => setForm({ ...form, amount: v })} keyboardType="numeric" />
-                </>
-              )}
-              <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setShowAdd(false); setEditMember(null); }}>
-                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleSave}>
-                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
-                </TouchableOpacity>
-              </View>
-              {editMember && (
-                <TouchableOpacity style={{ marginTop: 8, padding: 8 }} onPress={() => { Alert.alert('删除会员', '确定删除该会员？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_MEMBER', payload: editMember.id }); setShowAdd(false); setEditMember(null); showToast('已删除'); } }]); }}>
-                  <Text style={{ textAlign: 'center', color: DANGER_COLOR, fontSize: 14 }}>删除会员</Text>
-                </TouchableOpacity>
-              )}
+
+      {/* 搜索弹窗 */}
+      <Modal visible={showSearch} transparent animationType="fade" onRequestClose={() => setShowSearch(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={styles.modalMask}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>搜索会员</Text>
+              <TouchableOpacity onPress={() => { setShowSearch(false); setSearchKeyword(''); }}>
+                <Ionicons name="close" size={22} color={TEXT_THIRD} />
+              </TouchableOpacity>
             </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFC', borderRadius: 12, paddingHorizontal: 12, marginBottom: 16 }}>
+              <Ionicons name="search-outline" size={18} color={TEXT_THIRD} />
+              <TextInput
+                style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 8, fontSize: 15 }}
+                placeholder="输入姓名或手机号"
+                value={searchKeyword}
+                onChangeText={setSearchKeyword}
+                autoFocus
+              />
+              {searchKeyword ? (
+                <TouchableOpacity onPress={() => setSearchKeyword('')}>
+                  <Ionicons name="close-circle" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {searchKeyword ? (
+              <Text style={{ fontSize: 14, color: TEXT_SECOND, textAlign: 'center' }}>
+                找到 {filteredMembers.length} 条记录
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', paddingVertical: 20 }}>
+                输入关键词即可搜索
+              </Text>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* 等级权益弹窗 */}
+      <Modal visible={showBenefits} transparent animationType="fade" onRequestClose={() => setShowBenefits(false)}>
+        <View style={styles.modalMask}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>会员等级权益</Text>
+              <TouchableOpacity onPress={() => setShowBenefits(false)}>
+                <Ionicons name="close" size={22} color={TEXT_THIRD} />
+              </TouchableOpacity>
+            </View>
+            {Object.entries(levelBenefits).map(([level, benefit]) => (
+              <View key={level} style={{ backgroundColor: '#F9FAFC', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: benefit.color, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="star" size={14} color="#fff" />
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginLeft: 8 }}>{level}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>折扣：{benefit.discount}</Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND }}>积分：{benefit.pointsRate}</Text>
+                </View>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.modalBtnPrimary} onPress={() => setShowBenefits(false)}>
+              <Text style={styles.modalBtnPrimaryText}>知道了</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showAdd} transparent animationType="fade" onRequestClose={() => { setShowAdd(false); setEditMember(null); }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={styles.modalMask}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editMember ? '编辑会员' : '添加会员'}</Text>
+              <TouchableOpacity onPress={() => { setShowAdd(false); setEditMember(null); }}>
+                <Ionicons name="close" size={22} color={TEXT_THIRD} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalFieldLabel}>会员姓名</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入会员姓名" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
+            <Text style={styles.modalFieldLabel}>手机号码</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入手机号" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
+            <Text style={styles.modalFieldLabel}>会员等级</Text>
+            <View style={styles.selectorRow}>
+              {['普通', '银卡', '金卡', '钻石'].map((lv, i) => {
+                const fullLv = lv + '会员';
+                const isSelected = form.level === fullLv;
+                return (
+                  <TouchableOpacity key={lv} style={[styles.selectorItem, {
+                    backgroundColor: isSelected ? LIGHT_PRIMARY : '#F9FAFC',
+                    borderColor: isSelected ? PRIMARY_COLOR : '#E4E7ED',
+                  }]} onPress={() => setForm({ ...form, level: fullLv })}>
+                    <Text style={{ fontSize: 13, color: isSelected ? PRIMARY_COLOR : TEXT_SECOND, fontWeight: isSelected ? '600' : '400' }}>{lv}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {editMember && (
+              <>
+                <Text style={styles.modalFieldLabel}>本次增加积分</Text>
+                <TextInput style={styles.modalInput} placeholder="输入积分数量" value={String(form.points)} onChangeText={v => setForm({ ...form, points: v })} keyboardType="numeric" />
+                <Text style={styles.modalFieldLabel}>本次消费金额</Text>
+                <TextInput style={styles.modalInput} placeholder="输入消费金额" value={String(form.amount)} onChangeText={v => setForm({ ...form, amount: v })} keyboardType="numeric" />
+              </>
+            )}
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setShowAdd(false); setEditMember(null); }}>
+                <Text style={styles.modalBtnCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnPrimary} onPress={handleSave}>
+                <Text style={styles.modalBtnPrimaryText}>{editMember ? '保存修改' : '添加会员'}</Text>
+              </TouchableOpacity>
+            </View>
+            {editMember && (
+              <TouchableOpacity style={{ marginTop: 16, paddingVertical: 10, alignItems: 'center' }} onPress={() => { Alert.alert('删除会员', '确定删除该会员？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_MEMBER', payload: editMember.id }); setShowAdd(false); setEditMember(null); showToast('已删除'); } }]); }}>
+                <Text style={{ color: DANGER_COLOR, fontSize: 14, fontWeight: '500' }}>删除该会员</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -9867,72 +10088,207 @@ const CouponManageScreen = ({ navigation }) => {
 const SupplierManageScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const [showAdd, setShowAdd] = useState(false);
+  const [editSupplier, setEditSupplier] = useState(null);
   const [form, setForm] = useState({ name: '', contact: '', phone: '', address: '', remark: '' });
   const suppliers = state.suppliers || [];
+  const stockRecords = state.globalStockRecord || [];
+
+  // 计算供应商的采购统计
+  const getSupplierStats = (supplierName) => {
+    const relatedRecords = stockRecords.filter(r => r.supplier === supplierName);
+    const totalCount = relatedRecords.filter(r => r.type === '入库').reduce((s, r) => s + (r.count || 0), 0);
+    const totalAmount = relatedRecords.filter(r => r.type === '入库').reduce((s, r) => s + (r.totalAmount || 0), 0);
+    const orderCount = relatedRecords.filter(r => r.type === '入库').length;
+    return { totalCount, totalAmount, orderCount };
+  };
+
+  const totalPurchaseAmount = suppliers.reduce((sum, s) => {
+    const stats = getSupplierStats(s.name);
+    return sum + stats.totalAmount;
+  }, 0);
+  const totalPurchaseOrders = suppliers.reduce((sum, s) => {
+    const stats = getSupplierStats(s.name);
+    return sum + stats.orderCount;
+  }, 0);
 
   const handleSave = () => {
     if (!form.name.trim()) { showToast('请填写供应商名称'); return; }
-    dispatch({ type: 'ADD_SUPPLIER', payload: form });
-    showToast('供应商添加成功');
-    setShowAdd(false); setForm({ name: '', contact: '', phone: '', address: '', remark: '' });
+    if (editSupplier) {
+      dispatch({ type: 'UPDATE_SUPPLIER', payload: { id: editSupplier.id, ...form } });
+      showToast('供应商信息已更新');
+    } else {
+      dispatch({ type: 'ADD_SUPPLIER', payload: form });
+      showToast('供应商添加成功');
+    }
+    setShowAdd(false); setEditSupplier(null); setForm({ name: '', contact: '', phone: '', address: '', remark: '' });
+  };
+
+  const openEdit = (supplier) => {
+    setEditSupplier(supplier);
+    setForm({ name: supplier.name, contact: supplier.contact || '', phone: supplier.phone || '', address: supplier.address || '', remark: supplier.remark || '' });
+    setShowAdd(true);
+  };
+
+  const handleCall = (phone) => {
+    if (phone) {
+      Linking.openURL(`tel:${phone}`);
+    } else {
+      showToast('暂无联系电话');
+    }
+  };
+
+  const goToStockIn = (supplierName) => {
+    navigation.navigate('StockStock', { preselectedSupplier: supplierName, mode: 'in' });
   };
 
   return (
     <View style={styles.container}>
       <CommonHeader title="供应商管理" showBack navigation={navigation} />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {/* 统计卡片 */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>供应商数</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#7B61FF' }}>{suppliers.length}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>采购次数</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{totalPurchaseOrders}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>采购总额</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{totalPurchaseAmount.toFixed(0)}</Text>
+          </View>
+        </View>
+
+        {/* 说明卡片 */}
+        <View style={{ backgroundColor: '#F3F0FF', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="bulb-outline" size={16} color="#7B61FF" />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#7B61FF', marginLeft: 6 }}>这是你的采购通讯录</Text>
+          </View>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>
+            供应商无需使用本软件。你在这里记录进货渠道的联系方式，入库时关联供应商，库存不足时一键电话补货，还能对比不同供应商的采购价格。
+          </Text>
+        </View>
+
         {suppliers.length === 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Ionicons name="cube-outline" size={60} color={TEXT_THIRD} />
-            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无供应商</Text>
+          <View style={{ alignItems: 'center', marginTop: 40, paddingVertical: 40 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="cube-outline" size={40} color={TEXT_THIRD} />
+            </View>
+            <Text style={{ fontSize: 16, color: TEXT_MAIN, marginTop: 16, fontWeight: '500' }}>暂无供应商</Text>
+            <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 8, textAlign: 'center', paddingHorizontal: 30 }}>添加你的进货渠道，方便库存不足时快速联系补货</Text>
           </View>
         ) : (
-          suppliers.map(supplier => (
-            <View key={supplier.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center' }}>
-                    <Ionicons name="cube" size={22} color="#fff" />
+          suppliers.map(supplier => {
+            const stats = getSupplierStats(supplier.name);
+            return (
+              <View key={supplier.id} style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 16, marginBottom: 12, ...SHADOW }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="business" size={24} color="#fff" />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{supplier.name}</Text>
+                      {supplier.contact ? <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>联系人：{supplier.contact}</Text> : null}
+                    </View>
                   </View>
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{supplier.name}</Text>
-                    {supplier.contact ? <Text style={{ fontSize: 13, color: TEXT_THIRD }}>联系人：{supplier.contact}</Text> : null}
-                  </View>
+                  <TouchableOpacity onPress={() => { Alert.alert('删除供应商', '确定删除该供应商？删除后相关采购记录不会被删除。', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_SUPPLIER', payload: supplier.id }); showToast('已删除'); } }]); }}>
+                    <Ionicons name="trash-outline" size={18} color={TEXT_THIRD} />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => { Alert.alert('删除供应商', '确定删除？', [{ text: '取消' }, { text: '删除', style: 'destructive', onPress: () => { dispatch({ type: 'DELETE_SUPPLIER', payload: supplier.id }); showToast('已删除'); } }]); }}>
-                  <Ionicons name="trash-outline" size={20} color={DANGER_COLOR} />
-                </TouchableOpacity>
+
+                {/* 联系信息 */}
+                <View style={{ flexDirection: 'row', marginTop: 12, padding: 10, backgroundColor: '#F9FAFC', borderRadius: 10 }}>
+                  {supplier.phone ? (
+                    <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }} onPress={() => handleCall(supplier.phone)}>
+                      <Ionicons name="call-outline" size={16} color={PRIMARY_COLOR} />
+                      <Text style={{ fontSize: 13, color: PRIMARY_COLOR, marginLeft: 4 }}>{supplier.phone}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {supplier.address ? (
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderLeftWidth: supplier.phone ? 1 : 0, borderColor: BORDER_COLOR, paddingLeft: 8 }}>
+                      <Ionicons name="location-outline" size={16} color={TEXT_THIRD} />
+                      <Text style={{ fontSize: 12, color: TEXT_SECOND, marginLeft: 4, numberOfLines: 1 }}>{supplier.address}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* 采购统计 */}
+                {stats.orderCount > 0 && (
+                  <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                    <View style={{ flex: 1, alignItems: 'center', padding: 8, backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: PRIMARY_COLOR }}>{stats.orderCount}</Text>
+                      <Text style={{ fontSize: 11, color: TEXT_THIRD }}>采购次数</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: 'center', padding: 8, backgroundColor: '#FFF7E6', borderRadius: 8, marginHorizontal: 8 }}>
+                      <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#E6A23C' }}>{stats.totalCount}</Text>
+                      <Text style={{ fontSize: 11, color: TEXT_THIRD }}>采购数量</Text>
+                    </View>
+                    <View style={{ flex: 1, alignItems: 'center', padding: 8, backgroundColor: '#E8FFEA', borderRadius: 8 }}>
+                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: SUCCESS_COLOR }}>¥{stats.totalAmount.toFixed(0)}</Text>
+                      <Text style={{ fontSize: 11, color: TEXT_THIRD }}>采购金额</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* 操作按钮 */}
+                <View style={{ flexDirection: 'row', marginTop: 12, gap: 8 }}>
+                  <TouchableOpacity style={[styles.supplierActionBtn, { backgroundColor: LIGHT_PRIMARY }]} onPress={() => openEdit(supplier)}>
+                    <Ionicons name="create-outline" size={16} color={PRIMARY_COLOR} />
+                    <Text style={{ fontSize: 13, color: PRIMARY_COLOR, marginLeft: 4 }}>编辑</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.supplierActionBtn, { backgroundColor: '#FFF7E6' }]} onPress={() => goToStockIn(supplier.name)}>
+                    <Ionicons name="add-circle-outline" size={16} color="#E6A23C" />
+                    <Text style={{ fontSize: 13, color: '#E6A23C', marginLeft: 4 }}>去入库</Text>
+                  </TouchableOpacity>
+                  {supplier.phone && (
+                    <TouchableOpacity style={[styles.supplierActionBtn, { backgroundColor: '#E8FFEA' }]} onPress={() => handleCall(supplier.phone)}>
+                      <Ionicons name="call-outline" size={16} color={SUCCESS_COLOR} />
+                      <Text style={{ fontSize: 13, color: SUCCESS_COLOR, marginLeft: 4 }}>联系</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {supplier.remark ? (
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 10, fontStyle: 'italic' }}>备注：{supplier.remark}</Text>
+                ) : null}
               </View>
-              <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-                {supplier.phone ? <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>电话：{supplier.phone}</Text> : null}
-                {supplier.address ? <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 4 }}>地址：{supplier.address}</Text> : null}
-                {supplier.remark ? <Text style={{ fontSize: 13, color: TEXT_THIRD }}>备注：{supplier.remark}</Text> : null}
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
-      <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => setShowAdd(true)}>
+      <TouchableOpacity style={{ position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: '#7B61FF', justifyContent: 'center', alignItems: 'center', ...SHADOW }} onPress={() => { setEditSupplier(null); setForm({ name: '', contact: '', phone: '', address: '', remark: '' }); setShowAdd(true); }}>
         <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
-      <Modal visible={showAdd} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={{ flex: 1, justifyContent: 'center' }}>
-          <View style={styles.modalMask}>
-            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20, margin: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>添加供应商</Text>
-              <TextInput style={styles.modalInput} placeholder="供应商名称" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
-              <TextInput style={styles.modalInput} placeholder="联系人" value={form.contact} onChangeText={v => setForm({ ...form, contact: v })} />
-              <TextInput style={styles.modalInput} placeholder="联系电话" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
-              <TextInput style={styles.modalInput} placeholder="地址" value={form.address} onChangeText={v => setForm({ ...form, address: v })} />
-              <TextInput style={[styles.modalInput, { height: 60 }]} placeholder="备注" value={form.remark} onChangeText={v => setForm({ ...form, remark: v })} multiline />
-              <View style={{ flexDirection: 'row', marginTop: 8 }}>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => setShowAdd(false)}>
-                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#7B61FF', borderRadius: 8 }} onPress={handleSave}>
-                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
-                </TouchableOpacity>
-              </View>
+      <Modal visible={showAdd} transparent animationType="fade" onRequestClose={() => setShowAdd(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : null} style={styles.modalMask}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>添加供应商</Text>
+              <TouchableOpacity onPress={() => setShowAdd(false)}>
+                <Ionicons name="close" size={22} color={TEXT_THIRD} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalFieldLabel}>供应商名称 *</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入供应商名称" value={form.name} onChangeText={v => setForm({ ...form, name: v })} />
+            <Text style={styles.modalFieldLabel}>联系人</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入联系人姓名" value={form.contact} onChangeText={v => setForm({ ...form, contact: v })} />
+            <Text style={styles.modalFieldLabel}>联系电话</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入联系电话" value={form.phone} onChangeText={v => setForm({ ...form, phone: v })} keyboardType="phone-pad" />
+            <Text style={styles.modalFieldLabel}>供应商地址</Text>
+            <TextInput style={styles.modalInput} placeholder="请输入供应商地址" value={form.address} onChangeText={v => setForm({ ...form, address: v })} />
+            <Text style={styles.modalFieldLabel}>备注信息</Text>
+            <TextInput style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]} placeholder="备注（选填）" value={form.remark} onChangeText={v => setForm({ ...form, remark: v })} multiline />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowAdd(false)}>
+                <Text style={styles.modalBtnCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtnPrimary, { backgroundColor: '#7B61FF' }]} onPress={handleSave}>
+                <Text style={styles.modalBtnPrimaryText}>保存</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
