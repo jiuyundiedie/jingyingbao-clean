@@ -3118,11 +3118,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [drawPaths, setDrawPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
 
-  // 缩放状态（使用Animated.Value驱动原生线程，避免闪动）
-  const scaleValue = useRef(new Animated.Value(1)).current;
-  const translateXValue = useRef(new Animated.Value(0)).current;
-  const translateYValue = useRef(new Animated.Value(0)).current;
-  // 用普通ref存当前值，不触发重渲染
+  // 缩放状态：用setNativeProps直接更新原生视图，完全绕过React渲染和Animated桥接
+  const imageWrapRef = useRef(null);
   const currentScale = useRef(1);
   const currentX = useRef(0);
   const currentY = useRef(0);
@@ -3133,7 +3130,21 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const panStartY = useRef(0);
   const panStartTranslateX = useRef(0);
   const panStartTranslateY = useRef(0);
-  const [, forceUpdate] = useState(0);
+
+  // 直接更新原生视图transform，零延迟不闪动
+  const updateNativeTransform = () => {
+    if (!imageWrapRef.current) return;
+    imageWrapRef.current.setNativeProps({
+      style: {
+        transform: [
+          { scale: currentScale.current },
+          { translateX: currentX.current },
+          { translateY: currentY.current },
+          { rotate: `${rotation}deg` },
+        ],
+      },
+    });
+  };
 
   const filters = [
     { name: '原图', value: null },
@@ -3178,7 +3189,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     })
   ).current;
 
-  // 缩放/拖拽 PanResponder（使用Animated.Value，原生线程驱动，不闪动）
+  // 缩放/拖拽 PanResponder（setNativeProps直接更新原生视图，零闪动）
   const zoomResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !drawMode,
@@ -3201,16 +3212,13 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             let newScale = (distance / initialDistance.current) * initialScale.current;
             newScale = Math.max(0.5, Math.min(10, newScale));
             currentScale.current = newScale;
-            scaleValue.setValue(newScale);
+            updateNativeTransform();
           }
         } else if (evt.nativeEvent.touches.length === 1 && currentScale.current > 1) {
           const touch = evt.nativeEvent.touches[0];
-          const newX = panStartTranslateX.current + (touch.locationX - panStartX.current);
-          const newY = panStartTranslateY.current + (touch.locationY - panStartY.current);
-          currentX.current = newX;
-          currentY.current = newY;
-          translateXValue.setValue(newX);
-          translateYValue.setValue(newY);
+          currentX.current = panStartTranslateX.current + (touch.locationX - panStartX.current);
+          currentY.current = panStartTranslateY.current + (touch.locationY - panStartY.current);
+          updateNativeTransform();
         }
       },
       onPanResponderRelease: () => {
@@ -3219,9 +3227,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           currentScale.current = 1;
           currentX.current = 0;
           currentY.current = 0;
-          Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
-          Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
-          Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
+          updateNativeTransform();
         }
       },
     })
@@ -3235,13 +3241,10 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         currentScale.current = 1;
         currentX.current = 0;
         currentY.current = 0;
-        Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
-        Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
-        Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
       } else {
         currentScale.current = 2.5;
-        Animated.spring(scaleValue, { toValue: 2.5, useNativeDriver: true, friction: 7 }).start();
       }
+      updateNativeTransform();
     }
     lastTapTime.current = now;
   };
@@ -3302,18 +3305,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     currentScale.current = 1;
     currentX.current = 0;
     currentY.current = 0;
-    Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
-    Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
-    Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
-  };
-
-  const containerStyle = {
-    transform: [
-      { scale: scaleValue },
-      { translateX: translateXValue },
-      { translateY: translateYValue },
-      { rotate: `${rotation}deg` },
-    ],
+    updateNativeTransform();
   };
 
   return (
@@ -3335,7 +3327,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           {...(drawMode ? drawResponder : zoomResponder).panHandlers}
           onTouchStart={!drawMode && handleDoubleTap}
         >
-          <Animated.View style={containerStyle}>
+          <View ref={imageWrapRef} style={{ transform: [{ scale: 1 }, { translateX: 0 }, { translateY: 0 }, { rotate: `${rotation}deg` }] }}>
             <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
             {(drawMode || drawPaths.length > 0) && (
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
@@ -3347,7 +3339,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
                 ))}
               </View>
             )}
-          </Animated.View>
+          </View>
           {processing && (
             <View style={{ position: 'absolute', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -5713,11 +5705,11 @@ const InternalChat = () => {
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  // @艾特：构建可艾特的成员列表（群聊中所有已批准员工 + 老板）
+  // @艾特：构建可艾特的成员列表（排除自己）
   const mentionableMembers = useMemo(() => {
     const members = [];
-    // 老板
-    if (state.shopInfo?.phone) {
+    // 老板（如果自己不是老板才添加）
+    if (state.shopInfo?.phone && state.shopInfo.phone !== state.user?.phone) {
       members.push({ name: state.shopInfo?.name || '老板', phone: state.shopInfo?.phone });
     }
     // 已批准的员工（排除自己）
