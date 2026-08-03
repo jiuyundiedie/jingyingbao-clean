@@ -1925,12 +1925,21 @@ const LoginScreen = () => {
             {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
           </View>
         </TouchableOpacity>
-        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>
-          我已阅读并同意
-          <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}>《用户协议》</Text>
-          和
-          <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}>《隐私政策》</Text>
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+          <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 8 }}>
+            <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+              {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+            </View>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND }}>我已阅读并同意</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('UserAgreement')}>
+            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《用户协议》</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND }}>和</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
+            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《隐私政策》</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
         <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
@@ -2771,6 +2780,60 @@ const UserAgreementScreen = ({ navigation }) => {
   );
 };
 
+// 隐私政策页面
+const PrivacyPolicyScreen = ({ navigation }) => {
+  return (
+    <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
+      <CommonHeader title="隐私政策" showBack onBack={() => navigation.goBack()} navigation={navigation} />
+      <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>经营宝隐私政策</Text>
+        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 20, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>一、信息收集</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          1.1 我们仅收集您主动提供的信息，包括：手机号、店铺名称、商品信息等。{'\n'}
+          1.2 应用运行所需的必要权限（相机、存储、通知）将在使用时向您申请。{'\n'}
+          1.3 我们不收集您的个人敏感信息，不进行用户行为追踪。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>二、数据存储</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          2.1 您的所有经营数据存储在本地设备，不会上传至任何服务器。{'\n'}
+          2.2 AI对话功能的历史记录仅保存在本地。{'\n'}
+          2.3 建议您定期导出数据并妥善备份。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>三、数据安全</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          3.1 您的账号信息通过加密存储保护。{'\n'}
+          3.2 我们采用行业标准的安全措施保护您的数据。{'\n'}
+          3.3 如更换设备，请务必先导出数据。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>四、AI服务隐私</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          4.1 AI助手对话需通过网络API调用，对话内容将发送至第三方AI服务。{'\n'}
+          4.2 发送至AI服务的内容不包含您的账号密码等敏感信息。{'\n'}
+          4.3 拍照识别功能的图片会发送至图像识别服务进行处理。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>五、权限使用说明</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 12 }}>
+          5.1 相机权限：用于拍照识别商品数量、出入库拍照。{'\n'}
+          5.2 存储权限：用于保存图片、导出数据。{'\n'}
+          5.3 通知权限：用于接收新消息提醒。{'\n'}
+          5.4 您可随时在系统设置中撤销权限。
+        </Text>
+
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginTop: 12, marginBottom: 8 }}>六、联系我们</Text>
+        <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24, marginBottom: 20 }}>
+          如有任何疑问，请通过应用内的"关于我们"页面联系我们。
+        </Text>
+      </ScrollView>
+    </View>
+  );
+};
+
 // 账号注销页面
 const AccountDeleteScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
@@ -3197,7 +3260,6 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
 // ================== 增强版图片查看器（支持缩放、裁剪、手绘） ==================
 const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessage }) => {
   const [editMode, setEditMode] = useState(false);
-  const [rotation, setRotation] = useState(0);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processedImageUri, setProcessedImageUri] = useState(null);
@@ -3208,15 +3270,13 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [currentPath, setCurrentPath] = useState([]);
   const [scaleDisplay, setScaleDisplay] = useState(1);
 
-  // 使用Reanimated SharedValue进行流畅动画（在UI线程执行，零闪动）
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const lastTapRef = useRef(0);
   const baseScale = useSharedValue(1);
-  const gestureActiveRef = useRef(false);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
+  const rotationSV = useSharedValue(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3230,28 +3290,36 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const colors = ['#F53F3F', '#00B42A', '#5B6DF0', '#FF7D00', '#000000', '#FFFFFF'];
   const currentImageUri = processedImageUri || imageUri;
 
-  // 使用Reanimated的animatedStyle直接在UI线程更新transform
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
         { scale: scale.value },
         { translateX: translateX.value },
         { translateY: translateY.value },
-        { rotate: `${rotation}deg` },
+        { rotate: `${rotationSV.value}deg` },
       ],
     };
   });
 
-  // 双击缩放（通过onTouchEnd检测，不干扰手势系统）
-  const handleTouchEnd = useCallback(() => {
-    // 手势刚结束时不触发双击检测
-    if (gestureActiveRef.current) {
-      gestureActiveRef.current = false;
-      lastTapRef.current = 0;
-      return;
-    }
-    const now = Date.now();
-    if (now - lastTapRef.current < 300) {
+  const zoomIn = () => {
+    scale.value = withTiming(2.5, { duration: 200 });
+    baseScale.value = 2.5;
+    runOnJS(setScaleDisplay)(2.5);
+  };
+
+  const zoomOut = () => {
+    scale.value = withTiming(1, { duration: 200 });
+    translateX.value = withTiming(0, { duration: 200 });
+    translateY.value = withTiming(0, { duration: 200 });
+    baseScale.value = 1;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    runOnJS(setScaleDisplay)(1);
+  };
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onStart(() => {
       if (scale.value > 1.01) {
         scale.value = withTiming(1, { duration: 200 });
         translateX.value = withTiming(0, { duration: 200 });
@@ -3259,28 +3327,23 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         baseScale.value = 1;
         savedTranslateX.value = 0;
         savedTranslateY.value = 0;
-        setScaleDisplay(1);
+        runOnJS(setScaleDisplay)(1);
       } else {
         scale.value = withTiming(2.5, { duration: 200 });
         baseScale.value = 2.5;
-        setScaleDisplay(2.5);
+        runOnJS(setScaleDisplay)(2.5);
       }
-      lastTapRef.current = 0;
-    } else {
-      lastTapRef.current = now;
-    }
-  }, []);
+    });
 
-  // 捏合手势 - 使用baseScale实现增量缩放
   const pinchGesture = Gesture.Pinch()
+    .minPointers(2)
+    .maxPointers(10)
     .onBegin(() => {
       baseScale.value = scale.value;
-      gestureActiveRef.current = true;
     })
     .onUpdate((e) => {
       const newScale = Math.max(0.5, Math.min(10, baseScale.value * e.scale));
       scale.value = newScale;
-      // 不在onUpdate中调用runOnJS，避免频繁重渲染导致闪动
     })
     .onEnd(() => {
       if (scale.value < 1.01) {
@@ -3288,23 +3351,22 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
         baseScale.value = 1;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
       }
-      // 手势结束后更新显示
       runOnJS(setScaleDisplay)(scale.value > 1.01 ? Math.round(scale.value * 10) / 10 : 1);
     });
 
-  // 拖动手势 - 仅在放大时生效，使用savedOffset实现增量拖动
   const panGesture = Gesture.Pan()
+    .minPointers(1)
+    .maxPointers(1)
     .enabled(!drawMode && !editMode)
     .onBegin(() => {
-      gestureActiveRef.current = true;
-      // 保存拖动开始时的偏移量
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
     })
     .onUpdate((e) => {
       if (scale.value > 1) {
-        // 在已有偏移基础上累加拖动量
         translateX.value = savedTranslateX.value + e.translationX;
         translateY.value = savedTranslateY.value + e.translationY;
       }
@@ -3313,12 +3375,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       if (scale.value < 1.01) {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
       }
     });
 
-  // 组合手势：仅捏合+拖动（不包含Tap，避免干扰捏合）
   const composedGesture = Gesture.Simultaneous(
     pinchGesture,
     panGesture
@@ -3378,7 +3437,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     try {
       const manipResult = await ImageManipulator.manipulateAsync(
         currentImageUri,
-        [{ rotate: rotation }, { resize: { width: 800 } }],
+        [{ rotate: rotationSV.value }, { resize: { width: 800 } }],
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
       );
       setProcessedImageUri(manipResult.uri);
@@ -3394,7 +3453,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   };
 
   const resetAll = () => {
-    setRotation(0);
+    rotationSV.value = 0;
     setProcessedImageUri(null);
     setShowFilterPanel(false);
     setDrawMode(false);
@@ -3426,30 +3485,21 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <View style={{ width: 42 }} />
         </View>
 
-        {/* 图片区域 - 双击检测通过onTouchEnd，手势通过GestureDetector */}
+        {/* 图片区域 - 嵌套GestureDetector实现双击+缩放+拖动 */}
         <View
           style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-          onTouchEnd={!drawMode && !editMode ? handleTouchEnd : undefined}
           {...(drawMode ? drawResponder : {}).panHandlers}
         >
           {!drawMode && !editMode ? (
-            <GestureDetector gesture={composedGesture}>
-              <Reanimated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
-                <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-                {(drawMode || drawPaths.length > 0) && (
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
-                    {drawPaths.map((path, i) => path.points.map((p, j) => (
-                      <View key={`p-${i}-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: path.color }} />
-                    )))}
-                    {currentPath.map((p, j) => (
-                      <View key={`c-${j}`} style={{ position: 'absolute', left: p.x - 2, top: p.y - 2, width: 4, height: 4, borderRadius: 2, backgroundColor: drawColor }} />
-                    ))}
-                  </View>
-                )}
-              </Reanimated.View>
+            <GestureDetector gesture={doubleTapGesture}>
+              <GestureDetector gesture={composedGesture}>
+                <Reanimated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+                </Reanimated.View>
+              </GestureDetector>
             </GestureDetector>
           ) : (
-            <View style={{ transform: [{ scale: 1 }, { rotate: `${rotation}deg` }] }}>
+            <View style={{ transform: [{ scale: 1 }, { rotate: `${rotationSV.value}deg` }] }}>
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
               {(drawMode || drawPaths.length > 0) && (
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
@@ -3475,11 +3525,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         {editMode && !drawMode && !cropMode && (
           <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setRotation(rotation - 90); }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value - 90; }}>
                 <Ionicons name="refresh-back" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>左转</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setRotation(rotation + 90); }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value + 90; }}>
                 <Ionicons name="refresh-forward" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>右转</Text>
               </TouchableOpacity>
@@ -8484,7 +8534,16 @@ const HomePage = () => {
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (navigation.isFocused() && !navigation.canGoBack()) {
+      const rootNav = navigationRef.current;
+      if (!rootNav) return false;
+      
+      // 在首页根Tab时，返回两次退出
+      const state = rootNav.getState();
+      const index = state?.index;
+      const routes = state?.routes;
+      
+      // 检查是否在主Tab根页面（没有可返回的栈）
+      if (index === 0 && routes && routes.length <= 1) {
         if (exitTimerRef.current) { 
           BackHandler.exitApp(); 
           return true; 
@@ -8493,8 +8552,9 @@ const HomePage = () => {
         exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
         return true;
       }
-      if (navigation.canGoBack()) {
-        navigation.goBack();
+      // 有可返回的页面则返回
+      if (rootNav.canGoBack()) {
+        rootNav.goBack();
         return true;
       }
       return false;
@@ -8503,7 +8563,7 @@ const HomePage = () => {
       backHandler.remove();
       if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
-  }, [navigation]);
+  }, []);
 
   const getReportData = () => {
     try {
@@ -8830,7 +8890,7 @@ const DraggableFloatingButton = ({ onPress }) => {
             transform: [{ translateX: -10 }, { translateY: -10 }, { rotate: '45deg' }],
             width: 30, height: 60,
           }} />
-          <Ionicons name="help-circle" size={26} color="#fff" />
+          <Ionicons name="sparkles" size={26} color="#fff" />
         </View>
         <View style={{
           position: 'absolute', top: -2, right: -2,
@@ -10535,6 +10595,7 @@ function AppStack() {
       <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
       <Stack.Screen name="UserAgreement" component={UserAgreementScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="AccountDelete" component={AccountDeleteScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="About" component={AboutScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ gestureEnabled: true }} />
