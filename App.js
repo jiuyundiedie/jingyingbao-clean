@@ -6,8 +6,7 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
-import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import ReanimatedV2, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -3262,15 +3261,18 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [drawPaths, setDrawPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState([]);
   const [scaleDisplay, setScaleDisplay] = useState(1);
-
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const baseScale = useSharedValue(1);
-  const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
-  const rotationSV = useSharedValue(0);
   const [rotationDisplay, setRotationDisplay] = useState(0);
+
+  const scaleValue = useRef(new Animated.Value(1)).current;
+  const translateXValue = useRef(new Animated.Value(0)).current;
+  const translateYValue = useRef(new Animated.Value(0)).current;
+  const rotationRef = useRef(0);
+  const baseScaleRef = useRef(1);
+  const savedTranslateRef = useRef({ x: 0, y: 0 });
+  const lastTapTimeRef = useRef(0);
+  const pinchStartDistanceRef = useRef(0);
+  const pinchModeRef = useRef(false);
+  const gesturesEnabledRef = useRef(true);
 
   const filters = [
     { name: '原图', value: null },
@@ -3284,100 +3286,116 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const colors = ['#F53F3F', '#00B42A', '#5B6DF0', '#FF7D00', '#000000', '#FFFFFF'];
   const currentImageUri = processedImageUri || imageUri;
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: scale.value },
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotationSV.value}deg` },
-      ],
-    };
-  });
-
   const zoomIn = () => {
-    scale.value = withTiming(2.5, { duration: 200 });
-    baseScale.value = 2.5;
-    runOnJS(setScaleDisplay)(2.5);
+    Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    baseScaleRef.current = 2.5;
+    savedTranslateRef.current = { x: 0, y: 0 };
+    setScaleDisplay(2.5);
   };
 
   const zoomOut = () => {
-    scale.value = withTiming(1, { duration: 200 });
-    translateX.value = withTiming(0, { duration: 200 });
-    translateY.value = withTiming(0, { duration: 200 });
-    baseScale.value = 1;
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
-    runOnJS(setScaleDisplay)(1);
+    Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    baseScaleRef.current = 1;
+    savedTranslateRef.current = { x: 0, y: 0 };
+    setScaleDisplay(1);
   };
 
-  const doubleTapGesture = Gesture.Tap()
-    .numberOfTaps(2)
-    .onStart(() => {
-      if (scale.value > 1.01) {
-        scale.value = withTiming(1, { duration: 200 });
-        translateX.value = withTiming(0, { duration: 200 });
-        translateY.value = withTiming(0, { duration: 200 });
-        baseScale.value = 1;
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-        runOnJS(setScaleDisplay)(1);
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapTimeRef.current < 300) {
+      const currentScale = scaleValue.__getValue();
+      if (currentScale > 1.01) {
+        Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        baseScaleRef.current = 1;
+        savedTranslateRef.current = { x: 0, y: 0 };
+        setScaleDisplay(1);
       } else {
-        scale.value = withTiming(2.5, { duration: 200 });
-        baseScale.value = 2.5;
-        runOnJS(setScaleDisplay)(2.5);
+        Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+        baseScaleRef.current = 2.5;
+        setScaleDisplay(2.5);
       }
-    });
+      lastTapTimeRef.current = 0;
+    } else {
+      lastTapTimeRef.current = now;
+    }
+  }, []);
 
-  const pinchGesture = Gesture.Pinch()
-    .minPointers(2)
-    .maxPointers(10)
-    .onBegin(() => {
-      baseScale.value = scale.value;
+  const pinchResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !drawMode && !editMode,
+      onMoveShouldSetPanResponder: () => !drawMode && !editMode,
+      onPanResponderGrant: (evt) => {
+        if (!gesturesEnabledRef.current) return;
+        if (evt.numberActiveTouches === 2) {
+          const touches = evt.nativeEvent.touches;
+          const dx = touches[0].pageX - touches[1].pageX;
+          const dy = touches[0].pageY - touches[1].pageY;
+          pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+          baseScaleRef.current = scaleValue.__getValue();
+          pinchModeRef.current = true;
+          scaleValue.stopAnimation();
+        } else if (evt.numberActiveTouches === 1) {
+          pinchModeRef.current = false;
+          if (scaleValue.__getValue() > 1) {
+            savedTranslateRef.current = { x: translateXValue.__getValue(), y: translateYValue.__getValue() };
+            translateXValue.stopAnimation();
+            translateYValue.stopAnimation();
+          }
+        }
+      },
+      onPanResponderMove: (evt) => {
+        if (!gesturesEnabledRef.current) return;
+        if (pinchModeRef.current && evt.numberActiveTouches === 2) {
+          const touches = evt.nativeEvent.touches;
+          const dx = touches[0].pageX - touches[1].pageX;
+          const dy = touches[0].pageY - touches[1].pageY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (pinchStartDistanceRef.current > 0) {
+            const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
+            scaleValue.setValue(newScale);
+          }
+        } else if (!pinchModeRef.current && evt.numberActiveTouches === 1) {
+          if (scaleValue.__getValue() > 1) {
+            translateXValue.setValue(savedTranslateRef.current.x + evt.dx);
+            translateYValue.setValue(savedTranslateRef.current.y + evt.dy);
+          }
+        }
+      },
+      onPanResponderRelease: () => {
+        if (!gesturesEnabledRef.current) return;
+        if (pinchModeRef.current) {
+          pinchModeRef.current = false;
+          if (scaleValue.__getValue() < 1.01) {
+            Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
+            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+            baseScaleRef.current = 1;
+            savedTranslateRef.current = { x: 0, y: 0 };
+          }
+          setScaleDisplay(scaleValue.__getValue() > 1.01 ? Math.round(scaleValue.__getValue() * 10) / 10 : 1);
+        } else {
+          if (scaleValue.__getValue() < 1.01) {
+            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+          } else {
+            setScaleDisplay(Math.round(scaleValue.__getValue() * 10) / 10);
+          }
+        }
+        pinchStartDistanceRef.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        pinchModeRef.current = false;
+        pinchStartDistanceRef.current = 0;
+      },
     })
-    .onUpdate((e) => {
-      const newScale = Math.max(0.5, Math.min(10, baseScale.value * e.scale));
-      scale.value = newScale;
-    })
-    .onEnd(() => {
-      if (scale.value < 1.01) {
-        scale.value = withSpring(1);
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        baseScale.value = 1;
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-      }
-      runOnJS(setScaleDisplay)(scale.value > 1.01 ? Math.round(scale.value * 10) / 10 : 1);
-    });
+  ).current;
 
-  const panGesture = Gesture.Pan()
-    .minPointers(1)
-    .maxPointers(1)
-    .enabled(!drawMode && !editMode)
-    .onBegin(() => {
-      savedTranslateX.value = translateX.value;
-      savedTranslateY.value = translateY.value;
-    })
-    .onUpdate((e) => {
-      if (scale.value > 1) {
-        translateX.value = savedTranslateX.value + e.translationX;
-        translateY.value = savedTranslateY.value + e.translationY;
-      }
-    })
-    .onEnd(() => {
-      if (scale.value < 1.01) {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-      }
-    });
-
-  const composedGesture = Gesture.Simultaneous(
-    pinchGesture,
-    panGesture
-  );
-
-  // 手绘 PanResponder
   const drawResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => drawMode,
@@ -3431,7 +3449,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     try {
       const manipResult = await ImageManipulator.manipulateAsync(
         currentImageUri,
-        [{ rotate: rotationSV.value }, { resize: { width: 800 } }],
+        [{ rotate: rotationRef.current }, { resize: { width: 800 } }],
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
       );
       setProcessedImageUri(manipResult.uri);
@@ -3447,7 +3465,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   };
 
   const resetAll = () => {
-    rotationSV.value = 0;
+    rotationRef.current = 0;
     setRotationDisplay(0);
     setProcessedImageUri(null);
     setShowFilterPanel(false);
@@ -3455,12 +3473,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setCropMode(false);
     setDrawPaths([]);
     setCurrentPath([]);
-    scale.value = withTiming(1, { duration: 200 });
-    translateX.value = withTiming(0, { duration: 200 });
-    translateY.value = withTiming(0, { duration: 200 });
-    baseScale.value = 1;
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
+    Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    baseScaleRef.current = 1;
+    savedTranslateRef.current = { x: 0, y: 0 };
     setScaleDisplay(1);
   };
 
@@ -3469,7 +3486,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        {/* 顶部栏 - 避开状态栏/刘海 */}
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: statusBarHeight + 8, paddingHorizontal: 16, paddingBottom: 12 }}>
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
@@ -3480,19 +3496,20 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <View style={{ width: 42 }} />
         </View>
 
-        {/* 图片区域 - 嵌套GestureDetector实现双击+缩放+拖动 */}
         <View
           style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-          {...(drawMode ? drawResponder : {}).panHandlers}
+          onTouchStart={!drawMode && !editMode ? handleDoubleTap : undefined}
+          {...(drawMode ? drawResponder : pinchResponder).panHandlers}
         >
           {!drawMode && !editMode ? (
-            <GestureDetector gesture={doubleTapGesture}>
-              <GestureDetector gesture={composedGesture}>
-                <ReanimatedV2.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-                </ReanimatedV2.View>
-              </GestureDetector>
-            </GestureDetector>
+            <Animated.View
+              style={{
+                width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center',
+                transform: [{ scale: scaleValue }, { translateX: translateXValue }, { translateY: translateYValue }],
+              }}
+            >
+              <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+            </Animated.View>
           ) : (
             <View style={{ transform: [{ scale: 1 }, { rotate: `${rotationDisplay}deg` }] }}>
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
@@ -3516,104 +3533,122 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           )}
         </View>
 
-        {/* 编辑工具栏 */}
+        {!drawMode && !editMode && (
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Platform.OS === 'ios' ? 34 : 20, backgroundColor: 'rgba(0,0,0,0.75)' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 12 }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={zoomOut}>
+                <Ionicons name="remove-outline" size={26} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>缩小</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={zoomIn}>
+                <Ionicons name="add-outline" size={26} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>放大</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setEditMode(true); gesturesEnabledRef.current = false; }}>
+                <Ionicons name="create-outline" size={26} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>编辑</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleShare}>
+                <Ionicons name="share-outline" size={26} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>分享</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleSave}>
+                <Ionicons name="download-outline" size={26} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {editMode && !drawMode && !cropMode && (
           <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value - 90; setRotationDisplay(rotationDisplay - 90); }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationRef.current -= 90; setRotationDisplay(rotationDisplay - 90); }}>
                 <Ionicons name="refresh-back" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>左转</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value + 90; setRotationDisplay(rotationDisplay + 90); }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationRef.current += 90; setRotationDisplay(rotationDisplay + 90); }}>
                 <Ionicons name="refresh-forward" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>右转</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setShowFilterPanel(!showFilterPanel)}>
-                <Ionicons name="color-palette-outline" size={22} color="#fff" />
+                <Ionicons name="color-filter-outline" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>滤镜</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setCropMode(true)}>
-                <Ionicons name="crop-outline" size={22} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>裁剪</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setDrawMode(true); setDrawPaths([]); }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setDrawMode(true); gesturesEnabledRef.current = false; }}>
                 <Ionicons name="brush-outline" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>手绘</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleCrop}>
+                <Ionicons name="crop-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>裁剪</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={{ alignItems: 'center' }} onPress={resetAll}>
-                <Ionicons name="refresh" size={22} color="#aaa" />
-                <Text style={{ color: '#aaa', fontSize: 11, marginTop: 4 }}>重置</Text>
+                <Ionicons name="refresh-outline" size={22} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>重置</Text>
               </TouchableOpacity>
             </View>
-            {showFilterPanel && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-                {filters.map(f => (
-                  <TouchableOpacity key={f.name} style={{ paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', marginRight: 8 }}>
-                    <Text style={{ color: '#fff', fontSize: 14 }}>{f.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
           </View>
         )}
 
-        {/* 手绘模式工具栏 */}
+        {showFilterPanel && (
+          <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 180 : 160, left: 16, right: 16, backgroundColor: 'rgba(30,30,30,0.95)', borderRadius: 16, padding: 16 }}>
+            <Text style={{ color: '#fff', fontSize: 14, marginBottom: 12 }}>选择滤镜</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {filters.map(f => (
+                <TouchableOpacity key={f.name} style={{ marginRight: 16, alignItems: 'center' }} onPress={() => showToast(f.value ? `已应用${f.name}滤镜` : '已选择原图')}>
+                  <View style={{ width: 60, height: 60, borderRadius: 8, backgroundColor: f.value ? '#4A90D9' : '#333', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 12 }}>{f.name}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {drawMode && (
           <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16 }}>
-              <View style={{ flexDirection: 'row' }}>
-                {colors.map(c => (
-                  <TouchableOpacity key={c} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c, marginRight: 8, borderWidth: drawColor === c ? 2 : 0, borderColor: '#fff' }} onPress={() => setDrawColor(c)} />
-                ))}
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontSize: 13 }}>选择颜色</Text>
+                <View style={{ flexDirection: 'row' }}>
+                  {colors.map(c => (
+                    <TouchableOpacity key={c} style={{ marginHorizontal: 4 }} onPress={() => setDrawColor(c)}>
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c, borderWidth: drawColor === c ? 2 : 0, borderColor: '#fff' }} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-              <View style={{ flexDirection: 'row' }}>
-                <TouchableOpacity style={{ padding: 8, marginRight: 8 }} onPress={clearDrawing}>
-                  <Ionicons name="trash-outline" size={20} color="#fff" />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 }}>
+                <TouchableOpacity style={{ alignItems: 'center' }} onPress={clearDrawing}>
+                  <Ionicons name="trash-outline" size={22} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>清除</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ padding: 8 }} onPress={() => { setDrawMode(false); setDrawPaths([]); }}>
-                  <Ionicons name="checkmark-circle" size={24} color="#00B42A" />
+                <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { setDrawMode(false); gesturesEnabledRef.current = true; }}>
+                  <Ionicons name="close-outline" size={22} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>退出</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ alignItems: 'center' }} onPress={resetAll}>
+                  <Ionicons name="refresh-outline" size={22} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>重置</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         )}
 
-        {/* 裁剪模式工具栏 */}
-        {cropMode && (
-          <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
-              <TouchableOpacity style={{ padding: 12, marginRight: 20 }} onPress={() => setCropMode(false)}>
-                <Text style={{ color: '#fff', fontSize: 16 }}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ padding: 12 }} onPress={handleCrop}>
-                <Text style={{ color: '#00B42A', fontSize: 16, fontWeight: '600' }}>确认裁剪</Text>
-              </TouchableOpacity>
-            </View>
+        {editMode && (
+          <View style={{ position: 'absolute', top: statusBarHeight + 8, left: 0, right: 0, zIndex: 20, alignItems: 'flex-end', paddingRight: 16 }}>
+            <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }} onPress={() => { setEditMode(false); gesturesEnabledRef.current = true; setShowFilterPanel(false); setDrawMode(false); }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>完成</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* 底部操作栏（非编辑模式） */}
-        {!editMode && !drawMode && !cropMode && (
-          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', paddingBottom: Platform.OS === 'ios' ? 50 : 30, paddingTop: 16 }}>
-            <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleSave}>
-              <Ionicons name="download-outline" size={24} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>保存</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleShare}>
-              <Ionicons name="share-outline" size={24} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>分享</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => setEditMode(true)}>
-              <Ionicons name="create-outline" size={24} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12, marginTop: 4 }}>编辑</Text>
-            </TouchableOpacity>
-            {isOwnMessage && onDelete && (
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={handleDelete}>
-                <Ionicons name="trash-outline" size={24} color={DANGER_COLOR} />
-                <Text style={{ color: DANGER_COLOR, fontSize: 12, marginTop: 4 }}>删除</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        {isOwnMessage && !editMode && (
+          <TouchableOpacity style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 120 : 100, right: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,59,48,0.9)', justifyContent: 'center', alignItems: 'center' }} onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={22} color="#fff" />
+          </TouchableOpacity>
         )}
       </View>
     </Modal>
@@ -10568,6 +10603,8 @@ function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="UserAgreement" component={UserAgreementScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ gestureEnabled: true }} />
     </Stack.Navigator>
   );
 }
