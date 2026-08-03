@@ -3267,12 +3267,19 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const translateXValue = useRef(new Animated.Value(0)).current;
   const translateYValue = useRef(new Animated.Value(0)).current;
   const rotationRef = useRef(0);
+
+  // JS端同步追踪的值（因为__getValue()在useNativeDriver时不可靠）
+  const scaleRef = useRef(1);
+  const translateXRef = useRef(0);
+  const translateYRef = useRef(0);
+
   const baseScaleRef = useRef(1);
   const savedTranslateRef = useRef({ x: 0, y: 0 });
   const lastTapTimeRef = useRef(0);
   const pinchStartDistanceRef = useRef(0);
   const pinchModeRef = useRef(false);
   const gesturesEnabledRef = useRef(true);
+  const moveStartLocationRef = useRef({ x: 0, y: 0 });
 
   const filters = [
     { name: '原图', value: null },
@@ -3290,6 +3297,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    scaleRef.current = 2.5;
+    translateXRef.current = 0;
+    translateYRef.current = 0;
     baseScaleRef.current = 2.5;
     savedTranslateRef.current = { x: 0, y: 0 };
     setScaleDisplay(2.5);
@@ -3299,6 +3309,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    scaleRef.current = 1;
+    translateXRef.current = 0;
+    translateYRef.current = 0;
     baseScaleRef.current = 1;
     savedTranslateRef.current = { x: 0, y: 0 };
     setScaleDisplay(1);
@@ -3307,16 +3320,19 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const handleDoubleTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTapTimeRef.current < 300) {
-      const currentScale = scaleValue.__getValue();
-      if (currentScale > 1.01) {
+      if (scaleRef.current > 1.01) {
         Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
         Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
         Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        scaleRef.current = 1;
+        translateXRef.current = 0;
+        translateYRef.current = 0;
         baseScaleRef.current = 1;
         savedTranslateRef.current = { x: 0, y: 0 };
         setScaleDisplay(1);
       } else {
         Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+        scaleRef.current = 2.5;
         baseScaleRef.current = 2.5;
         setScaleDisplay(2.5);
       }
@@ -3332,52 +3348,51 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       onMoveShouldSetPanResponder: () => !drawMode && !editMode,
       onPanResponderGrant: (evt) => {
         if (!gesturesEnabledRef.current) return;
-        // 手势开始时重置标记
         pinchStartDistanceRef.current = 0;
         pinchModeRef.current = false;
         // 保存当前平移值作为拖动起点
-        savedTranslateRef.current = {
-          x: translateXValue.__getValue(),
-          y: translateYValue.__getValue(),
-        };
-        scaleValue.stopAnimation();
-        translateXValue.stopAnimation();
-        translateYValue.stopAnimation();
+        savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+        // 记录触摸起始位置
+        moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
       },
       onPanResponderMove: (evt) => {
         if (!gesturesEnabledRef.current) return;
-        // 根据当前活跃触点数动态判断是捏合还是拖动
         if (evt.numberActiveTouches >= 2) {
-          // 双指及以上：捏合缩放
+          // 双指：捏合缩放
           const touches = evt.nativeEvent.touches;
           const dx = touches[0].pageX - touches[1].pageX;
           const dy = touches[0].pageY - touches[1].pageY;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (!pinchModeRef.current) {
-            // 刚刚进入捏合模式
             pinchModeRef.current = true;
             pinchStartDistanceRef.current = distance;
-            baseScaleRef.current = scaleValue.__getValue();
+            baseScaleRef.current = scaleRef.current;
           }
 
           if (pinchStartDistanceRef.current > 0) {
             const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
             scaleValue.setValue(newScale);
+            scaleRef.current = newScale;
           }
         } else if (evt.numberActiveTouches === 1) {
-          // 单指：平移图片
+          // 单指：平移图片（仅当放大后允许）
           if (pinchModeRef.current) {
-            // 刚从捏合变为单指，保存当前偏移量
+            // 从捏合切换到单指，保存当前偏移
             pinchModeRef.current = false;
-            savedTranslateRef.current = {
-              x: translateXValue.__getValue(),
-              y: translateYValue.__getValue(),
-            };
+            savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+            moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
           }
-          if (scaleValue.__getValue() > 1) {
-            translateXValue.setValue(savedTranslateRef.current.x + evt.dx);
-            translateYValue.setValue(savedTranslateRef.current.y + evt.dy);
+
+          if (scaleRef.current > 1.01) {
+            const dx = evt.nativeEvent.pageX - moveStartLocationRef.current.x;
+            const dy = evt.nativeEvent.pageY - moveStartLocationRef.current.y;
+            const newX = savedTranslateRef.current.x + dx;
+            const newY = savedTranslateRef.current.y + dy;
+            translateXValue.setValue(newX);
+            translateYValue.setValue(newY);
+            translateXRef.current = newX;
+            translateYRef.current = newY;
           }
         }
       },
@@ -3387,32 +3402,31 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           // 所有手指抬起
           if (pinchModeRef.current) {
             pinchModeRef.current = false;
-            if (scaleValue.__getValue() < 1.01) {
+            if (scaleRef.current < 1.01) {
               Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
               Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
               Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+              scaleRef.current = 1;
+              translateXRef.current = 0;
+              translateYRef.current = 0;
               baseScaleRef.current = 1;
               savedTranslateRef.current = { x: 0, y: 0 };
             }
-            setScaleDisplay(scaleValue.__getValue() > 1.01 ? Math.round(scaleValue.__getValue() * 10) / 10 : 1);
+            setScaleDisplay(scaleRef.current > 1.01 ? Math.round(scaleRef.current * 10) / 10 : 1);
           } else {
-            // 单指拖动结束
-            if (scaleValue.__getValue() < 1.01) {
+            if (scaleRef.current < 1.01) {
               Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
               Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            } else {
-              setScaleDisplay(Math.round(scaleValue.__getValue() * 10) / 10);
+              translateXRef.current = 0;
+              translateYRef.current = 0;
             }
           }
           pinchStartDistanceRef.current = 0;
         } else {
-          // 还有手指在屏幕上，调整为单指模式
+          // 还有手指在屏幕上
           if (pinchModeRef.current) {
             pinchModeRef.current = false;
-            savedTranslateRef.current = {
-              x: translateXValue.__getValue(),
-              y: translateYValue.__getValue(),
-            };
+            savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
           }
           pinchStartDistanceRef.current = 0;
         }
@@ -3504,6 +3518,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    scaleRef.current = 1;
+    translateXRef.current = 0;
+    translateYRef.current = 0;
     baseScaleRef.current = 1;
     savedTranslateRef.current = { x: 0, y: 0 };
     setScaleDisplay(1);
