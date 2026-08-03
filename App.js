@@ -3215,6 +3215,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const lastTapRef = useRef(0);
   const baseScale = useSharedValue(1);
   const gestureActiveRef = useRef(false);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3255,6 +3257,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         translateX.value = withTiming(0, { duration: 200 });
         translateY.value = withTiming(0, { duration: 200 });
         baseScale.value = 1;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
         setScaleDisplay(1);
       } else {
         scale.value = withTiming(2.5, { duration: 200 });
@@ -3289,22 +3293,28 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       runOnJS(setScaleDisplay)(scale.value > 1.01 ? Math.round(scale.value * 10) / 10 : 1);
     });
 
-  // 拖动手势 - 仅在放大时生效
+  // 拖动手势 - 仅在放大时生效，使用savedOffset实现增量拖动
   const panGesture = Gesture.Pan()
     .enabled(!drawMode && !editMode)
     .onBegin(() => {
       gestureActiveRef.current = true;
+      // 保存拖动开始时的偏移量
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
     })
     .onUpdate((e) => {
       if (scale.value > 1) {
-        translateX.value = e.translationX;
-        translateY.value = e.translationY;
+        // 在已有偏移基础上累加拖动量
+        translateX.value = savedTranslateX.value + e.translationX;
+        translateY.value = savedTranslateY.value + e.translationY;
       }
     })
     .onEnd(() => {
       if (scale.value < 1.01) {
         translateX.value = withSpring(0);
         translateY.value = withSpring(0);
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
       }
     });
 
@@ -3395,6 +3405,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     translateX.value = withTiming(0, { duration: 200 });
     translateY.value = withTiming(0, { duration: 200 });
     baseScale.value = 1;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
     setScaleDisplay(1);
   };
 
@@ -8274,7 +8286,7 @@ const HomePage = () => {
   const user = state.user;
   const insets = useSafeAreaInsets();
   const [settingOpen, setSettingOpen] = useState(false);
-  const [exitTimer, setExitTimer] = useState(null);
+  const exitTimerRef = useRef(null);
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
@@ -8342,7 +8354,7 @@ const HomePage = () => {
     { icon: "people-outline", label: "员工管理", key: 'StaffManage', internal: true, screen: 'StaffManage' },
     { icon: "chatbox-outline", label: "顾客客服", key: 'CustomerService', tab: '客服', screen: 'CustomerService' },
     { icon: "people-circle-outline", label: "内部沟通", key: 'InternalChat', tab: '内部', screen: 'InternalChat' },
-    { icon: "help-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
+    { icon: "sparkles-outline", label: "AI助手", key: 'MerchantAssistant', tab: 'AI助手', screen: 'MerchantAssistant' },
     { icon: "grid-outline", label: "商品总览", key: 'ProductOverview', internal: true, screen: 'ProductOverview' },
     { icon: "card-outline", label: "会员管理", key: 'MemberManage', internal: true, screen: 'MemberManage' },
     { icon: "ticket-outline", label: "营销工具", key: 'CouponManage', internal: true, screen: 'CouponManage' },
@@ -8473,13 +8485,12 @@ const HomePage = () => {
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (navigation.isFocused() && !navigation.canGoBack()) {
-        if (exitTimer) { 
+        if (exitTimerRef.current) { 
           BackHandler.exitApp(); 
           return true; 
         }
         showToast('再按一次退出');
-        const timer = setTimeout(() => setExitTimer(null), 2000);
-        setExitTimer(timer);
+        exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
         return true;
       }
       if (navigation.canGoBack()) {
@@ -8490,7 +8501,7 @@ const HomePage = () => {
     });
     return () => {
       backHandler.remove();
-      if (exitTimer) clearTimeout(exitTimer);
+      if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     };
   }, [navigation]);
 
