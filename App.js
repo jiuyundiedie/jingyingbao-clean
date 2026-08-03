@@ -3332,62 +3332,90 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       onMoveShouldSetPanResponder: () => !drawMode && !editMode,
       onPanResponderGrant: (evt) => {
         if (!gesturesEnabledRef.current) return;
-        if (evt.numberActiveTouches === 2) {
-          const touches = evt.nativeEvent.touches;
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
-          baseScaleRef.current = scaleValue.__getValue();
-          pinchModeRef.current = true;
-          scaleValue.stopAnimation();
-        } else if (evt.numberActiveTouches === 1) {
-          pinchModeRef.current = false;
-          if (scaleValue.__getValue() > 1) {
-            savedTranslateRef.current = { x: translateXValue.__getValue(), y: translateYValue.__getValue() };
-            translateXValue.stopAnimation();
-            translateYValue.stopAnimation();
-          }
-        }
+        // 手势开始时重置标记
+        pinchStartDistanceRef.current = 0;
+        pinchModeRef.current = false;
+        // 保存当前平移值作为拖动起点
+        savedTranslateRef.current = {
+          x: translateXValue.__getValue(),
+          y: translateYValue.__getValue(),
+        };
+        scaleValue.stopAnimation();
+        translateXValue.stopAnimation();
+        translateYValue.stopAnimation();
       },
       onPanResponderMove: (evt) => {
         if (!gesturesEnabledRef.current) return;
-        if (pinchModeRef.current && evt.numberActiveTouches === 2) {
+        // 根据当前活跃触点数动态判断是捏合还是拖动
+        if (evt.numberActiveTouches >= 2) {
+          // 双指及以上：捏合缩放
           const touches = evt.nativeEvent.touches;
           const dx = touches[0].pageX - touches[1].pageX;
           const dy = touches[0].pageY - touches[1].pageY;
           const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (!pinchModeRef.current) {
+            // 刚刚进入捏合模式
+            pinchModeRef.current = true;
+            pinchStartDistanceRef.current = distance;
+            baseScaleRef.current = scaleValue.__getValue();
+          }
+
           if (pinchStartDistanceRef.current > 0) {
             const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
             scaleValue.setValue(newScale);
           }
-        } else if (!pinchModeRef.current && evt.numberActiveTouches === 1) {
+        } else if (evt.numberActiveTouches === 1) {
+          // 单指：平移图片
+          if (pinchModeRef.current) {
+            // 刚从捏合变为单指，保存当前偏移量
+            pinchModeRef.current = false;
+            savedTranslateRef.current = {
+              x: translateXValue.__getValue(),
+              y: translateYValue.__getValue(),
+            };
+          }
           if (scaleValue.__getValue() > 1) {
             translateXValue.setValue(savedTranslateRef.current.x + evt.dx);
             translateYValue.setValue(savedTranslateRef.current.y + evt.dy);
           }
         }
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt) => {
         if (!gesturesEnabledRef.current) return;
-        if (pinchModeRef.current) {
-          pinchModeRef.current = false;
-          if (scaleValue.__getValue() < 1.01) {
-            Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            baseScaleRef.current = 1;
-            savedTranslateRef.current = { x: 0, y: 0 };
-          }
-          setScaleDisplay(scaleValue.__getValue() > 1.01 ? Math.round(scaleValue.__getValue() * 10) / 10 : 1);
-        } else {
-          if (scaleValue.__getValue() < 1.01) {
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+        if (evt.numberActiveTouches === 0) {
+          // 所有手指抬起
+          if (pinchModeRef.current) {
+            pinchModeRef.current = false;
+            if (scaleValue.__getValue() < 1.01) {
+              Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
+              Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+              Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+              baseScaleRef.current = 1;
+              savedTranslateRef.current = { x: 0, y: 0 };
+            }
+            setScaleDisplay(scaleValue.__getValue() > 1.01 ? Math.round(scaleValue.__getValue() * 10) / 10 : 1);
           } else {
-            setScaleDisplay(Math.round(scaleValue.__getValue() * 10) / 10);
+            // 单指拖动结束
+            if (scaleValue.__getValue() < 1.01) {
+              Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+              Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+            } else {
+              setScaleDisplay(Math.round(scaleValue.__getValue() * 10) / 10);
+            }
           }
+          pinchStartDistanceRef.current = 0;
+        } else {
+          // 还有手指在屏幕上，调整为单指模式
+          if (pinchModeRef.current) {
+            pinchModeRef.current = false;
+            savedTranslateRef.current = {
+              x: translateXValue.__getValue(),
+              y: translateYValue.__getValue(),
+            };
+          }
+          pinchStartDistanceRef.current = 0;
         }
-        pinchStartDistanceRef.current = 0;
       },
       onPanResponderTerminate: () => {
         pinchModeRef.current = false;
