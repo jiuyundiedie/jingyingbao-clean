@@ -7,7 +7,7 @@ import {
   AppState, Linking
 } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
+import ReanimatedV2, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -1919,27 +1919,20 @@ const LoginScreen = () => {
           <TextInput style={styles.formInput} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
         </>
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8, flexWrap: 'wrap' }}>
         <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 8 }}>
           <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
             {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
           </View>
         </TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-          <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 8 }}>
-            <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-              {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
-            </View>
-          </TouchableOpacity>
-          <Text style={{ fontSize: 13, color: TEXT_SECOND }}>我已阅读并同意</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('UserAgreement')}>
-            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《用户协议》</Text>
-          </TouchableOpacity>
-          <Text style={{ fontSize: 13, color: TEXT_SECOND }}>和</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
-            <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《隐私政策》</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>我已阅读并同意</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('UserAgreement')}>
+          <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《用户协议》</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>和</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
+          <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《隐私政策》</Text>
+        </TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
         <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
@@ -3277,6 +3270,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
   const rotationSV = useSharedValue(0);
+  const [rotationDisplay, setRotationDisplay] = useState(0);
 
   const filters = [
     { name: '原图', value: null },
@@ -3454,6 +3448,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   const resetAll = () => {
     rotationSV.value = 0;
+    setRotationDisplay(0);
     setProcessedImageUri(null);
     setShowFilterPanel(false);
     setDrawMode(false);
@@ -3493,13 +3488,13 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           {!drawMode && !editMode ? (
             <GestureDetector gesture={doubleTapGesture}>
               <GestureDetector gesture={composedGesture}>
-                <Reanimated.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
+                <ReanimatedV2.View style={[animatedStyle, { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }]}>
                   <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-                </Reanimated.View>
+                </ReanimatedV2.View>
               </GestureDetector>
             </GestureDetector>
           ) : (
-            <View style={{ transform: [{ scale: 1 }, { rotate: `${rotationSV.value}deg` }] }}>
+            <View style={{ transform: [{ scale: 1 }, { rotate: `${rotationDisplay}deg` }] }}>
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
               {(drawMode || drawPaths.length > 0) && (
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents={drawMode ? 'auto' : 'none'}>
@@ -3525,11 +3520,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         {editMode && !drawMode && !cropMode && (
           <View style={{ position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 80, left: 0, right: 0, paddingHorizontal: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, paddingVertical: 12 }}>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value - 90; }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value - 90; setRotationDisplay(rotationDisplay - 90); }}>
                 <Ionicons name="refresh-back" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>左转</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value + 90; }}>
+              <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => { rotationSV.value = rotationSV.value + 90; setRotationDisplay(rotationDisplay + 90); }}>
                 <Ionicons name="refresh-forward" size={22} color="#fff" />
                 <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>右转</Text>
               </TouchableOpacity>
