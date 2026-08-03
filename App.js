@@ -3505,7 +3505,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             <Animated.View
               style={{
                 width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center',
-                transform: [{ scale: scaleValue }, { translateX: translateXValue }, { translateY: translateYValue }],
+                transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
               }}
             >
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
