@@ -999,8 +999,8 @@ const calcDailyReport = (state) => {
     let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
     todayOrders.forEach(order => {
       switch(order.platform) {
-        case "美团": meituanIncome += order.couponPrice || 0; break;
-        case "抖音": douyinIncome += order.couponPrice || 0; break;
+        case "外卖平台": meituanIncome += order.couponPrice || 0; break;
+        case "短视频平台": douyinIncome += order.couponPrice || 0; break;
         case "大众点评": dianpingIncome += order.couponPrice || 0; break;
       }
     });
@@ -2924,7 +2924,7 @@ const AboutScreen = ({ navigation }) => {
         <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12 }}>
           <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>核心功能</Text>
           <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
-            • 订单核销：支持美团、抖音、大众点评扫码核销{'\n'}
+            • 订单核销：支持外卖平台、短视频平台、大众点评扫码核销{'\n'}
             • 库存管理：出入库记录、商品管理、AI拍照盘点{'\n'}
             • 员工协作：内部沟通、私聊、员工管理{'\n'}
             • AI助手：智能问答、图片生成、经营分析{'\n'}
@@ -3118,14 +3118,14 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
       color: '#5B6DF0',
       title: '欢迎使用经营宝',
       desc: '专为商家打造的智能经营管理工具\n订单核销 · 库存管理 · AI助手 · 团队协作',
-      features: ['一键扫码核销，支持美团/抖音/点评', 'AI拍照盘点，智能识别库存数量', '内部团队沟通，高效协作管理'],
+      features: ['一键扫码核销，支持外卖平台/短视频平台/点评', 'AI拍照盘点，智能识别库存数量', '内部团队沟通，高效协作管理'],
     },
     {
       icon: 'qr-code',
       color: '#00B42A',
       title: '订单核销',
       desc: '支持多平台扫码核销，快速验证顾客订单',
-      features: ['点击核销按钮打开扫码', '支持美团、抖音、大众点评', '核销记录自动保存，可随时查看'],
+      features: ['点击核销按钮打开扫码', '支持外卖平台、短视频平台、大众点评', '核销记录自动保存，可随时查看'],
     },
     {
       icon: 'swap-horizontal',
@@ -3280,6 +3280,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const pinchModeRef = useRef(false);
   const gesturesEnabledRef = useRef(true);
   const moveStartLocationRef = useRef({ x: 0, y: 0 });
+  const grantTimeRef = useRef(0);
+  const grantLocationRef = useRef({ x: 0, y: 0 });
 
   const filters = [
     { name: '原图', value: null },
@@ -3317,43 +3319,22 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setScaleDisplay(1);
   };
 
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapTimeRef.current < 300) {
-      if (scaleRef.current > 1.01) {
-        Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-        Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-        Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-        scaleRef.current = 1;
-        translateXRef.current = 0;
-        translateYRef.current = 0;
-        baseScaleRef.current = 1;
-        savedTranslateRef.current = { x: 0, y: 0 };
-        setScaleDisplay(1);
-      } else {
-        Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-        scaleRef.current = 2.5;
-        baseScaleRef.current = 2.5;
-        setScaleDisplay(2.5);
-      }
-      lastTapTimeRef.current = 0;
-    } else {
-      lastTapTimeRef.current = now;
-    }
-  }, []);
-
   const pinchResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => !drawMode && !editMode,
-      onMoveShouldSetPanResponder: () => !drawMode && !editMode,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (drawMode || editMode) return false;
+        // 只有真正移动了才接管（避免点击也被接管）
+        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+      },
       onPanResponderGrant: (evt) => {
         if (!gesturesEnabledRef.current) return;
         pinchStartDistanceRef.current = 0;
         pinchModeRef.current = false;
-        // 保存当前平移值作为拖动起点
         savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-        // 记录触摸起始位置
         moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
+        grantTimeRef.current = Date.now();
+        grantLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
       },
       onPanResponderMove: (evt) => {
         if (!gesturesEnabledRef.current) return;
@@ -3378,7 +3359,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         } else if (evt.numberActiveTouches === 1) {
           // 单指：平移图片（仅当放大后允许）
           if (pinchModeRef.current) {
-            // 从捏合切换到单指，保存当前偏移
             pinchModeRef.current = false;
             savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
             moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
@@ -3396,8 +3376,40 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           }
         }
       },
-      onPanResponderRelease: (evt) => {
+      onPanResponderRelease: (evt, gestureState) => {
         if (!gesturesEnabledRef.current) return;
+
+        // 检测是否为点击（移动距离很小）
+        const moveDistance = Math.sqrt(gestureState.dx * gestureState.dx + gestureState.dy * gestureState.dy);
+        const isTap = moveDistance < 10 && (Date.now() - grantTimeRef.current) < 300;
+
+        if (isTap && evt.numberActiveTouches === 0) {
+          // 双击检测
+          const now = Date.now();
+          if (now - lastTapTimeRef.current < 300) {
+            // 双击：切换缩放
+            if (scaleRef.current > 1.01) {
+              Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+              Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+              Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+              scaleRef.current = 1;
+              translateXRef.current = 0;
+              translateYRef.current = 0;
+              baseScaleRef.current = 1;
+              savedTranslateRef.current = { x: 0, y: 0 };
+              setScaleDisplay(1);
+            } else {
+              Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+              scaleRef.current = 2.5;
+              baseScaleRef.current = 2.5;
+              setScaleDisplay(2.5);
+            }
+            lastTapTimeRef.current = 0;
+          } else {
+            lastTapTimeRef.current = now;
+          }
+        }
+
         if (evt.numberActiveTouches === 0) {
           // 所有手指抬起
           if (pinchModeRef.current) {
@@ -3427,6 +3439,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           if (pinchModeRef.current) {
             pinchModeRef.current = false;
             savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+            moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
           }
           pinchStartDistanceRef.current = 0;
         }
@@ -3543,7 +3556,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
         <View
           style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-          onTouchStart={!drawMode && !editMode ? handleDoubleTap : undefined}
           {...(drawMode ? drawResponder : pinchResponder).panHandlers}
         >
           {!drawMode && !editMode ? (
@@ -3883,7 +3895,7 @@ const ProductOverview = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [name, setName] = useState('');
   const [stock, setStock] = useState('');
-  const [platform, setPlatform] = useState('美团');
+  const [platform, setPlatform] = useState('外卖平台');
   const [code, setCode] = useState('');
   const [loadingPlatform, setLoadingPlatform] = useState(null);
   const [shelfModalVisible, setShelfModalVisible] = useState(false);
@@ -3937,7 +3949,7 @@ const ProductOverview = () => {
     setEditingItem(item);
     setName(item.name);
     setStock(String(item.stock));
-    setPlatform(item.platform || '美团');
+    setPlatform(item.platform || '外卖平台');
     setCode(item.code || '');
     setModalVisible(true);
   };
@@ -3967,7 +3979,7 @@ const ProductOverview = () => {
     try {
       if (!currentShelfGoods) { showToast('请先选择商品'); return; }
       setLoadingPlatform('all');
-      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
+      const prompt = `请将以下商品信息分别生成适合外卖平台、短视频平台、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
 
       Alert.alert('一键上架所有平台', reply);
@@ -3985,7 +3997,7 @@ const ProductOverview = () => {
         title="商品总览" 
         showBack={true}
         navigation={navigation}
-        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setCode(''); setModalVisible(true); }}>
+        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('外卖平台'); setCode(''); setModalVisible(true); }}>
           <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>}
       />
@@ -3993,7 +4005,7 @@ const ProductOverview = () => {
       {/* 上架提示 */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF8E7', borderBottomWidth: 1, borderColor: '#FFE0B2' }}>
         <Text style={{ fontSize: 14, color: '#E65100', fontWeight: '600' }}>📤 商品上架功能</Text>
-        <Text style={{ fontSize: 12, color: '#EF6C00', marginTop: 4 }}>选择商品后点击"上架"按钮，可一键生成美团、抖音、大众点评的上架内容</Text>
+        <Text style={{ fontSize: 12, color: '#EF6C00', marginTop: 4 }}>选择商品后点击"上架"按钮，可一键生成外卖平台、短视频平台、大众点评的上架内容</Text>
       </View>
 
       <FlatList
@@ -4033,7 +4045,7 @@ const ProductOverview = () => {
             <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
             <Text style={styles.label}>平台</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-              {['美团', '抖音', '大众点评'].map(p => (
+              {['外卖平台', '短视频平台', '大众点评'].map(p => (
                 <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                   <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
                 </TouchableOpacity>
@@ -4061,7 +4073,7 @@ const ProductOverview = () => {
               当前库存: {currentShelfGoods?.stock}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['美团', '抖音', '大众点评'].map(p => (
+              {['外卖平台', '短视频平台', '大众点评'].map(p => (
                 <TouchableOpacity
                   key={p}
                   style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
@@ -4752,7 +4764,7 @@ const StockManage = () => {
       const goods = (state.goodsList || []).find(g => g.id === goodsId);
       if (!goods) { showToast('商品不存在'); return; }
       setLoadingPlatform('all');
-      const prompt = `请将以下商品信息分别生成适合美团、抖音、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
+      const prompt = `请将以下商品信息分别生成适合外卖平台、短视频平台、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
@@ -4855,16 +4867,16 @@ const StockManage = () => {
         {sortedGoods.map(g => {
           const getPlatformIcon = (platform) => {
             switch(platform) {
-              case '美团': return 'shopping-cart-outline';
-              case '抖音': return 'music-video-outline';
+              case '外卖平台': return 'shopping-cart-outline';
+              case '短视频平台': return 'music-video-outline';
               case '大众点评': return 'star-outline';
               default: return 'storefront-outline';
             }
           };
           const getPlatformColor = (platform) => {
             switch(platform) {
-              case '美团': return '#FFD100';
-              case '抖音': return '#000000';
+              case '外卖平台': return '#FFD100';
+              case '短视频平台': return '#000000';
               case '大众点评': return '#FF6B00';
               default: return PRIMARY_COLOR;
             }
@@ -5396,7 +5408,7 @@ const CustomerService = () => {
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [currentPlatform, setCurrentPlatform] = useState('美团');
+  const [currentPlatform, setCurrentPlatform] = useState('外卖平台');
   const [messages, setMessages] = useState([]);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showQuickReply, setShowQuickReply] = useState(false);
@@ -5701,7 +5713,7 @@ const CustomerService = () => {
       />
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {['美团', '抖音', '大众点评'].map(p => {
+        {['外卖平台', '短视频平台', '大众点评'].map(p => {
           const platformCustomers = customerByPlatform(p);
           const platformUnread = platformCustomers.reduce((s, c) => s + c.unread, 0);
           return (
@@ -7782,7 +7794,7 @@ ${styleDesc}
 - 极致光影效果，专业布光，层次感分明
 - 高级色彩搭配，色彩心理学应用，视觉冲击力强
 - 精致细节处理，每个元素都经过精心设计
-- 符合当前主流社交媒体（小红书、抖音、微信朋友圈）的爆款视觉风格
+- 符合当前主流社交媒体（小红书、短视频平台、微信朋友圈）的爆款视觉风格
 - 参考国际顶级广告公司（奥美、麦肯光明、智威汤逊）的创意水准
 - 融入2024-2025年度最流行的设计趋势（极简主义、新复古、有机形态、流体渐变）
 - 品牌调性统一，视觉语言专业
@@ -7793,9 +7805,9 @@ ${styleDesc}
 - 文字与图形完美融合，信息层次清晰
 
 【适用场景】
-- 社交媒体推广（小红书、抖音、微信）
+- 社交媒体推广（小红书、短视频平台、微信）
 - 线下宣传物料（海报、易拉宝、灯箱）
-- 电商平台主图（美团、大众点评、抖音商城）
+- 电商平台主图（外卖平台、大众点评、短视频平台商城）
 
 请生成一张具有强烈视觉吸引力、专业级别的商业图片，让观众一眼就被吸引！`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
@@ -8444,8 +8456,8 @@ const HomePage = () => {
   todayOrders.forEach(order => {
     if (order && order.platform) {
       switch(order.platform) {
-        case '美团': meituanIncome += order.couponPrice || 0; break;
-        case '抖音': douyinIncome += order.couponPrice || 0; break;
+        case '外卖平台': meituanIncome += order.couponPrice || 0; break;
+        case '短视频平台': douyinIncome += order.couponPrice || 0; break;
         case '大众点评': dianpingIncome += order.couponPrice || 0; break;
       }
     }
@@ -8984,7 +8996,7 @@ const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const [orderCode, setOrderCode] = useState('');
-  const [platform, setPlatform] = useState('美团');
+  const [platform, setPlatform] = useState('外卖平台');
   const [couponPrice, setCouponPrice] = useState('');
   const [scanning, setScanning] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
@@ -9119,7 +9131,7 @@ const VerifyOrder = () => {
           </View>
           <Text style={styles.label}>平台</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-            {['美团', '抖音', '大众点评'].map(p => (
+            {['外卖平台', '短视频平台', '大众点评'].map(p => (
               <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                 <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
               </TouchableOpacity>
