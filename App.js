@@ -3533,7 +3533,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+        <View style={{ flex: 1 }}>
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: statusBarHeight + 8, paddingHorizontal: 16, paddingBottom: 12 }}>
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
@@ -3545,10 +3546,10 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         </View>
 
         {!drawMode && !editMode ? (
-          <GestureDetector gesture={imageGesture} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <GestureDetector gesture={imageGesture}>
             <Animated.View
               style={{
-                width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center',
+                flex: 1, justifyContent: 'center', alignItems: 'center',
                 transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
               }}
             >
@@ -3699,7 +3700,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             <Ionicons name="trash-outline" size={22} color="#fff" />
           </TouchableOpacity>
         )}
-      </View>
+        </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 };
