@@ -6,7 +6,7 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
-import { GestureHandlerRootView, GestureDetector, Gesture, State as GestureState } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
