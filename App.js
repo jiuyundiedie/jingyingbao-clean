@@ -3359,6 +3359,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   // Pinch 手势：双指捏合缩放
   const pinchGesture = Gesture.Pinch()
     .minPointers(2)
+    .hitSlop(50)
     .onBegin((e) => {
       if (drawMode || editMode) return;
       baseScaleRef.current = scaleRef.current;
@@ -3371,7 +3372,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     })
     .onEnd((e) => {
       if (drawMode || editMode) return;
-      // 缩放回弹到合理范围
       if (scaleRef.current < 1.01) {
         Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
         Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
@@ -3412,9 +3412,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       }
     });
 
-  // 双击手势：1x <-> 2.5x 切换
+  // 双击手势：1x <-> 2.5x 切换（只在单指时生效，防止与捏合冲突）
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
+    .maxDuration(250)
+    .maxDeltaY(20)
     .onEnd((e) => {
       if (drawMode || editMode) return;
       if (scaleRef.current > 1.01) {
@@ -3428,8 +3430,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         setScaleDisplay(1);
       } else {
         Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-        Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-        Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
         scaleRef.current = 2.5;
         translateXRef.current = 0;
         translateYRef.current = 0;
@@ -3438,8 +3438,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       }
     });
 
-  // 组合手势：Pinch + Pan 同时识别，DoubleTap 独占
-  const imageGesture = Gesture.Simultaneous(pinchGesture, panGesture, doubleTapGesture);
+  // 组合手势：Pinch + Pan 同时识别（Simultaneous），DoubleTap 独立识别
+  const imageGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+  // DoubleTap 单独包裹在 GestureDetector 中，避免与 Pinch 冲突
 
   const drawResponder = useRef(
     PanResponder.create({
@@ -3546,15 +3547,17 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         </View>
 
         {!drawMode && !editMode ? (
-          <GestureDetector gesture={imageGesture}>
-            <Animated.View
-              style={{
-                flex: 1, justifyContent: 'center', alignItems: 'center',
-                transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
-              }}
-            >
-              <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-            </Animated.View>
+          <GestureDetector gesture={doubleTapGesture}>
+            <GestureDetector gesture={imageGesture}>
+              <Animated.View
+                style={{
+                  flex: 1, justifyContent: 'center', alignItems: 'center',
+                  transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
+                }}
+              >
+                <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+              </Animated.View>
+            </GestureDetector>
           </GestureDetector>
         ) : (
           <View
