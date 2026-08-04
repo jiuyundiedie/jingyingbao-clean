@@ -3318,6 +3318,11 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const moveStartLocationRef = useRef({ x: 0, y: 0 });
   const grantTimeRef = useRef(0);
   const grantLocationRef = useRef({ x: 0, y: 0 });
+  // 用 ref 跟踪 drawMode/editMode，避免 PanResponder 闭包捕获旧值
+  const drawModeRef = useRef(false);
+  const editModeRef = useRef(false);
+  useEffect(() => { drawModeRef.current = drawMode; }, [drawMode]);
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
 
   const filters = [
     { name: '原图', value: null },
@@ -3356,20 +3361,15 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   };
 
   // 使用 PanResponder 实现手势（可靠稳定方案）
-  // 核心修复：onStartShouldSetPanResponder 返回 true，始终接管手势
-  // 在 onPanResponderMove 中根据 numberActiveTouches 区分单指拖动 vs 双指捏合
+  // 核心：onStartShouldSetPanResponder 始终返回 true 接管手势
+  // 使用 drawModeRef/editModeRef 避免闭包捕获旧值
+  // 使用 gestureState.numberActiveTouches 和 evt.numberActiveTouches 双重检测
   const imageResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => {
-        if (drawMode || editMode) return false;
-        return true;
-      },
-      onMoveShouldSetPanResponder: () => {
-        if (drawMode || editMode) return false;
-        return true;
-      },
+      onStartShouldSetPanResponder: () => !drawModeRef.current && !editModeRef.current,
+      onMoveShouldSetPanResponder: () => !drawModeRef.current && !editModeRef.current,
       onPanResponderGrant: (evt) => {
-        if (drawMode || editMode) return;
+        if (drawModeRef.current || editModeRef.current) return;
         pinchStartDistanceRef.current = 0;
         pinchModeRef.current = false;
         savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
@@ -3378,9 +3378,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         grantLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
       },
       onPanResponderMove: (evt, gestureState) => {
-        if (drawMode || editMode) return;
+        if (drawModeRef.current || editModeRef.current) return;
 
-        if (evt.numberActiveTouches >= 2) {
+        // 双重检测：evt 和 gestureState 都可以获取触摸点数
+        const numTouches = evt.numberActiveTouches || gestureState.numberActiveTouches || 1;
+
+        if (numTouches >= 2 && evt.nativeEvent.touches && evt.nativeEvent.touches.length >= 2) {
           // 双指捏合缩放
           const touches = evt.nativeEvent.touches;
           const dx = touches[0].pageX - touches[1].pageX;
@@ -3398,7 +3401,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             scaleValue.setValue(newScale);
             scaleRef.current = newScale;
           }
-        } else if (evt.numberActiveTouches === 1) {
+        } else if (numTouches === 1) {
           // 单指拖动（放大时）
           if (pinchModeRef.current) {
             pinchModeRef.current = false;
@@ -3419,14 +3422,15 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         }
       },
       onPanResponderRelease: (evt, gestureState) => {
-        if (drawMode || editMode) return;
+        if (drawModeRef.current || editModeRef.current) return;
 
         // 双击检测
         const moveDistance = Math.sqrt(
           Math.pow(evt.nativeEvent.pageX - grantLocationRef.current.x, 2) +
           Math.pow(evt.nativeEvent.pageY - grantLocationRef.current.y, 2)
         );
-        const isTap = moveDistance < 15 && (Date.now() - grantTimeRef.current) < 300 && evt.numberActiveTouches === 0;
+        const elapsed = Date.now() - grantTimeRef.current;
+        const isTap = moveDistance < 15 && elapsed < 300;
 
         if (isTap) {
           const now = Date.now();
@@ -3474,7 +3478,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         }
       },
       onPanResponderTerminate: () => {
-        if (drawMode || editMode) return;
         pinchModeRef.current = false;
         pinchStartDistanceRef.current = 0;
       },
@@ -8652,13 +8655,8 @@ const HomePage = () => {
     } catch (error) { showToast('操作失败'); }
   };
 
-  const exitingRef = useRef(false);
-
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // 防止重入：如果正在退出中，直接返回 true 拦截事件
-      if (exitingRef.current) return true;
-
       const rootNav = navigationRef.current;
       if (!rootNav) return false;
 
@@ -8673,17 +8671,14 @@ const HomePage = () => {
       const index = state?.index;
       const routes = state?.routes;
 
-      // 判断是否在根页面（无更上层可返回）
-      // 检查方式：当前栈只有1条路由且在index=0，说明已在最顶层
+      // 判断是否在根页面
       const isAtRoot = index === 0 && routes && routes.length <= 1;
 
       if (isAtRoot) {
         if (exitTimerRef.current) {
-          // 第二次按下：退出应用
+          // 第二次按下：清除定时器，返回 false 让系统原生处理退出
           exitTimerRef.current = null;
-          exitingRef.current = true;
-          BackHandler.exitApp();
-          return true;
+          return false;
         }
         showToast('再按一次退出');
         exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
