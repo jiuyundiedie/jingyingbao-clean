@@ -3357,16 +3357,23 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   const pinchResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !drawMode && !editMode,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
+      onStartShouldSetPanResponder: (evt) => {
         if (drawMode || editMode) return false;
-        // 双指立即接管（确保捏合缩放能被捕获）
-        if (evt.numberActiveTouches >= 2) return true;
-        // 单指移动超过阈值才接管（避免点击也被接管）
-        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+        // 始终接管触摸，确保能捕获双指手势
+        // 点击检测移到 onPanResponderRelease 中
+        return true;
       },
+      onMoveShouldSetPanResponder: (evt) => {
+        if (drawMode || editMode) return false;
+        return true;
+      },
+      // 允许其他手势（如按钮点击）同时进行
+      onPanResponderTerminationRequest: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderGrant: (evt) => {
-        if (!gesturesEnabledRef.current) return;
+        // 始终初始化状态，即使 gesturesEnabledRef 为 false
+        // 因为后续可能需要切换状态
         pinchStartDistanceRef.current = 0;
         pinchModeRef.current = false;
         savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
