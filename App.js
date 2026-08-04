@@ -6,7 +6,7 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, GestureDetector, Gesture, State as GestureState } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -3355,146 +3355,91 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setScaleDisplay(1);
   };
 
-  const pinchResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => {
-        if (drawMode || editMode) return false;
-        // 始终接管触摸，确保能捕获双指手势
-        // 点击检测移到 onPanResponderRelease 中
-        return true;
-      },
-      onMoveShouldSetPanResponder: (evt) => {
-        if (drawMode || editMode) return false;
-        return true;
-      },
-      // 允许其他手势（如按钮点击）同时进行
-      onPanResponderTerminationRequest: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: () => false,
-      onPanResponderGrant: (evt) => {
-        // 始终初始化状态，即使 gesturesEnabledRef 为 false
-        // 因为后续可能需要切换状态
-        pinchStartDistanceRef.current = 0;
-        pinchModeRef.current = false;
-        savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-        moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-        grantTimeRef.current = Date.now();
-        grantLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-      },
-      onPanResponderMove: (evt) => {
-        if (!gesturesEnabledRef.current) return;
-        if (evt.numberActiveTouches >= 2) {
-          // 双指：捏合缩放
-          const touches = evt.nativeEvent.touches;
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (!pinchModeRef.current) {
-            pinchModeRef.current = true;
-            pinchStartDistanceRef.current = distance;
-            baseScaleRef.current = scaleRef.current;
-          }
-
-          if (pinchStartDistanceRef.current > 0) {
-            const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
-            scaleValue.setValue(newScale);
-            scaleRef.current = newScale;
-          }
-        } else if (evt.numberActiveTouches === 1) {
-          // 单指：平移图片（仅当放大后允许）
-          if (pinchModeRef.current) {
-            pinchModeRef.current = false;
-            savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-            moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-          }
-
-          if (scaleRef.current > 1.01) {
-            const dx = evt.nativeEvent.pageX - moveStartLocationRef.current.x;
-            const dy = evt.nativeEvent.pageY - moveStartLocationRef.current.y;
-            const newX = savedTranslateRef.current.x + dx;
-            const newY = savedTranslateRef.current.y + dy;
-            translateXValue.setValue(newX);
-            translateYValue.setValue(newY);
-            translateXRef.current = newX;
-            translateYRef.current = newY;
-          }
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        if (!gesturesEnabledRef.current) return;
-
-        // 检测是否为点击（移动距离很小）
-        const moveDistance = Math.sqrt(gestureState.dx * gestureState.dx + gestureState.dy * gestureState.dy);
-        const isTap = moveDistance < 10 && (Date.now() - grantTimeRef.current) < 300;
-
-        if (isTap && evt.numberActiveTouches === 0) {
-          // 双击检测
-          const now = Date.now();
-          if (now - lastTapTimeRef.current < 300) {
-            // 双击：切换缩放
-            if (scaleRef.current > 1.01) {
-              Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-              Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-              Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-              scaleRef.current = 1;
-              translateXRef.current = 0;
-              translateYRef.current = 0;
-              baseScaleRef.current = 1;
-              savedTranslateRef.current = { x: 0, y: 0 };
-              setScaleDisplay(1);
-            } else {
-              Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-              scaleRef.current = 2.5;
-              baseScaleRef.current = 2.5;
-              setScaleDisplay(2.5);
-            }
-            lastTapTimeRef.current = 0;
-          } else {
-            lastTapTimeRef.current = now;
-          }
-        }
-
-        if (evt.numberActiveTouches === 0) {
-          // 所有手指抬起
-          if (pinchModeRef.current) {
-            pinchModeRef.current = false;
-            if (scaleRef.current < 1.01) {
-              Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
-              Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-              Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-              scaleRef.current = 1;
-              translateXRef.current = 0;
-              translateYRef.current = 0;
-              baseScaleRef.current = 1;
-              savedTranslateRef.current = { x: 0, y: 0 };
-            }
-            setScaleDisplay(scaleRef.current > 1.01 ? Math.round(scaleRef.current * 10) / 10 : 1);
-          } else {
-            if (scaleRef.current < 1.01) {
-              Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-              Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-              translateXRef.current = 0;
-              translateYRef.current = 0;
-            }
-          }
-          pinchStartDistanceRef.current = 0;
-        } else {
-          // 还有手指在屏幕上
-          if (pinchModeRef.current) {
-            pinchModeRef.current = false;
-            savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-            moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-          }
-          pinchStartDistanceRef.current = 0;
-        }
-      },
-      onPanResponderTerminate: () => {
-        pinchModeRef.current = false;
-        pinchStartDistanceRef.current = 0;
-      },
+  // 使用 react-native-gesture-handler 原生手势系统（微信/QQ同款方案）
+  // Pinch 手势：双指捏合缩放
+  const pinchGesture = Gesture.Pinch()
+    .minPointers(2)
+    .onBegin((e) => {
+      if (drawMode || editMode) return;
+      baseScaleRef.current = scaleRef.current;
     })
-  ).current;
+    .onUpdate((e) => {
+      if (drawMode || editMode) return;
+      const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * e.scale));
+      scaleValue.setValue(newScale);
+      scaleRef.current = newScale;
+    })
+    .onEnd((e) => {
+      if (drawMode || editMode) return;
+      // 缩放回弹到合理范围
+      if (scaleRef.current < 1.01) {
+        Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
+        Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+        scaleRef.current = 1;
+        translateXRef.current = 0;
+        translateYRef.current = 0;
+        baseScaleRef.current = 1;
+      }
+      setScaleDisplay(scaleRef.current > 1.01 ? Math.round(scaleRef.current * 10) / 10 : 1);
+    });
+
+  // Pan 手势：单指拖动（放大后）
+  const panGesture = Gesture.Pan()
+    .minDistance(5)
+    .onBegin((e) => {
+      if (drawMode || editMode) return;
+      savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+    })
+    .onUpdate((e) => {
+      if (drawMode || editMode) return;
+      if (scaleRef.current > 1.01) {
+        const newX = savedTranslateRef.current.x + e.translationX;
+        const newY = savedTranslateRef.current.y + e.translationY;
+        translateXValue.setValue(newX);
+        translateYValue.setValue(newY);
+        translateXRef.current = newX;
+        translateYRef.current = newY;
+      }
+    })
+    .onEnd((e) => {
+      if (drawMode || editMode) return;
+      if (scaleRef.current < 1.01) {
+        Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
+        translateXRef.current = 0;
+        translateYRef.current = 0;
+      }
+    });
+
+  // 双击手势：1x <-> 2.5x 切换
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd((e) => {
+      if (drawMode || editMode) return;
+      if (scaleRef.current > 1.01) {
+        Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        scaleRef.current = 1;
+        translateXRef.current = 0;
+        translateYRef.current = 0;
+        baseScaleRef.current = 1;
+        setScaleDisplay(1);
+      } else {
+        Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        scaleRef.current = 2.5;
+        translateXRef.current = 0;
+        translateYRef.current = 0;
+        baseScaleRef.current = 2.5;
+        setScaleDisplay(2.5);
+      }
+    });
+
+  // 组合手势：Pinch + Pan 同时识别，DoubleTap 独占
+  const imageGesture = Gesture.Simultaneous(pinchGesture, panGesture, doubleTapGesture);
 
   const drawResponder = useRef(
     PanResponder.create({
@@ -3599,11 +3544,8 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
           <View style={{ width: 42 }} />
         </View>
 
-        <View
-          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-          {...(drawMode ? drawResponder : pinchResponder).panHandlers}
-        >
-          {!drawMode && !editMode ? (
+        {!drawMode && !editMode ? (
+          <GestureDetector gesture={imageGesture} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <Animated.View
               style={{
                 width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center',
@@ -3612,7 +3554,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             >
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
             </Animated.View>
-          ) : (
+          </GestureDetector>
+        ) : (
+          <View
+            style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+            {...drawResponder.panHandlers}
+          >
             <View style={{ transform: [{ scale: 1 }, { rotate: `${rotationDisplay}deg` }] }}>
               <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
               {(drawMode || drawPaths.length > 0) && (
@@ -8470,7 +8417,6 @@ const HomePage = () => {
   const [settingOpen, setSettingOpen] = useState(false);
   const settingOpenRef = useRef(false);
   const exitTimerRef = useRef(null);
-  const exitingRef = useRef(false);
   useEffect(() => { settingOpenRef.current = settingOpen; }, [settingOpen]);
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
@@ -8685,18 +8631,10 @@ const HomePage = () => {
 
       // 检查是否在主Tab根页面（没有可返回的栈）
       if (index === 0 && routes && routes.length <= 1) {
-        if (exitingRef.current) {
-          // 已经在退出流程中，放行让系统处理
-          return false;
-        }
         if (exitTimerRef.current) {
-          // 第二次按下，执行退出
+          // 第二次按下：直接让系统处理（退出到桌面）
           exitTimerRef.current = null;
-          exitingRef.current = true;
-          BackHandler.exitApp();
-          // 延迟重置flag，防止重复触发
-          setTimeout(() => { exitingRef.current = false; }, 500);
-          return true;
+          return false;
         }
         showToast('再按一次退出');
         exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
