@@ -43,6 +43,42 @@ const hideToast = () => {
   if (toastRef.current) toastRef.current.setVisible(false);
 };
 
+// 图片长按操作（保存、分享）
+const handleImageLongPress = (imageUri, onDelete) => {
+  const options = [
+    {
+      text: '保存到本地',
+      onPress: async () => {
+        try {
+          const fileUri = `${FileSystem.documentDirectory}img_${Date.now()}.jpg`;
+          await FileSystem.downloadAsync(imageUri, fileUri);
+          try {
+            await MediaLibrary.saveToLibraryAsync(fileUri);
+            showToast('已保存到相册');
+          } catch (e) {
+            showToast('已保存到本地');
+          }
+        } catch (e) { showToast('保存失败'); }
+      }
+    },
+    {
+      text: '分享',
+      onPress: async () => {
+        try {
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(imageUri);
+          } else { showToast('分享不可用'); }
+        } catch (e) { showToast('分享失败'); }
+      }
+    },
+  ];
+  if (onDelete) {
+    options.push({ text: '删除', style: 'destructive', onPress: onDelete });
+  }
+  options.push({ text: '取消', style: 'cancel' });
+  Alert.alert('图片操作', '', options);
+};
+
 // 自定义 Toast 组件（点击立即消失）
 const CustomToast = () => {
   const [visible, setVisible] = useState(false);
@@ -3324,7 +3360,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       onStartShouldSetPanResponder: () => !drawMode && !editMode,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         if (drawMode || editMode) return false;
-        // 只有真正移动了才接管（避免点击也被接管）
+        // 双指立即接管（确保捏合缩放能被捕获）
+        if (evt.numberActiveTouches >= 2) return true;
+        // 单指移动超过阈值才接管（避免点击也被接管）
         return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
       },
       onPanResponderGrant: (evt) => {
@@ -5830,7 +5868,7 @@ const CustomerService = () => {
               return (
                 <View key={msg.id} style={msg.image ? (isStaff ? styles.imageMsgRight : styles.imageMsgLeft) : (isStaff ? styles.bubbleRight : styles.bubbleLeft)}>
                   {msg.image ? (
-                    <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                    <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                       <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                     </TouchableOpacity>
                   ) : (
@@ -6222,7 +6260,7 @@ const InternalChat = () => {
                   <View style={msg.image ? (isMe ? styles.imageMsgRight : styles.imageMsgLeft) : (isMe ? styles.bubbleRight : styles.bubbleLeft)}>
                     {!isMe && !msg.image && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
                     {msg.image ? (
-                      <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                      <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                         <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                       </TouchableOpacity>
                     ) : (
@@ -7987,7 +8025,7 @@ ${businessContext}
                 {msg.image ? (
                   <>
                     <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 4 }}>{msg.text}</Text>
-                    <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                    <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                       <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                       <View style={{ position: 'absolute', bottom: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4, flexDirection: 'row', alignItems: 'center' }}>
                         <Ionicons name="expand-outline" size={12} color="#fff" />
@@ -8423,7 +8461,10 @@ const HomePage = () => {
   const user = state.user;
   const insets = useSafeAreaInsets();
   const [settingOpen, setSettingOpen] = useState(false);
+  const settingOpenRef = useRef(false);
   const exitTimerRef = useRef(null);
+  const exitingRef = useRef(false);
+  useEffect(() => { settingOpenRef.current = settingOpen; }, [settingOpen]);
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
@@ -8623,17 +8664,32 @@ const HomePage = () => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       const rootNav = navigationRef.current;
       if (!rootNav) return false;
-      
+
+      // 优先关闭设置抽屉
+      if (settingOpenRef.current) {
+        setSettingOpen(false);
+        return true;
+      }
+
       // 在首页根Tab时，返回两次退出
       const state = rootNav.getState();
       const index = state?.index;
       const routes = state?.routes;
-      
+
       // 检查是否在主Tab根页面（没有可返回的栈）
       if (index === 0 && routes && routes.length <= 1) {
-        if (exitTimerRef.current) { 
-          BackHandler.exitApp(); 
-          return true; 
+        if (exitingRef.current) {
+          // 已经在退出流程中，放行让系统处理
+          return false;
+        }
+        if (exitTimerRef.current) {
+          // 第二次按下，执行退出
+          exitTimerRef.current = null;
+          exitingRef.current = true;
+          BackHandler.exitApp();
+          // 延迟重置flag，防止重复触发
+          setTimeout(() => { exitingRef.current = false; }, 500);
+          return true;
         }
         showToast('再按一次退出');
         exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
@@ -9407,7 +9463,7 @@ const PrivateChat = ({ route, navigation }) => {
               )}
               <View style={msg.image ? (isSelf ? styles.imageMsgRight : styles.imageMsgLeft) : (isSelf ? styles.bubbleRight : styles.bubbleLeft)}>
                 {msg.image ? (
-                  <TouchableOpacity onPress={() => setFullscreenImage(msg.image)}>
+                  <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                     <Image source={{ uri: msg.image }} style={styles.imageMessage} />
                   </TouchableOpacity>
                 ) : (
