@@ -3381,25 +3381,28 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         if (drawModeRef.current || editModeRef.current) return;
 
         // 双重检测：evt 和 gestureState 都可以获取触摸点数
-        const numTouches = evt.numberActiveTouches || gestureState.numberActiveTouches || 1;
+        const numTouches = gestureState.numberActiveTouches || evt.numberActiveTouches || 1;
 
-        if (numTouches >= 2 && evt.nativeEvent.touches && evt.nativeEvent.touches.length >= 2) {
+        if (numTouches >= 2) {
           // 双指捏合缩放
+          // 检查 touches 数组，有些设备可能不返回完整数组
           const touches = evt.nativeEvent.touches;
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (touches && touches.length >= 2) {
+            const dx = touches[0].pageX - touches[1].pageX;
+            const dy = touches[0].pageY - touches[1].pageY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (!pinchModeRef.current) {
-            pinchModeRef.current = true;
-            pinchStartDistanceRef.current = distance;
-            baseScaleRef.current = scaleRef.current;
-          }
+            if (!pinchModeRef.current) {
+              pinchModeRef.current = true;
+              pinchStartDistanceRef.current = distance;
+              baseScaleRef.current = scaleRef.current;
+            }
 
-          if (pinchStartDistanceRef.current > 0) {
-            const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
-            scaleValue.setValue(newScale);
-            scaleRef.current = newScale;
+            if (pinchStartDistanceRef.current > 0) {
+              const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
+              scaleValue.setValue(newScale);
+              scaleRef.current = newScale;
+            }
           }
         } else if (numTouches === 1) {
           // 单指拖动（放大时）
@@ -8676,9 +8679,10 @@ const HomePage = () => {
 
       if (isAtRoot) {
         if (exitTimerRef.current) {
-          // 第二次按下：清除定时器，返回 false 让系统原生处理退出
+          // 第二次按下：直接退出应用
           exitTimerRef.current = null;
-          return false;
+          BackHandler.exitApp();
+          return true;
         }
         showToast('再按一次退出');
         exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
