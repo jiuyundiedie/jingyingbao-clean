@@ -3574,14 +3574,14 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
                 </View>
               )}
             </View>
-          )}
-          {processing && (
-            <View style={{ position: 'absolute', alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-              <Text style={{ color: '#fff', marginTop: 8 }}>处理中...</Text>
-            </View>
-          )}
-        </View>
+            {processing && (
+              <View style={{ position: 'absolute', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                <Text style={{ color: '#fff', marginTop: 8 }}>处理中...</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {!drawMode && !editMode && (
           <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Platform.OS === 'ios' ? 34 : 20, backgroundColor: 'rgba(0,0,0,0.75)' }}>
