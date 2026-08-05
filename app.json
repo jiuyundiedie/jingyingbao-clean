@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.jingyingbao.app",
-      "versionCode": 140,
+      "versionCode": 141,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",

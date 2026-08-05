@@ -1917,7 +1917,6 @@ const LoginScreen = () => {
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      // 使用reset直接重置导航栈，避免闪过两个首页
       if (navigationRef.current) {
         navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
       } else {
@@ -1928,10 +1927,137 @@ const LoginScreen = () => {
     }
   };
 
+  // 快捷手机号一键登录（使用最近登录的账号）
+  const handleQuickLogin = async () => {
+    if (!agreeTerms) {
+      showToast('请先阅读并同意用户协议');
+      return;
+    }
+    if (previousAccounts.length === 0) {
+      showToast('请先使用手机号登录一次');
+      return;
+    }
+    setLoading(true);
+    try {
+      const account = previousAccounts[0];
+      await handleHistorySelect(account);
+    } catch (error) {
+      showToast('快捷登录失败');
+      setLoading(false);
+    }
+  };
+
+  // 微信授权登录
+  const handleWeChatLogin = async () => {
+    if (!agreeTerms) {
+      showToast('请先阅读并同意用户协议');
+      return;
+    }
+    Alert.alert(
+      '微信登录',
+      '即将跳转至微信进行授权登录',
+      [
+        { text: '取消', style: 'cancel' },
+        { text: '确认', onPress: async () => {
+          setLoading(true);
+          try {
+            // 模拟微信授权登录流程
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            // 检查是否有已绑定的微信账号
+            const wechatUser = await AsyncStorage.getItem('wechat_user');
+            if (wechatUser) {
+              const parsed = JSON.parse(wechatUser);
+              await handleHistorySelect(parsed);
+              return;
+            }
+
+            // 首次微信登录，需要绑定店铺信息
+            const mockUser = {
+              role: '商家',
+              phone: '微信用户',
+              shopName: '',
+              name: '微信用户',
+              wechatLogin: true,
+            };
+            const shopInfo = { shopName: '', phone: '', industry: '餐饮类' };
+            await AsyncStorage.setItem('user', JSON.stringify(mockUser));
+            await AsyncStorage.setItem('shopInfo', JSON.stringify(shopInfo));
+            await AsyncStorage.setItem('wechat_user', JSON.stringify(mockUser));
+            dispatch({ type: 'LOGIN', payload: { user: mockUser, shopInfo } });
+
+            showToast('微信登录成功，请补充店铺信息');
+            if (navigationRef.current) {
+              navigationRef.current.reset({ index: 0, routes: [{ name: 'RootTabs' }] });
+            } else {
+              navigation.replace('RootTabs');
+            }
+          } catch (error) {
+            showToast('微信登录失败');
+            setLoading(false);
+          }
+        }}
+      ]
+    );
+  };
+
+  // 掩码手机号
+  const maskedPhone = (num) => {
+    if (!num || num.length < 11) return num;
+    return num.slice(0, 3) + '****' + num.slice(7);
+  };
+
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }} style={{ backgroundColor: '#F5F7FA' }}>
       <Text style={styles.loginTitle}>经营宝</Text>
       <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
+
+      {/* 快捷手机号一键登录 */}
+      {previousAccounts.length > 0 && (
+        <View style={{ marginBottom: 20 }}>
+          <TouchableOpacity
+            style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+            onPress={handleQuickLogin}
+            disabled={loading}
+          >
+            <Ionicons name="phone-portrait" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+              {loading ? '登录中...' : `一键登录 ${maskedPhone(previousAccounts[0].phone)}`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12 }} onPress={() => setShowHistory(!showHistory)}>
+            <Text style={{ fontSize: 14, color: TEXT_THIRD }}>切换账号 ›</Text>
+          </TouchableOpacity>
+          {showHistory && (
+            <View style={{ marginTop: 8, backgroundColor: BG_CARD, borderRadius: 12, padding: 8 }}>
+              {previousAccounts.map((account, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: i < previousAccounts.length - 1 ? 1 : 0, borderBottomColor: BORDER_COLOR }}
+                  onPress={() => { handleHistorySelect(account); }}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY_COLOR + '15', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: PRIMARY_COLOR }}>{(account.name || '老')[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{account.shopName} · {account.name || '老板'}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{maskedPhone(account.phone)} · {account.role}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* 分隔线 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginHorizontal: 12 }}>其他登录方式</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+      </View>
+
       <Text style={styles.label}>选择角色</Text>
       <View style={styles.roleSelector}>
         {['商家', '员工'].map(r => (
@@ -1973,6 +2099,22 @@ const LoginScreen = () => {
       <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
         <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
       </TouchableOpacity>
+
+      {/* 第三方登录 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 16 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginHorizontal: 12 }}>第三方登录</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
+        <TouchableOpacity
+          style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#07C160', justifyContent: 'center', alignItems: 'center' }}
+          onPress={handleWeChatLogin}
+          disabled={loading}
+        >
+          <Ionicons name="logo-wechat" size={28} color="#fff" />
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 };
