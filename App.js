@@ -3313,7 +3313,6 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const savedTranslateRef = useRef({ x: 0, y: 0 });
   const lastTapTimeRef = useRef(0);
   const pinchStartDistanceRef = useRef(0);
-  const pinchModeRef = useRef(false);
   const gesturesEnabledRef = useRef(true);
   const moveStartLocationRef = useRef({ x: 0, y: 0 });
   const grantTimeRef = useRef(0);
@@ -3362,13 +3361,17 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   // 使用 PanResponder 实现手势（纯JS实现，稳定不会崩溃）
   // 支持：双指捏合缩放、单指拖动、双击缩放、长按
+  // 动态状态机：动态检测触摸数量变化，支持单指↔双指切换
+  const gestureModeRef = useRef('none'); // 'none' | 'single' | 'pinch'
+  const lastTapLocationRef = useRef({ x: 0, y: 0 });
+  
   const imagePanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: (evt) => {
+      onStartShouldSetPanResponder: () => {
         if (drawModeRef.current || editModeRef.current) return false;
         return true;
       },
-      onMoveShouldSetPanResponder: (evt) => {
+      onMoveShouldSetPanResponder: () => {
         if (drawModeRef.current || editModeRef.current) return false;
         return true;
       },
@@ -3376,54 +3379,80 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         if (drawModeRef.current || editModeRef.current) return;
         const touches = evt.nativeEvent.touches;
         
-        // 长按检测
+        // 记录手势起始信息
         grantTimeRef.current = Date.now();
         grantLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
         moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
+        savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
         
+        // 根据初始触摸数设置模式
         if (touches.length >= 2) {
-          // 双指模式 - 捏合缩放
-          pinchModeRef.current = true;
+          // 直接双指
+          gestureModeRef.current = 'pinch';
           const dx = touches[0].pageX - touches[1].pageX;
           const dy = touches[0].pageY - touches[1].pageY;
           pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
           baseScaleRef.current = scaleRef.current;
+          lastTapTimeRef.current = 0; // 清除双击检测
         } else {
-          // 单指模式
-          pinchModeRef.current = false;
-          savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+          // 单指开始
+          gestureModeRef.current = 'single';
           
           // 双击检测
           const now = Date.now();
           if (now - lastTapTimeRef.current < 300) {
-            // 双击
-            if (scaleRef.current > 1.01) {
-              Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-              Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-              Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-              scaleRef.current = 1;
-              translateXRef.current = 0;
-              translateYRef.current = 0;
-              baseScaleRef.current = 1;
-              savedTranslateRef.current = { x: 0, y: 0 };
-              setScaleDisplay(1);
-            } else {
-              Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-              scaleRef.current = 2.5;
-              baseScaleRef.current = 2.5;
-              setScaleDisplay(2.5);
+            const dx = evt.nativeEvent.pageX - lastTapLocationRef.current.x;
+            const dy = evt.nativeEvent.pageY - lastTapLocationRef.current.y;
+            if (dx * dx + dy * dy < 100) {
+              // 双击有效
+              if (scaleRef.current > 1.01) {
+                Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+                Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+                Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+                scaleRef.current = 1;
+                translateXRef.current = 0;
+                translateYRef.current = 0;
+                baseScaleRef.current = 1;
+                savedTranslateRef.current = { x: 0, y: 0 };
+                setScaleDisplay(1);
+              } else {
+                Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
+                scaleRef.current = 2.5;
+                baseScaleRef.current = 2.5;
+                setScaleDisplay(2.5);
+              }
+              lastTapTimeRef.current = 0;
+              gestureModeRef.current = 'none'; // 双击已处理，重置
+              return;
             }
-            lastTapTimeRef.current = 0;
-          } else {
-            lastTapTimeRef.current = now;
           }
+          lastTapTimeRef.current = now;
+          lastTapLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
         }
       },
       onPanResponderMove: (evt) => {
         if (drawModeRef.current || editModeRef.current) return;
         const touches = evt.nativeEvent.touches;
+        const currentCount = touches.length;
         
-        if (pinchModeRef.current && touches.length >= 2) {
+        // 动态检测触摸数量变化并切换模式
+        if (currentCount >= 2 && gestureModeRef.current !== 'pinch') {
+          // 切换到双指模式（无论是从无还是从单指切换过来）
+          gestureModeRef.current = 'pinch';
+          const dx = touches[0].pageX - touches[1].pageX;
+          const dy = touches[0].pageY - touches[1].pageY;
+          pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+          baseScaleRef.current = scaleRef.current;
+          lastTapTimeRef.current = 0; // 进入pinch模式，清除双击检测
+        } else if (currentCount === 1 && gestureModeRef.current === 'pinch') {
+          // 从双指切换到单指（抬起一个手指）
+          gestureModeRef.current = 'single';
+          moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
+          savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
+        }
+        
+        // 根据当前模式执行操作
+        if (gestureModeRef.current === 'pinch' && currentCount >= 2) {
           // 捏合缩放
           const dx = touches[0].pageX - touches[1].pageX;
           const dy = touches[0].pageY - touches[1].pageY;
@@ -3433,7 +3462,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             scaleValue.setValue(newScale);
             scaleRef.current = newScale;
           }
-        } else if (!pinchModeRef.current && touches.length === 1) {
+        } else if (gestureModeRef.current === 'single' && currentCount === 1) {
           // 单指拖动（放大后）
           if (scaleRef.current > 1.01) {
             const newX = savedTranslateRef.current.x + (evt.nativeEvent.pageX - moveStartLocationRef.current.x);
@@ -3448,19 +3477,19 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
       onPanResponderRelease: (evt) => {
         if (drawModeRef.current || editModeRef.current) return;
         
-        // 长按检测
+        // 长按检测（仅在单指模式下）
         const holdDuration = Date.now() - grantTimeRef.current;
         const movedFar = Math.abs(evt.nativeEvent.pageX - grantLocationRef.current.x) > 10 ||
                          Math.abs(evt.nativeEvent.pageY - grantLocationRef.current.y) > 10;
         
-        if (holdDuration > 500 && !movedFar && !pinchModeRef.current) {
-          if (drawModeRef.current || editModeRef.current) return;
+        if (holdDuration > 500 && !movedFar && gestureModeRef.current === 'single') {
           handleImageLongPress(currentImageUri, onDelete ? () => { onDelete(); onClose(); } : null);
+          gestureModeRef.current = 'none';
           return;
         }
         
-        if (pinchModeRef.current) {
-          pinchModeRef.current = false;
+        // 根据模式执行释放逻辑
+        if (gestureModeRef.current === 'pinch') {
           if (scaleRef.current < 1.01) {
             Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
             Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
@@ -3471,7 +3500,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             baseScaleRef.current = 1;
           }
           setScaleDisplay(scaleRef.current > 1.01 ? Math.round(scaleRef.current * 10) / 10 : 1);
-        } else {
+        } else if (gestureModeRef.current === 'single') {
           if (scaleRef.current < 1.01) {
             Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
             Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
@@ -3479,10 +3508,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             translateYRef.current = 0;
           }
         }
+        
+        gestureModeRef.current = 'none';
       },
       onPanResponderTerminate: () => {
-        if (pinchModeRef.current) {
-          pinchModeRef.current = false;
+        // 手势被系统终止（如来电）
+        if (gestureModeRef.current === 'pinch') {
           if (scaleRef.current < 1.01) {
             Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
             Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
@@ -3499,6 +3530,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             translateYRef.current = 0;
           }
         }
+        gestureModeRef.current = 'none';
       },
     })
   ).current;
