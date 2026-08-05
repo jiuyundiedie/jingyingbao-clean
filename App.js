@@ -3454,6 +3454,12 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     })
     .runOnJS(true);
 
+  const combinedGesture = Gesture.Simultaneous(
+    longPressGesture,
+    doubleTapGesture,
+    imageGesture
+  );
+
   const drawResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => drawMode,
@@ -3546,7 +3552,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: statusBarHeight + 8, paddingHorizontal: 16, paddingBottom: 12 }}>
           <TouchableOpacity style={{ padding: 8 }} onPress={onClose}>
             <Ionicons name="close" size={26} color="#fff" />
@@ -3558,19 +3564,15 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         </View>
 
         {!drawMode && !editMode ? (
-          <GestureDetector gesture={longPressGesture}>
-            <GestureDetector gesture={doubleTapGesture}>
-              <GestureDetector gesture={imageGesture}>
-                <Animated.View
-                  style={{
-                    flex: 1, justifyContent: 'center', alignItems: 'center',
-                    transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
-                  }}
-                >
-                  <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-                </Animated.View>
-              </GestureDetector>
-            </GestureDetector>
+          <GestureDetector gesture={combinedGesture}>
+            <Animated.View
+              style={{
+                flex: 1, justifyContent: 'center', alignItems: 'center',
+                transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
+              }}
+            >
+              <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+            </Animated.View>
           </GestureDetector>
         ) : (
           <View
@@ -3716,7 +3718,7 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
             <Ionicons name="trash-outline" size={22} color="#fff" />
           </TouchableOpacity>
         )}
-      </GestureHandlerRootView>
+      </View>
     </Modal>
   );
 };
