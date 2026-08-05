@@ -3144,6 +3144,205 @@ const ClearCacheScreen = ({ navigation }) => {
 
 
 
+// ================== 协议弹窗（登录后弹出：隐私政策/用户协议/关于我们/意见反馈） ==================
+const AgreementModal = ({ visible, onClose }) => {
+  const [activeTab, setActiveTab] = useState('privacy');
+  const [feedbackType, setFeedbackType] = useState('功能建议');
+  const [feedbackContent, setFeedbackContent] = useState('');
+  const [feedbackContact, setFeedbackContact] = useState('');
+  const { state } = useApp();
+
+  const tabs = [
+    { key: 'privacy', label: '隐私政策' },
+    { key: 'agreement', label: '用户协议' },
+    { key: 'about', label: '关于我们' },
+    { key: 'feedback', label: '意见反馈' },
+  ];
+
+  const submitFeedback = async () => {
+    if (!feedbackContent.trim()) { showToast('请输入反馈内容'); return; }
+    try {
+      const feedback = {
+        id: Date.now().toString(),
+        type: feedbackType,
+        content: feedbackContent.trim(),
+        contact: feedbackContact.trim(),
+        phone: state.user?.phone || '',
+        time: new Date().toISOString(),
+      };
+      const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
+      existing.push(feedback);
+      await AsyncStorage.setItem('user_feedbacks', JSON.stringify(existing));
+      showToast('反馈已提交，感谢您的支持！');
+      setFeedbackContent('');
+      setFeedbackContact('');
+    } catch (e) { showToast('提交失败，请重试'); }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: '90%', height: '80%', backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' }}>
+          {/* 顶部Tab栏 */}
+          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }}>
+            {tabs.map(tab => (
+              <TouchableOpacity
+                key={tab.key}
+                style={{
+                  flex: 1, paddingVertical: 14, alignItems: 'center',
+                  borderBottomWidth: activeTab === tab.key ? 2 : 0,
+                  borderBottomColor: activeTab === tab.key ? PRIMARY_COLOR : 'transparent',
+                  backgroundColor: activeTab === tab.key ? '#F5F7FA' : 'transparent',
+                }}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Text style={{ fontSize: 14, fontWeight: activeTab === tab.key ? '600' : '400', color: activeTab === tab.key ? PRIMARY_COLOR : TEXT_SECOND }}>{tab.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* 内容区 */}
+          <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+            {activeTab === 'privacy' && (
+              <>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12, textAlign: 'center' }}>经营宝隐私政策</Text>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 16, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>一、信息收集</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  1.1 我们仅收集您主动提供的信息，包括：手机号、店铺名称、商品信息等。{'\n'}
+                  1.2 应用运行所需的必要权限（相机、存储、通知）将在使用时向您申请。{'\n'}
+                  1.3 我们不收集您的个人敏感信息，不进行用户行为追踪。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>二、数据存储</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  2.1 您的所有经营数据存储在本地设备，不会上传至任何服务器。{'\n'}
+                  2.2 AI对话功能的历史记录仅保存在本地。{'\n'}
+                  2.3 建议您定期导出数据并妥善备份。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>三、AI服务隐私</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  3.1 AI助手对话需通过网络API调用，对话内容将发送至第三方AI服务。{'\n'}
+                  3.2 发送至AI服务的内容不包含您的账号密码等敏感信息。{'\n'}
+                  3.3 拍照识别功能的图片会发送至图像识别服务进行处理。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>四、权限使用说明</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
+                  4.1 相机权限：用于拍照识别商品数量、出入库拍照。{'\n'}
+                  4.2 存储权限：用于保存图片、导出数据。{'\n'}
+                  4.3 通知权限：用于接收新消息提醒。{'\n'}
+                  4.4 您可随时在系统设置中撤销权限。
+                </Text>
+              </>
+            )}
+            {activeTab === 'agreement' && (
+              <>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12, textAlign: 'center' }}>经营宝用户服务协议</Text>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 16, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>一、服务条款的接受</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  1.1 欢迎您使用经营宝（以下简称"本应用"）。使用本应用即表示您同意本协议的全部条款。{'\n'}
+                  1.2 如果您不同意本协议的任何内容，请立即停止使用本应用。{'\n'}
+                  1.3 本协议可能根据业务发展进行更新，更新后的协议自公布之日起生效。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>二、服务内容</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  2.1 本应用为商家提供店铺经营管理服务，包括但不限于：订单核销、库存管理、员工管理、客户沟通、AI智能助手等功能。{'\n'}
+                  2.2 本应用的数据存储在用户本地设备上，不上传至云端服务器。{'\n'}
+                  2.3 部分AI功能需要联网调用第三方大模型API，网络不可用时将降级为本地功能。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>三、用户行为规范</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  3.1 用户应保证注册信息真实、准确。{'\n'}
+                  3.2 用户不得利用本应用从事任何违法违规活动。{'\n'}
+                  3.3 用户应妥善保管账号信息，因账号泄露造成的损失由用户自行承担。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>四、免责声明</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+                  4.1 本应用不保证所有功能在任何情况下均可用。{'\n'}
+                  4.2 因网络故障、设备问题、第三方API变更等导致的服务中断，开发者不承担责任。{'\n'}
+                  4.3 AI助手生成的内容仅供参考，用户应自行判断其准确性和适用性。
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>五、账号注销</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
+                  5.1 用户有权随时注销账号。{'\n'}
+                  5.2 注销账号后，该账号下的所有本地数据将被清除且不可恢复。{'\n'}
+                  5.3 账号注销操作不可逆，请谨慎操作。
+                </Text>
+              </>
+            )}
+            {activeTab === 'about' && (
+              <View style={{ alignItems: 'center', paddingTop: 20 }}>
+                <Image source={require('./assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 16, marginBottom: 12 }} />
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>版本 5.58.33</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 6 }}>店铺经营管理一体化工具</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginTop: 20, textAlign: 'center' }}>
+                  经营宝是一款专为中小商家打造的店铺经营管理应用，提供订单核销、库存管理、员工协作、AI智能助手等核心功能。
+                </Text>
+                <View style={{ marginTop: 20, alignSelf: 'stretch' }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>联系方式</Text>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+                    官方邮箱：support@jingyingbao.app{'\n'}
+                    官方网站：www.jingyingbao.app
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 24 }}>Copyright © 2026 经营宝 All Rights Reserved</Text>
+              </View>
+            )}
+            {activeTab === 'feedback' && (
+              <View style={{ paddingTop: 8 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>反馈类型</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {['功能建议', '问题反馈', '体验优化', '其他'].map(t => (
+                    <TouchableOpacity
+                      key={t}
+                      style={{ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: feedbackType === t ? PRIMARY_COLOR : BG_PAGE, borderWidth: 1, borderColor: feedbackType === t ? PRIMARY_COLOR : BORDER_COLOR }}
+                      onPress={() => setFeedbackType(t)}
+                    >
+                      <Text style={{ fontSize: 13, color: feedbackType === t ? '#fff' : TEXT_MAIN }}>{t}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>反馈内容</Text>
+                <TextInput
+                  style={{ backgroundColor: BG_PAGE, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 12 }}
+                  value={feedbackContent}
+                  onChangeText={setFeedbackContent}
+                  placeholder="请详细描述您的建议或遇到的问题..."
+                  multiline
+                  maxLength={500}
+                />
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'right', marginBottom: 16 }}>{feedbackContent.length}/500</Text>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>联系方式（选填）</Text>
+                <TextInput
+                  style={{ backgroundColor: BG_PAGE, borderRadius: 10, padding: 12, fontSize: 14, marginBottom: 16 }}
+                  value={feedbackContact}
+                  onChangeText={setFeedbackContact}
+                  placeholder="邮箱或手机号，方便我们回复您"
+                  maxLength={50}
+                />
+                <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 }} onPress={submitFeedback}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>提交反馈</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* 底部确认按钮 */}
+          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
+            <TouchableOpacity
+              style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+              onPress={onClose}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>我已阅读并同意</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 // ================== 使用帮助轮播弹窗（登录后弹出） ==================
 const HelpGuideCarousel = ({ visible, onClose }) => {
   const [currentPage, setCurrentPage] = useState(0);
@@ -8337,18 +8536,34 @@ const HomePage = () => {
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
+  const [showAgreement, setShowAgreement] = useState(false);
 
-  // 登录后检查是否需要弹出使用帮助轮播
+  // 登录后先弹出协议弹窗，关闭后再弹出使用帮助
   useEffect(() => {
-    const checkHelpGuide = async () => {
-      const shown = await AsyncStorage.getItem('help_guide_shown');
-      if (!shown) {
-        setShowHelpGuide(true);
-        await AsyncStorage.setItem('help_guide_shown', 'true');
+    const checkOnLogin = async () => {
+      const agreementShown = await AsyncStorage.getItem('agreement_shown');
+      if (!agreementShown) {
+        setShowAgreement(true);
+      } else {
+        const helpShown = await AsyncStorage.getItem('help_guide_shown');
+        if (!helpShown) {
+          setShowHelpGuide(true);
+        }
       }
     };
-    checkHelpGuide();
+    checkOnLogin();
   }, []);
+
+  // 协议弹窗关闭后，弹出使用帮助
+  const handleAgreementClose = async () => {
+    setShowAgreement(false);
+    await AsyncStorage.setItem('agreement_shown', 'true');
+    const helpShown = await AsyncStorage.getItem('help_guide_shown');
+    if (!helpShown) {
+      setShowHelpGuide(true);
+      await AsyncStorage.setItem('help_guide_shown', 'true');
+    }
+  };
 
   if (!user) {
     return (
@@ -8582,6 +8797,7 @@ const HomePage = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
+      <AgreementModal visible={showAgreement} onClose={handleAgreementClose} />
       <HelpGuideCarousel visible={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
       <CommonHeader 
         title="经营宝" 
