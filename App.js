@@ -6,7 +6,8 @@ import {
   PanResponder, Switch, Animated, Easing, Keyboard, KeyboardAvoidingView,
   AppState, Linking
 } from 'react-native';
-// react-native-gesture-handler 已移除，改用 PanResponder 实现
+// react-native-gesture-handler 已移除，改用 react-native-image-pan-zoom
+import ImageZoom from 'react-native-image-pan-zoom';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigation, createNavigationContainerRef, useFocusEffect } from '@react-navigation/native';
 const navigationRef = createNavigationContainerRef();
@@ -3299,25 +3300,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const [scaleDisplay, setScaleDisplay] = useState(1);
   const [rotationDisplay, setRotationDisplay] = useState(0);
 
-  const scaleValue = useRef(new Animated.Value(1)).current;
-  const translateXValue = useRef(new Animated.Value(0)).current;
-  const translateYValue = useRef(new Animated.Value(0)).current;
   const rotationRef = useRef(0);
-
-  // JS端同步追踪的值（因为__getValue()在useNativeDriver时不可靠）
-  const scaleRef = useRef(1);
-  const translateXRef = useRef(0);
-  const translateYRef = useRef(0);
-
-  const baseScaleRef = useRef(1);
-  const savedTranslateRef = useRef({ x: 0, y: 0 });
-  const lastTapTimeRef = useRef(0);
-  const pinchStartDistanceRef = useRef(0);
   const gesturesEnabledRef = useRef(true);
-  const moveStartLocationRef = useRef({ x: 0, y: 0 });
-  const grantTimeRef = useRef(0);
-  const grantLocationRef = useRef({ x: 0, y: 0 });
-  // 用 ref 跟踪 drawMode/editMode，避免 PanResponder 闭包捕获旧值
+  // 用 ref 跟踪 drawMode/editMode
   const drawModeRef = useRef(false);
   const editModeRef = useRef(false);
   useEffect(() => { drawModeRef.current = drawMode; }, [drawMode]);
@@ -3336,204 +3321,27 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
   const currentImageUri = processedImageUri || imageUri;
 
   const zoomIn = () => {
-    Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    scaleRef.current = 2.5;
-    translateXRef.current = 0;
-    translateYRef.current = 0;
-    baseScaleRef.current = 2.5;
-    savedTranslateRef.current = { x: 0, y: 0 };
+    if (imageZoomRef.current) {
+      imageZoomRef.current.centerOn({ x: 0, y: 0, scale: 2.5, duration: 200 });
+    }
     setScaleDisplay(2.5);
   };
 
   const zoomOut = () => {
-    Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    scaleRef.current = 1;
-    translateXRef.current = 0;
-    translateYRef.current = 0;
-    baseScaleRef.current = 1;
-    savedTranslateRef.current = { x: 0, y: 0 };
+    if (imageZoomRef.current) {
+      imageZoomRef.current.centerOn({ x: 0, y: 0, scale: 1, duration: 200 });
+    }
     setScaleDisplay(1);
   };
 
-  // 使用 PanResponder 实现手势（纯JS实现，稳定不会崩溃）
-  // 支持：双指捏合缩放、单指拖动、双击缩放、长按
-  // 动态状态机：动态检测触摸数量变化，支持单指↔双指切换
-  const gestureModeRef = useRef('none'); // 'none' | 'single' | 'pinch'
-  const lastTapLocationRef = useRef({ x: 0, y: 0 });
-  
-  const imagePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => {
-        if (drawModeRef.current || editModeRef.current) return false;
-        return true;
-      },
-      onMoveShouldSetPanResponder: () => {
-        if (drawModeRef.current || editModeRef.current) return false;
-        return true;
-      },
-      onPanResponderGrant: (evt) => {
-        if (drawModeRef.current || editModeRef.current) return;
-        const touches = evt.nativeEvent.touches;
-        
-        // 记录手势起始信息
-        grantTimeRef.current = Date.now();
-        grantLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-        moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-        savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-        
-        // 根据初始触摸数设置模式
-        if (touches.length >= 2) {
-          // 直接双指
-          gestureModeRef.current = 'pinch';
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
-          baseScaleRef.current = scaleRef.current;
-          lastTapTimeRef.current = 0; // 清除双击检测
-        } else {
-          // 单指开始
-          gestureModeRef.current = 'single';
-          
-          // 双击检测
-          const now = Date.now();
-          if (now - lastTapTimeRef.current < 300) {
-            const dx = evt.nativeEvent.pageX - lastTapLocationRef.current.x;
-            const dy = evt.nativeEvent.pageY - lastTapLocationRef.current.y;
-            if (dx * dx + dy * dy < 100) {
-              // 双击有效
-              if (scaleRef.current > 1.01) {
-                Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-                Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-                Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-                scaleRef.current = 1;
-                translateXRef.current = 0;
-                translateYRef.current = 0;
-                baseScaleRef.current = 1;
-                savedTranslateRef.current = { x: 0, y: 0 };
-                setScaleDisplay(1);
-              } else {
-                Animated.timing(scaleValue, { toValue: 2.5, duration: 200, useNativeDriver: true }).start();
-                scaleRef.current = 2.5;
-                baseScaleRef.current = 2.5;
-                setScaleDisplay(2.5);
-              }
-              lastTapTimeRef.current = 0;
-              gestureModeRef.current = 'none'; // 双击已处理，重置
-              return;
-            }
-          }
-          lastTapTimeRef.current = now;
-          lastTapLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-        }
-      },
-      onPanResponderMove: (evt) => {
-        if (drawModeRef.current || editModeRef.current) return;
-        const touches = evt.nativeEvent.touches;
-        const currentCount = touches.length;
-        
-        // 动态检测触摸数量变化并切换模式
-        if (currentCount >= 2 && gestureModeRef.current !== 'pinch') {
-          // 切换到双指模式（无论是从无还是从单指切换过来）
-          gestureModeRef.current = 'pinch';
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
-          baseScaleRef.current = scaleRef.current;
-          lastTapTimeRef.current = 0; // 进入pinch模式，清除双击检测
-        } else if (currentCount === 1 && gestureModeRef.current === 'pinch') {
-          // 从双指切换到单指（抬起一个手指）
-          gestureModeRef.current = 'single';
-          moveStartLocationRef.current = { x: evt.nativeEvent.pageX, y: evt.nativeEvent.pageY };
-          savedTranslateRef.current = { x: translateXRef.current, y: translateYRef.current };
-        }
-        
-        // 根据当前模式执行操作
-        if (gestureModeRef.current === 'pinch' && currentCount >= 2) {
-          // 捏合缩放
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (pinchStartDistanceRef.current > 0) {
-            const newScale = Math.max(0.5, Math.min(10, baseScaleRef.current * (distance / pinchStartDistanceRef.current)));
-            scaleValue.setValue(newScale);
-            scaleRef.current = newScale;
-          }
-        } else if (gestureModeRef.current === 'single' && currentCount === 1) {
-          // 单指拖动（放大后）
-          if (scaleRef.current > 1.01) {
-            const newX = savedTranslateRef.current.x + (evt.nativeEvent.pageX - moveStartLocationRef.current.x);
-            const newY = savedTranslateRef.current.y + (evt.nativeEvent.pageY - moveStartLocationRef.current.y);
-            translateXValue.setValue(newX);
-            translateYValue.setValue(newY);
-            translateXRef.current = newX;
-            translateYRef.current = newY;
-          }
-        }
-      },
-      onPanResponderRelease: (evt) => {
-        if (drawModeRef.current || editModeRef.current) return;
-        
-        // 长按检测（仅在单指模式下）
-        const holdDuration = Date.now() - grantTimeRef.current;
-        const movedFar = Math.abs(evt.nativeEvent.pageX - grantLocationRef.current.x) > 10 ||
-                         Math.abs(evt.nativeEvent.pageY - grantLocationRef.current.y) > 10;
-        
-        if (holdDuration > 500 && !movedFar && gestureModeRef.current === 'single') {
-          handleImageLongPress(currentImageUri, onDelete ? () => { onDelete(); onClose(); } : null);
-          gestureModeRef.current = 'none';
-          return;
-        }
-        
-        // 根据模式执行释放逻辑
-        if (gestureModeRef.current === 'pinch') {
-          if (scaleRef.current < 1.01) {
-            Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            scaleRef.current = 1;
-            translateXRef.current = 0;
-            translateYRef.current = 0;
-            baseScaleRef.current = 1;
-          }
-          setScaleDisplay(scaleRef.current > 1.01 ? Math.round(scaleRef.current * 10) / 10 : 1);
-        } else if (gestureModeRef.current === 'single') {
-          if (scaleRef.current < 1.01) {
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            translateXRef.current = 0;
-            translateYRef.current = 0;
-          }
-        }
-        
-        gestureModeRef.current = 'none';
-      },
-      onPanResponderTerminate: () => {
-        // 手势被系统终止（如来电）
-        if (gestureModeRef.current === 'pinch') {
-          if (scaleRef.current < 1.01) {
-            Animated.spring(scaleValue, { toValue: 1, useNativeDriver: true }).start();
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            scaleRef.current = 1;
-            translateXRef.current = 0;
-            translateYRef.current = 0;
-          }
-        } else {
-          if (scaleRef.current < 1.01) {
-            Animated.spring(translateXValue, { toValue: 0, useNativeDriver: true }).start();
-            Animated.spring(translateYValue, { toValue: 0, useNativeDriver: true }).start();
-            translateXRef.current = 0;
-            translateYRef.current = 0;
-          }
-        }
-        gestureModeRef.current = 'none';
-      },
-    })
-  ).current;
+  // ImageZoom ref 用于控制缩放
+  const imageZoomRef = useRef(null);
+  const imageSize = width; // 图片显示宽度
+  const imageHeight = width * 1.3; // 图片显示高度
+  const screenWidth = Dimensions.get('window').width;
+  const screenHeight = Dimensions.get('window').height;
+  const cropWidth = screenWidth;
+  const cropHeight = screenHeight - 100; // 减去底部工具栏高度
 
   const drawResponder = useRef(
     PanResponder.create({
@@ -3612,14 +3420,9 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
     setCropMode(false);
     setDrawPaths([]);
     setCurrentPath([]);
-    Animated.timing(scaleValue, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateXValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    Animated.timing(translateYValue, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    scaleRef.current = 1;
-    translateXRef.current = 0;
-    translateYRef.current = 0;
-    baseScaleRef.current = 1;
-    savedTranslateRef.current = { x: 0, y: 0 };
+    if (imageZoomRef.current) {
+      imageZoomRef.current.reset();
+    }
     setScaleDisplay(1);
   };
 
@@ -3639,15 +3442,34 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         </View>
 
         {!drawMode && !editMode ? (
-          <Animated.View
-            style={{
-              flex: 1, justifyContent: 'center', alignItems: 'center',
-              transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
+          <ImageZoom
+            ref={imageZoomRef}
+            cropWidth={cropWidth}
+            cropHeight={cropHeight}
+            imageWidth={imageSize}
+            imageHeight={imageHeight}
+            panToMove={true}
+            pinchToZoom={true}
+            enableDoubleClickZoom={true}
+            enableCenterFocus={true}
+            minScale={0.5}
+            maxScale={10}
+            useNativeDriver={true}
+            doubleClickInterval={175}
+            longPressTime={500}
+            onClick={() => {}}
+            onDoubleClick={() => {}}
+            onLongPress={() => {
+              handleImageLongPress(currentImageUri, onDelete ? () => { onDelete(); onClose(); } : null);
             }}
-            {...imagePanResponder.panHandlers}
+            onMove={(e) => {
+              if (e && e.scale !== undefined) {
+                setScaleDisplay(Math.round(e.scale * 10) / 10);
+              }
+            }}
           >
-            <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-          </Animated.View>
+            <Image source={{ uri: currentImageUri }} style={{ width: imageSize, height: imageHeight, resizeMode: 'contain' }} />
+          </ImageZoom>
         ) : (
           <View
             style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
