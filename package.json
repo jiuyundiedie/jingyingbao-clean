@@ -1,6 +1,6 @@
 {
   "name": "jingyingbao-clean",
-  "version": "5.58.34",
+  "version": "5.58.35",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",

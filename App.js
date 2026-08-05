@@ -3144,198 +3144,197 @@ const ClearCacheScreen = ({ navigation }) => {
 
 
 
-// ================== 协议弹窗（登录后弹出：隐私政策/用户协议/关于我们/意见反馈） ==================
+// ================== 协议弹窗（登录后弹出：上下翻页式 隐私政策/用户协议/关于我们） ==================
 const AgreementModal = ({ visible, onClose }) => {
-  const [activeTab, setActiveTab] = useState('privacy');
-  const [feedbackType, setFeedbackType] = useState('功能建议');
-  const [feedbackContent, setFeedbackContent] = useState('');
-  const [feedbackContact, setFeedbackContact] = useState('');
-  const { state } = useApp();
+  const [currentPage, setCurrentPage] = useState(0);
+  const scrollRef = useRef(null);
+  const screenHeight = Dimensions.get('window').height;
 
-  const tabs = [
-    { key: 'privacy', label: '隐私政策' },
-    { key: 'agreement', label: '用户协议' },
-    { key: 'about', label: '关于我们' },
-    { key: 'feedback', label: '意见反馈' },
+  const pages = [
+    {
+      title: '隐私政策',
+      icon: 'lock-closed',
+      color: '#5B6DF0',
+      content: (
+        <>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8, textAlign: 'center' }}>经营宝隐私政策</Text>
+          <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 24, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>一、信息收集</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            我们仅收集您主动提供的信息，包括：手机号、店铺名称、商品信息等。应用运行所需的必要权限（相机、存储、通知）将在使用时向您申请。我们不收集您的个人敏感信息，不进行用户行为追踪。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>二、数据存储</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            您的所有经营数据存储在本地设备，不会上传至任何服务器。AI对话功能的历史记录仅保存在本地。建议您定期导出数据并妥善备份。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>三、AI服务隐私</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            AI助手对话需通过网络API调用，对话内容将发送至第三方AI服务。发送至AI服务的内容不包含您的账号密码等敏感信息。拍照识别功能的图片会发送至图像识别服务进行处理。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>四、权限使用说明</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25 }}>
+            • 相机权限：用于拍照识别商品数量、出入库拍照{'\n'}
+            • 存储权限：用于保存图片、导出数据{'\n'}
+            • 通知权限：用于接收新消息提醒{'\n'}
+            • 您可随时在系统设置中撤销权限
+          </Text>
+        </>
+      ),
+    },
+    {
+      title: '用户协议',
+      icon: 'document-text',
+      color: '#00B42A',
+      content: (
+        <>
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8, textAlign: 'center' }}>经营宝用户服务协议</Text>
+          <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 24, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>一、服务条款的接受</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            欢迎您使用经营宝（以下简称"本应用"）。使用本应用即表示您同意本协议的全部条款。如果您不同意本协议的任何内容，请立即停止使用本应用。本协议可能根据业务发展进行更新，更新后的协议自公布之日起生效。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>二、服务内容</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            本应用为商家提供店铺经营管理服务，包括但不限于：订单核销、库存管理、员工管理、客户沟通、AI智能助手等功能。本应用的数据存储在用户本地设备上，不上传至云端服务器。部分AI功能需要联网调用第三方大模型API，网络不可用时将降级为本地功能。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>三、用户行为规范</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            用户应保证注册信息真实、准确。用户不得利用本应用从事任何违法违规活动。用户应妥善保管账号信息，因账号泄露造成的损失由用户自行承担。用户应对自己的业务数据负责，建议定期进行数据备份。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>四、免责声明</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25, marginBottom: 16 }}>
+            本应用不保证所有功能在任何情况下均可用。因网络故障、设备问题、第三方API变更等导致的服务中断，开发者不承担责任。AI助手生成的内容仅供参考，用户应自行判断其准确性和适用性。
+          </Text>
+
+          <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>五、账号注销</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, lineHeight: 25 }}>
+            用户有权随时注销账号。注销账号后，该账号下的所有本地数据将被清除且不可恢复。账号注销操作不可逆，请谨慎操作。
+          </Text>
+        </>
+      ),
+    },
+    {
+      title: '关于我们',
+      icon: 'information-circle',
+      color: '#FF7D00',
+      content: (
+        <View style={{ alignItems: 'center', paddingTop: 20 }}>
+          <Image source={require('./assets/icon.png')} style={{ width: 80, height: 80, borderRadius: 20, marginBottom: 16 }} />
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+          <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 6 }}>版本 5.58.34</Text>
+          <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 8 }}>店铺经营管理一体化工具</Text>
+
+          <View style={{ marginTop: 28, alignSelf: 'stretch', backgroundColor: BG_PAGE, borderRadius: 12, padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>应用介绍</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+              经营宝是一款专为中小商家打造的店铺经营管理应用，提供订单核销、库存管理、员工协作、AI智能助手等核心功能，帮助商家高效管理日常经营。
+            </Text>
+          </View>
+
+          <View style={{ marginTop: 12, alignSelf: 'stretch', backgroundColor: BG_PAGE, borderRadius: 12, padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>核心功能</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+              • 订单核销：多平台扫码核销{'\n'}
+              • 库存管理：出入库、AI拍照盘点{'\n'}
+              • 员工协作：内部沟通、员工管理{'\n'}
+              • AI助手：智能问答、经营分析{'\n'}
+              • 数据报表：日报、周报自动生成
+            </Text>
+          </View>
+
+          <View style={{ marginTop: 12, alignSelf: 'stretch', backgroundColor: BG_PAGE, borderRadius: 12, padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>联系方式</Text>
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
+              官方邮箱：support@jingyingbao.app{'\n'}
+              官方网站：www.jingyingbao.app
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 28 }}>Copyright © 2026 经营宝 All Rights Reserved</Text>
+        </View>
+      ),
+    },
   ];
 
-  const submitFeedback = async () => {
-    if (!feedbackContent.trim()) { showToast('请输入反馈内容'); return; }
-    try {
-      const feedback = {
-        id: Date.now().toString(),
-        type: feedbackType,
-        content: feedbackContent.trim(),
-        contact: feedbackContact.trim(),
-        phone: state.user?.phone || '',
-        time: new Date().toISOString(),
-      };
-      const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
-      existing.push(feedback);
-      await AsyncStorage.setItem('user_feedbacks', JSON.stringify(existing));
-      showToast('反馈已提交，感谢您的支持！');
-      setFeedbackContent('');
-      setFeedbackContact('');
-    } catch (e) { showToast('提交失败，请重试'); }
+  const handleScroll = (e) => {
+    const page = Math.round(e.nativeEvent.contentOffset.y / screenHeight);
+    setCurrentPage(page);
+  };
+
+  const goNext = () => {
+    if (currentPage < pages.length - 1) {
+      scrollRef.current?.scrollTo({ y: screenHeight * (currentPage + 1), animated: true });
+    } else {
+      onClose();
+    }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ width: '90%', height: '80%', backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden' }}>
-          {/* 顶部Tab栏 */}
-          <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }}>
-            {tabs.map(tab => (
-              <TouchableOpacity
-                key={tab.key}
-                style={{
-                  flex: 1, paddingVertical: 14, alignItems: 'center',
-                  borderBottomWidth: activeTab === tab.key ? 2 : 0,
-                  borderBottomColor: activeTab === tab.key ? PRIMARY_COLOR : 'transparent',
-                  backgroundColor: activeTab === tab.key ? '#F5F7FA' : 'transparent',
-                }}
-                onPress={() => setActiveTab(tab.key)}
-              >
-                <Text style={{ fontSize: 14, fontWeight: activeTab === tab.key ? '600' : '400', color: activeTab === tab.key ? PRIMARY_COLOR : TEXT_SECOND }}>{tab.label}</Text>
-              </TouchableOpacity>
-            ))}
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        {/* 顶部标题栏 */}
+        <View style={{ paddingTop: Platform.OS === 'ios' ? 50 : 35, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name={pages[currentPage].icon} size={24} color={pages[currentPage].color} />
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginLeft: 8 }}>{pages[currentPage].title}</Text>
           </View>
+          <Text style={{ fontSize: 14, color: TEXT_THIRD }}>{currentPage + 1} / {pages.length}</Text>
+        </View>
 
-          {/* 内容区 */}
-          <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-            {activeTab === 'privacy' && (
-              <>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12, textAlign: 'center' }}>经营宝隐私政策</Text>
-                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 16, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>一、信息收集</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  1.1 我们仅收集您主动提供的信息，包括：手机号、店铺名称、商品信息等。{'\n'}
-                  1.2 应用运行所需的必要权限（相机、存储、通知）将在使用时向您申请。{'\n'}
-                  1.3 我们不收集您的个人敏感信息，不进行用户行为追踪。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>二、数据存储</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  2.1 您的所有经营数据存储在本地设备，不会上传至任何服务器。{'\n'}
-                  2.2 AI对话功能的历史记录仅保存在本地。{'\n'}
-                  2.3 建议您定期导出数据并妥善备份。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>三、AI服务隐私</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  3.1 AI助手对话需通过网络API调用，对话内容将发送至第三方AI服务。{'\n'}
-                  3.2 发送至AI服务的内容不包含您的账号密码等敏感信息。{'\n'}
-                  3.3 拍照识别功能的图片会发送至图像识别服务进行处理。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>四、权限使用说明</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
-                  4.1 相机权限：用于拍照识别商品数量、出入库拍照。{'\n'}
-                  4.2 存储权限：用于保存图片、导出数据。{'\n'}
-                  4.3 通知权限：用于接收新消息提醒。{'\n'}
-                  4.4 您可随时在系统设置中撤销权限。
-                </Text>
-              </>
-            )}
-            {activeTab === 'agreement' && (
-              <>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12, textAlign: 'center' }}>经营宝用户服务协议</Text>
-                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 16, textAlign: 'center' }}>更新日期：2026年7月31日</Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>一、服务条款的接受</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  1.1 欢迎您使用经营宝（以下简称"本应用"）。使用本应用即表示您同意本协议的全部条款。{'\n'}
-                  1.2 如果您不同意本协议的任何内容，请立即停止使用本应用。{'\n'}
-                  1.3 本协议可能根据业务发展进行更新，更新后的协议自公布之日起生效。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>二、服务内容</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  2.1 本应用为商家提供店铺经营管理服务，包括但不限于：订单核销、库存管理、员工管理、客户沟通、AI智能助手等功能。{'\n'}
-                  2.2 本应用的数据存储在用户本地设备上，不上传至云端服务器。{'\n'}
-                  2.3 部分AI功能需要联网调用第三方大模型API，网络不可用时将降级为本地功能。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>三、用户行为规范</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  3.1 用户应保证注册信息真实、准确。{'\n'}
-                  3.2 用户不得利用本应用从事任何违法违规活动。{'\n'}
-                  3.3 用户应妥善保管账号信息，因账号泄露造成的损失由用户自行承担。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>四、免责声明</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-                  4.1 本应用不保证所有功能在任何情况下均可用。{'\n'}
-                  4.2 因网络故障、设备问题、第三方API变更等导致的服务中断，开发者不承担责任。{'\n'}
-                  4.3 AI助手生成的内容仅供参考，用户应自行判断其准确性和适用性。
-                </Text>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>五、账号注销</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
-                  5.1 用户有权随时注销账号。{'\n'}
-                  5.2 注销账号后，该账号下的所有本地数据将被清除且不可恢复。{'\n'}
-                  5.3 账号注销操作不可逆，请谨慎操作。
-                </Text>
-              </>
-            )}
-            {activeTab === 'about' && (
-              <View style={{ alignItems: 'center', paddingTop: 20 }}>
-                <Image source={require('./assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 16, marginBottom: 12 }} />
-                <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
-                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>版本 5.58.33</Text>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 6 }}>店铺经营管理一体化工具</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginTop: 20, textAlign: 'center' }}>
-                  经营宝是一款专为中小商家打造的店铺经营管理应用，提供订单核销、库存管理、员工协作、AI智能助手等核心功能。
-                </Text>
-                <View style={{ marginTop: 20, alignSelf: 'stretch' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>联系方式</Text>
-                  <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
-                    官方邮箱：support@jingyingbao.app{'\n'}
-                    官方网站：www.jingyingbao.app
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 24 }}>Copyright © 2026 经营宝 All Rights Reserved</Text>
+        {/* 上下翻页内容 */}
+        <ScrollView
+          ref={scrollRef}
+          pagingEnabled
+          vertical
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          style={{ flex: 1 }}
+        >
+          {pages.map((page, index) => (
+            <ScrollView key={index} style={{ height: screenHeight, paddingHorizontal: 24 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+              <View style={{ paddingTop: 10, paddingBottom: 120 }}>
+                {page.content}
               </View>
-            )}
-            {activeTab === 'feedback' && (
-              <View style={{ paddingTop: 8 }}>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>反馈类型</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                  {['功能建议', '问题反馈', '体验优化', '其他'].map(t => (
-                    <TouchableOpacity
-                      key={t}
-                      style={{ paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20, backgroundColor: feedbackType === t ? PRIMARY_COLOR : BG_PAGE, borderWidth: 1, borderColor: feedbackType === t ? PRIMARY_COLOR : BORDER_COLOR }}
-                      onPress={() => setFeedbackType(t)}
-                    >
-                      <Text style={{ fontSize: 13, color: feedbackType === t ? '#fff' : TEXT_MAIN }}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>反馈内容</Text>
-                <TextInput
-                  style={{ backgroundColor: BG_PAGE, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 12 }}
-                  value={feedbackContent}
-                  onChangeText={setFeedbackContent}
-                  placeholder="请详细描述您的建议或遇到的问题..."
-                  multiline
-                  maxLength={500}
-                />
-                <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'right', marginBottom: 16 }}>{feedbackContent.length}/500</Text>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>联系方式（选填）</Text>
-                <TextInput
-                  style={{ backgroundColor: BG_PAGE, borderRadius: 10, padding: 12, fontSize: 14, marginBottom: 16 }}
-                  value={feedbackContact}
-                  onChangeText={setFeedbackContact}
-                  placeholder="邮箱或手机号，方便我们回复您"
-                  maxLength={50}
-                />
-                <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 16 }} onPress={submitFeedback}>
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>提交反馈</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
+            </ScrollView>
+          ))}
+        </ScrollView>
 
-          {/* 底部确认按钮 */}
-          <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
+        {/* 右侧翻页指示器 */}
+        <View style={{ position: 'absolute', right: 16, top: '50%', transform: [{ translateY: -30 }] }}>
+          {pages.map((_, i) => (
+            <View key={i} style={{
+              width: 4, height: i === currentPage ? 24 : 8, borderRadius: 2,
+              backgroundColor: i === currentPage ? PRIMARY_COLOR : BORDER_COLOR,
+              marginBottom: 6,
+            }} />
+          ))}
+        </View>
+
+        {/* 底部按钮 */}
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', paddingHorizontal: 24, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 50 : 30, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
-              style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
-              onPress={onClose}
+              style={{ flex: 1, backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center' }}
+              onPress={goNext}
             >
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>我已阅读并同意</Text>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+                {currentPage < pages.length - 1 ? '下一页' : '我已阅读并同意'}
+              </Text>
             </TouchableOpacity>
+            {currentPage < pages.length - 1 && (
+              <TouchableOpacity onPress={onClose} style={{ marginLeft: 16, padding: 12 }}>
+                <Text style={{ fontSize: 16, color: TEXT_THIRD }}>跳过</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
