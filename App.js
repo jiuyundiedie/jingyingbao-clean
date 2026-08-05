@@ -3446,6 +3446,14 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
 
   const imageGesture = Gesture.Simultaneous(pinchGesture, panGesture);
 
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onEnd(() => {
+      if (drawModeRef.current || editModeRef.current) return;
+      handleImageLongPress(currentImageUri, onDelete ? () => { onDelete(); onClose(); } : null);
+    })
+    .runOnJS(true);
+
   const drawResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => drawMode,
@@ -3550,16 +3558,18 @@ const EnhancedImageViewer = ({ visible, imageUri, onClose, onDelete, isOwnMessag
         </View>
 
         {!drawMode && !editMode ? (
-          <GestureDetector gesture={doubleTapGesture}>
-            <GestureDetector gesture={imageGesture}>
-              <Animated.View
-                style={{
-                  flex: 1, justifyContent: 'center', alignItems: 'center',
-                  transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
-                }}
-              >
-                <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
-              </Animated.View>
+          <GestureDetector gesture={longPressGesture}>
+            <GestureDetector gesture={doubleTapGesture}>
+              <GestureDetector gesture={imageGesture}>
+                <Animated.View
+                  style={{
+                    flex: 1, justifyContent: 'center', alignItems: 'center',
+                    transform: [{ translateX: translateXValue }, { translateY: translateYValue }, { scale: scaleValue }],
+                  }}
+                >
+                  <Image source={{ uri: currentImageUri }} style={{ width: width, height: width * 1.3, resizeMode: 'contain' }} />
+                </Animated.View>
+              </GestureDetector>
             </GestureDetector>
           </GestureDetector>
         ) : (
@@ -8623,7 +8633,6 @@ const HomePage = () => {
   useFocusEffect(
     useCallback(() => {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        // 优先关闭设置抽屉
         if (settingOpenRef.current) {
           setSettingOpen(false);
           return true;
@@ -8632,33 +8641,19 @@ const HomePage = () => {
         const rootNav = navigationRef.current;
         if (!rootNav) return false;
 
-        // 获取完整导航状态
-        const state = rootNav.getState();
-        const index = state?.index;
-        const routes = state?.routes;
-
-        // 判断是否在根页面
-        const isAtRoot = index === 0 && routes && routes.length <= 1;
-
-        if (isAtRoot) {
-          if (exitTimerRef.current) {
-            // 第二次按下：直接退出应用
-            exitTimerRef.current = null;
-            BackHandler.exitApp();
-            return true;
-          }
-          showToast('再按一次退出');
-          exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
-          return true;
-        }
-
-        // 有可返回的页面则返回
         if (rootNav.canGoBack()) {
           rootNav.goBack();
           return true;
         }
 
-        return false;
+        if (exitTimerRef.current) {
+          exitTimerRef.current = null;
+          BackHandler.exitApp();
+          return true;
+        }
+        showToast('再按一次退出');
+        exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
+        return true;
       });
       return () => {
         backHandler.remove();
