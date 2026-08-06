@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { authRequired } = require('../middleware/auth');
+const { adminAuth } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
@@ -58,7 +59,7 @@ router.get('/:id', authRequired, (req, res) => {
 });
 
 // 管理端：反馈列表（可筛选状态/类型）
-router.get('/admin/list', authRequired, (req, res) => {
+router.get('/admin/list', adminAuth, (req, res) => {
   const { status, type, limit } = req.query;
   let sql = `SELECT f.*, u.name as user_name, u.phone as user_phone
              FROM user_feedbacks f
@@ -75,7 +76,7 @@ router.get('/admin/list', authRequired, (req, res) => {
 });
 
 // 管理端：回复反馈
-router.put('/admin/reply/:id', authRequired, (req, res) => {
+router.put('/admin/reply/:id', adminAuth, (req, res) => {
   const { reply } = req.body;
   if (!reply) return res.status(400).json({ error: '请输入回复内容' });
   
@@ -86,7 +87,7 @@ router.put('/admin/reply/:id', authRequired, (req, res) => {
 });
 
 // 管理端：反馈统计
-router.get('/admin/stats', authRequired, (req, res) => {
+router.get('/admin/stats', adminAuth, (req, res) => {
   const total = db.prepare('SELECT COUNT(*) as cnt FROM user_feedbacks').get().cnt;
   const pending = db.prepare('SELECT COUNT(*) as cnt FROM user_feedbacks WHERE status = "pending"').get().cnt;
   const byType = db.prepare(`

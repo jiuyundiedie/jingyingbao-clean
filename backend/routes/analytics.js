@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { authRequired } = require('../middleware/auth');
+const { adminAuth } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ router.post('/track/batch', authRequired, (req, res) => {
 });
 
 // ========== 统计数据查询（管理端）==========
-router.get('/stats/overview', authRequired, (req, res) => {
+router.get('/stats/overview', adminAuth, (req, res) => {
   const { startDate, endDate } = req.query;
   const start = startDate || new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const end = endDate || new Date().toISOString();

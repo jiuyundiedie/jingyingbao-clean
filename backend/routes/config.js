@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { authRequired } = require('../middleware/auth');
+const { adminAuth } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
@@ -40,12 +41,12 @@ router.post('/check', (req, res) => {
 });
 
 // ========== 版本管理（管理端）==========
-router.get('/versions', authRequired, (req, res) => {
+router.get('/versions', adminAuth, (req, res) => {
   const versions = db.prepare('SELECT * FROM app_versions ORDER BY id DESC').all();
   res.json({ data: versions });
 });
 
-router.post('/versions', authRequired, (req, res) => {
+router.post('/versions', adminAuth, (req, res) => {
   const { version, platform, isMandatory, downloadUrl, releaseNotes, content, status } = req.body;
   if (!version || !platform) {
     return res.status(400).json({ error: '缺少版本号或平台参数' });
@@ -64,7 +65,7 @@ router.post('/versions', authRequired, (req, res) => {
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
-router.put('/versions/:id', authRequired, (req, res) => {
+router.put('/versions/:id', adminAuth, (req, res) => {
   const data = req.body;
   const sets = [];
   const vals = [];
@@ -80,7 +81,7 @@ router.put('/versions/:id', authRequired, (req, res) => {
   res.json({ success: true });
 });
 
-router.delete('/versions/:id', authRequired, (req, res) => {
+router.delete('/versions/:id', adminAuth, (req, res) => {
   db.prepare('DELETE FROM app_versions WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -97,7 +98,7 @@ router.get('/config', (req, res) => {
   res.json({ data: result });
 });
 
-router.post('/config', authRequired, (req, res) => {
+router.post('/config', adminAuth, (req, res) => {
   const { key, value, description, platform } = req.body;
   if (!key) return res.status(400).json({ error: '缺少 key 参数' });
   db.prepare(`

@@ -5,6 +5,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
+
+const { registerAdminToken, verifyAdminPassword, adminAuth, cleanupExpiredTokens } = require('./middleware/adminAuth');
 
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
@@ -18,6 +21,8 @@ const configRoutes = require('./routes/config');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
 // ========== 中间件 ==========
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
@@ -28,6 +33,25 @@ app.use(express.urlencoded({ extended: true }));
 
 // 静态文件目录（图片上传等）
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ========== 管理员登录 ==========
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  if (!verifyAdminPassword(password)) {
+    return res.status(401).json({ error: '密码错误' });
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  registerAdminToken(token);
+  res.json({ token, expiresAt: Date.now() + 24 * 3600 * 1000 });
+});
+
+// 管理员登出
+app.post('/api/admin/logout', adminAuth, (req, res) => {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  // token 会在过期时自动清理
+  res.json({ success: true });
+});
 
 // ========== 路由 ==========
 app.get('/api/health', (req, res) => {
@@ -48,6 +72,14 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/config', configRoutes);
 
+// ========== 管理后台静态页面 ==========
+app.use('/admin', express.static(path.join(__dirname, 'public')));
+
+// 根路径重定向到管理后台
+app.get('/', (req, res) => {
+  res.redirect('/admin/admin.html');
+});
+
 // ========== 全局错误处理 ==========
 app.use((err, req, res, next) => {
   console.error('[Server Error]', err);
@@ -61,11 +93,18 @@ app.use((req, res) => {
   res.status(404).json({ error: '接口不存在: ' + req.method + ' ' + req.path });
 });
 
+// ========== 定时清理过期 token ==========
+setInterval(() => {
+  cleanupExpiredTokens();
+}, 3600 * 1000);
+
 // ========== 启动 ==========
 app.listen(PORT, () => {
   console.log('========================================');
   console.log('  经营宝后端服务已启动');
   console.log('  地址: http://localhost:' + PORT);
+  console.log('  管理后台: http://localhost:' + PORT + '/admin');
+  console.log('  管理员密码: ' + ADMIN_PASSWORD);
   console.log('  环境: ' + (process.env.NODE_ENV || 'development'));
   console.log('========================================');
 });

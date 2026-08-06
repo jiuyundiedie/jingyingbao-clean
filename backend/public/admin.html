@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>经营宝 - 管理后台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #f5f6fa; color: #333; }
+    .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-box { background: #fff; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 360px; }
+    .login-box h1 { font-size: 24px; text-align: center; margin-bottom: 8px; color: #1a1a1a; }
+    .login-box .subtitle { text-align: center; color: #888; margin-bottom: 32px; font-size: 14px; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: #555; }
+    .form-group input { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; }
+    .form-group input:focus { outline: none; border-color: #5B6DF0; }
+    .btn-primary { width: 100%; padding: 12px; background: #5B6DF0; color: #fff; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600; }
+    .btn-primary:hover { background: #4a5ce0; }
+    .error-msg { color: #e74c3c; font-size: 14px; text-align: center; margin-top: 12px; min-height: 20px; }
+    
+    .app { display: none; min-height: 100vh; }
+    .app.active { display: flex; }
+    .sidebar { width: 240px; background: #fff; min-height: 100vh; border-right: 1px solid #eee; padding: 20px 0; }
+    .sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #eee; }
+    .sidebar-header h2 { font-size: 18px; color: #1a1a1a; }
+    .sidebar-header p { font-size: 12px; color: #888; margin-top: 4px; }
+    .nav-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #555; border-left: 3px solid transparent; }
+    .nav-item:hover { background: #f5f6fa; color: #333; }
+    .nav-item.active { background: #f0f2ff; color: #5B6DF0; border-left-color: #5B6DF0; font-weight: 500; }
+    .nav-icon { width: 20px; text-align: center; }
+    
+    .main { flex: 1; padding: 24px; overflow-x: auto; }
+    .header { background: #fff; padding: 16px 24px; border-radius: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; }
+    .header .user-info { display: flex; align-items: center; gap: 16px; color: #666; font-size: 14px; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #fff; padding: 20px; border-radius: 12px; }
+    .stat-card .label { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a1a; }
+    .stat-card .trend { font-size: 12px; color: #52c41a; margin-top: 8px; }
+    .stat-card .trend.down { color: #ff4d4f; }
+    
+    .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-header h3 { font-size: 16px; }
+    .card-header .actions { display: flex; gap: 8px; }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+    th { background: #f5f6fa; font-weight: 600; color: #555; }
+    tr:hover { background: #f9f9f9; }
+    .status { padding: 4px 10px; border-radius: 12px; font-size: 12px; }
+    .status-pending { background: #fff7e6; color: #fa8c16; }
+    .status-processing { background: #e6f7ff; color: #1890ff; }
+    .status-resolved { background: #f6ffed; color: #52c41a; }
+    .status-active { background: #f6ffed; color: #52c41a; }
+    .status-inactive { background: #f5f5f5; color: #999; }
+    
+    .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-primary { background: #5B6DF0; color: #fff; }
+    .btn-primary:hover { background: #4a5ce0; }
+    .btn-success { background: #52c41a; color: #fff; }
+    .btn-danger { background: #ff4d4f; color: #fff; }
+    .btn-secondary { background: #f5f5f5; color: #666; }
+    
+    .form-row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: start; margin-bottom: 16px; }
+    .form-row label { font-size: 14px; color: #555; padding-top: 8px; }
+    .form-row input, .form-row textarea, .form-row select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .form-row textarea { min-height: 80px; resize: vertical; }
+    
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #eee; }
+    .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; color: #666; }
+    .tab.active { color: #5B6DF0; border-bottom-color: #5B6DF0; }
+    
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal.active { display: flex; }
+    .modal-content { background: #fff; border-radius: 12px; padding: 24px; width: 500px; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h3 { font-size: 18px; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+    
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+    .badge-blue { background: #e6f7ff; color: #1890ff; }
+    .badge-green { background: #f6ffed; color: #52c41a; }
+    .badge-orange { background: #fff7e6; color: #fa8c16; }
+    
+    .empty-state { text-align: center; padding: 40px; color: #999; }
+    .loading { text-align: center; padding: 40px; }
+    .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #5B6DF0; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <!-- 登录页 -->
+  <div class="login-container" id="loginPage">
+    <div class="login-box">
+      <h1>经营宝管理后台</h1>
+      <p class="subtitle">运营数据 · 用户反馈 · 版本管理</p>
+      <div class="form-group">
+        <label>管理员密码</label>
+        <input type="password" id="adminPassword" placeholder="请输入管理密码" autocomplete="off">
+      </div>
+      <button class="btn-primary" onclick="login()">登录</button>
+      <div class="error-msg" id="loginError"></div>
+      <p style="text-align:center; margin-top:16px; font-size:12px; color:#aaa;">默认密码: admin123 · 请尽快修改</p>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div class="app" id="mainApp">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>📊 经营宝后台</h2>
+        <p>v5.58.41</p>
+      </div>
+      <div class="nav-item active" onclick="switchTab('dashboard')">
+        <span class="nav-icon">📈</span> 数据概览
+      </div>
+      <div class="nav-item" onclick="switchTab('feedback')">
+        <span class="nav-icon">💬</span> 反馈管理
+      </div>
+      <div class="nav-item" onclick="switchTab('config')">
+        <span class="nav-icon">⚙️</span> 远程配置
+      </div>
+      <div class="nav-item" onclick="switchTab('version')">
+        <span class="nav-icon">📦</span> 版本管理
+      </div>
+      <div class="nav-item" onclick="switchTab('api')">
+        <span class="nav-icon">🔌</span> API 文档
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="header">
+        <h1 id="pageTitle">数据概览</h1>
+        <div class="user-info">
+          <span>👤 管理员</span>
+          <button class="btn btn-secondary" onclick="logout()">退出登录</button>
+        </div>
+      </div>
+
+      <!-- 数据概览 -->
+      <div id="tab-dashboard">
+        <div class="stats-grid" id="statsGrid">
+          <div class="loading">加载中...</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>最近反馈</h3>
+            <button class="btn btn-sm btn-secondary" onclick="switchTab('feedback')">查看全部</button>
+          </div>
+          <div id="recentFeedback">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 反馈管理 -->
+      <div id="tab-feedback" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h3>反馈统计</h3>
+          </div>
+          <div class="stats-grid" id="feedbackStats">
+            <div class="stat-card"><div class="label">总反馈数</div><div class="value" id="totalCount">0</div></div>
+            <div class="stat-card"><div class="label">待处理</div><div class="value" id="pendingCount">0</div></div>
+            <div class="stat-card"><div class="label">已处理</div><div class="value" id="resolvedCount">0</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>反馈列表</h3>
+            <div>
+              <select id="filterStatus" onchange="loadFeedbackList()" style="padding:6px 12px; border:1px solid #ddd; border-radius:6px;">
+                <option value="">全部状态</option>
+                <option value="pending">待处理</option>
+                <option value="processing">处理中</option>
+                <option value="resolved">已解决</option>
+              </select>
+              <select id="filterType" onchange="loadFeedbackList()" style="padding:6px 12px; border:1px solid #ddd; border-radius:6px; margin-left:8px;">
+                <option value="">全部类型</option>
+                <option value="feedback">建议</option>
+                <option value="bug">Bug</option>
+                <option value="complaint">投诉</option>
+                <option value="crash">崩溃</option>
+              </select>
+            </div>
+          </div>
+          <div style="overflow-x: auto;">
+            <table id="feedbackTable">
+              <thead>
+                <tr>
+                  <th>ID</th><th>类型</th><th>标题</th><th>内容</th><th>状态</th><th>设备/版本</th><th>时间</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="feedbackList">
+                <tr><td colspan="8" class="empty-state">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 远程配置 -->
+      <div id="tab-config" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h3>功能配置</h3>
+            <button class="btn btn-sm btn-primary" onclick="showConfigModal()">+ 新增配置</button>
+          </div>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr><th>配置键</th><th>当前值</th><th>描述</th><th>平台</th><th>更新时间</th><th>操作</th></tr>
+              </thead>
+              <tbody id="configList">
+                <tr><td colspan="6" class="empty-state">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 版本管理 -->
+      <div id="tab-version" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h3>版本列表</h3>
+            <button class="btn btn-sm btn-primary" onclick="showVersionModal()">+ 发布新版本</button>
+          </div>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr><th>版本号</th><th>平台</th><th>强制更新</th><th>下载链接</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+              </thead>
+              <tbody id="versionList">
+                <tr><td colspan="7" class="empty-state">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- API 文档 -->
+      <div id="tab-api" style="display:none;">
+        <div class="card">
+          <div class="card-header"><h3>API 接口文档</h3></div>
+          <div style="line-height: 1.8;">
+            <h4 style="margin: 16px 0 8px; color: #5B6DF0;">📊 数据分析</h4>
+            <p><code>POST</code> <code>/api/analytics/track</code> - 上报行为事件</p>
+            <p><code>POST</code> <code>/api/analytics/track/batch</code> - 批量上报</p>
+            <p><code>GET</code> <code>/api/analytics/stats/overview</code> - 数据概览</p>
+            <p><code>POST</code> <code>/api/analytics/crash</code> - 崩溃上报</p>
+            
+            <h4 style="margin: 16px 0 8px; color: #5B6DF0;">💬 反馈管理</h4>
+            <p><code>POST</code> <code>/api/feedback</code> - 提交反馈</p>
+            <p><code>GET</code> <code>/api/feedback/my</code> - 我的反馈</p>
+            <p><code>GET</code> <code>/api/feedback/admin/list</code> - 反馈列表</p>
+            <p><code>PUT</code> <code>/api/feedback/admin/reply/:id</code> - 回复反馈</p>
+            <p><code>GET</code> <code>/api/feedback/admin/stats</code> - 反馈统计</p>
+            
+            <h4 style="margin: 16px 0 8px; color: #5B6DF0;">📦 版本管理</h4>
+            <p><code>POST</code> <code>/api/config/check</code> - 版本检查</p>
+            <p><code>GET/POST/PUT/DELETE</code> <code>/api/config/versions</code> - 版本 CRUD</p>
+            
+            <h4 style="margin: 16px 0 8px; color: #5B6DF0;">⚙️ 远程配置</h4>
+            <p><code>GET</code> <code>/api/config</code> - 获取配置</p>
+            <p><code>POST</code> <code>/api/config</code> - 更新配置</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 配置弹窗 -->
+  <div class="modal" id="configModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="configModalTitle">新增配置</h3>
+        <button class="close-btn" onclick="closeModal('configModal')">&times;</button>
+      </div>
+      <div id="configForm">
+        <div class="form-row"><label>配置键</label><input type="text" id="configKey" placeholder="如: feature_xxx_enabled"></div>
+        <div class="form-row"><label>配置值</label><input type="text" id="configValue" placeholder="如: true/false"></div>
+        <div class="form-row"><label>描述</label><input type="text" id="configDesc" placeholder="配置说明"></div>
+        <div class="form-row"><label>平台</label>
+          <select id="configPlatform">
+            <option value="all">全部平台</option>
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%; padding:10px; margin-top:16px;" onclick="saveConfig()">保存</button>
+    </div>
+  </div>
+
+  <!-- 版本弹窗 -->
+  <div class="modal" id="versionModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>发布新版本</h3>
+        <button class="close-btn" onclick="closeModal('versionModal')">&times;</button>
+      </div>
+      <div class="form-row"><label>版本号</label><input type="text" id="verVersion" placeholder="如: 5.59.0"></div>
+      <div class="form-row"><label>平台</label>
+        <select id="verPlatform">
+          <option value="android">Android</option>
+          <option value="ios">iOS</option>
+        </select>
+      </div>
+      <div class="form-row"><label>强制更新</label>
+        <select id="verMandatory">
+          <option value="0">否</option>
+          <option value="1">是</option>
+        </select>
+      </div>
+      <div class="form-row"><label>下载链接</label><input type="text" id="verUrl" placeholder="APK/IPA 下载地址"></div>
+      <div class="form-row"><label>更新内容</label>
+        <textarea id="verContent" placeholder="每行一条更新内容"></textarea>
+      </div>
+      <div class="form-row"><label>发布说明</label>
+        <textarea id="verNotes" placeholder="详细发布说明"></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%; padding:10px; margin-top:16px;" onclick="saveVersion()">发布</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let authToken = localStorage.getItem('admin_token') || '';
+
+    // ========== 登录 ==========
+    async function login() {
+      const pwd = document.getElementById('adminPassword').value;
+      const errorMsg = document.getElementById('loginError');
+      
+      if (!pwd) { errorMsg.textContent = '请输入密码'; return; }
+      
+      try {
+        const res = await fetch(API_BASE + '/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          authToken = data.token;
+          localStorage.setItem('admin_token', authToken);
+          document.getElementById('loginPage').style.display = 'none';
+          document.getElementById('mainApp').classList.add('active');
+          loadDashboard();
+        } else {
+          errorMsg.textContent = data.error || '密码错误';
+        }
+      } catch (e) {
+        errorMsg.textContent = '无法连接服务器';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('admin_token');
+      location.reload();
+    }
+
+    // ========== API 调用 ==========
+    async function apiCall(endpoint, options = {}) {
+      const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken };
+      try {
+        const res = await fetch(API_BASE + endpoint, { ...options, headers });
+        const data = await res.json();
+        if (res.status === 401) {
+          logout();
+          return null;
+        }
+        return { ok: res.ok, data };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    }
+
+    // ========== 导航 ==========
+    function switchTab(tab) {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+      document.getElementById('tab-' + tab).style.display = 'block';
+      
+      const titles = { dashboard: '数据概览', feedback: '反馈管理', config: '远程配置', version: '版本管理', api: 'API 文档' };
+      document.getElementById('pageTitle').textContent = titles[tab];
+      
+      if (tab === 'dashboard') loadDashboard();
+      if (tab === 'feedback') loadFeedbackList();
+      if (tab === 'config') loadConfigList();
+      if (tab === 'version') loadVersionList();
+    }
+
+    // ========== 数据概览 ==========
+    async function loadDashboard() {
+      const statsGrid = document.getElementById('statsGrid');
+      statsGrid.innerHTML = '<div class="loading" style="grid-column:1/-1;"></div>';
+      
+      const res = await apiCall('/api/analytics/stats/overview');
+      if (!res.ok) {
+        statsGrid.innerHTML = '<div class="empty-state">数据加载失败</div>';
+        return;
+      }
+      
+      const d = res.data.data || {};
+      const today = new Date().toISOString().slice(0, 10);
+      const todayDAU = (d.dau || []).find(x => x.date === today)?.users || 0;
+      const totalActions = (d.actionStats || []).reduce((s, x) => s + x.count, 0);
+      const totalUsers = (d.dau || []).reduce((s, x) => s + x.users, 0);
+      
+      statsGrid.innerHTML = `
+        <div class="stat-card"><div class="label">今日活跃用户</div><div class="value">${todayDAU}</div><div class="trend">${totalUsers > 0 ? '近7天总计 ' + totalUsers + ' 次' : ''}</div></div>
+        <div class="stat-card"><div class="label">功能使用次数</div><div class="value">${totalActions}</div><div class="trend">近7天总计</div></div>
+        <div class="stat-card"><div class="label">功能种类</div><div class="value">${(d.actionStats || []).length}</div><div class="trend">被使用的功能数</div></div>
+        <div class="stat-card"><div class="label">新增用户</div><div class="value">${(d.newUsers || []).reduce((s, x) => s + x.count, 0)}</div><div class="trend">近7天</div></div>
+      `;
+      
+      // 最近反馈
+      const fbRes = await apiCall('/api/feedback/admin/list?limit=5');
+      const recent = document.getElementById('recentFeedback');
+      if (fbRes.ok && fbRes.data.data?.length) {
+        recent.innerHTML = fbRes.data.data.map(f => `
+          <div style="padding:12px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+            <div>
+              <span class="badge badge-${f.type === 'complaint' ? 'orange' : f.type === 'bug' ? 'blue' : 'green'}">${f.type || 'feedback'}</span>
+              <span style="margin-left:8px;">${f.title || f.content?.substring(0, 30)}</span>
+            </div>
+            <span style="color:#999; font-size:12px;">${new Date(f.created_at).toLocaleDateString('zh-CN')}</span>
+          </div>
+        `).join('');
+      } else {
+        recent.innerHTML = '<div class="empty-state">暂无反馈</div>';
+      }
+    }
+
+    // ========== 反馈管理 ==========
+    async function loadFeedbackList() {
+      const status = document.getElementById('filterStatus').value;
+      const type = document.getElementById('filterType').value;
+      let url = '/api/feedback/admin/list?limit=100';
+      if (status) url += '&status=' + status;
+      if (type) url += '&type=' + type;
+      
+      // 统计
+      const statsRes = await apiCall('/api/feedback/admin/stats');
+      if (statsRes.ok && statsRes.data.data) {
+        document.getElementById('totalCount').textContent = statsRes.data.data.total || 0;
+        document.getElementById('pendingCount').textContent = statsRes.data.data.pending || 0;
+        const resolved = (statsRes.data.data.byStatus || []).find(s => s.status === 'resolved');
+        document.getElementById('resolvedCount').textContent = resolved?.cnt || 0;
+      }
+      
+      const res = await apiCall(url);
+      const tbody = document.getElementById('feedbackList');
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">加载失败</td></tr>'; return; }
+      if (!res.data.data?.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">暂无反馈</td></tr>'; return; }
+      
+      tbody.innerHTML = res.data.data.map(f => `
+        <tr>
+          <td>${f.id}</td>
+          <td><span class="badge badge-${f.type === 'complaint' ? 'orange' : f.type === 'bug' ? 'blue' : 'green'}">${f.type}</span></td>
+          <td>${(f.title || '-').substring(0, 30)}</td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.content?.substring(0, 50)}</td>
+          <td><span class="status status-${f.status}">${f.status}</span></td>
+          <td style="font-size:12px; color:#888;">${f.app_version || '-'}<br>${JSON.parse(f.device_info || '{}').platform || '-'}</td>
+          <td style="font-size:12px; color:#888;">${new Date(f.created_at).toLocaleString('zh-CN')}</td>
+          <td>
+            ${f.status !== 'resolved' ? `<button class="btn btn-sm btn-success" onclick="replyFeedback(${f.id})">回复</button>` : '<span style="color:#52c41a;">✓</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function replyFeedback(id) {
+      const reply = prompt('请输入回复内容:');
+      if (!reply) return;
+      const res = await apiCall('/api/feedback/admin/reply/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({ reply })
+      });
+      if (res.ok) { alert('回复成功'); loadFeedbackList(); }
+      else alert('回复失败: ' + (res.data?.error || ''));
+    }
+
+    // ========== 远程配置 ==========
+    async function loadConfigList() {
+      const res = await apiCall('/api/config');
+      const tbody = document.getElementById('configList');
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">加载失败</td></tr>'; return; }
+      
+      const configs = res.data.data || {};
+      const entries = Object.entries(configs);
+      if (!entries.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">暂无配置</td></tr>'; return; }
+      
+      tbody.innerHTML = entries.map(([key, val]) => `
+        <tr>
+          <td><code>${key}</code></td>
+          <td><input type="text" value="${val}" onchange="updateConfig('${key}', this.value)" style="width:100px; padding:4px 8px; border:1px solid #ddd; border-radius:4px;"></td>
+          <td style="max-width:150px; color:#888;">-</td>
+          <td>all</td>
+          <td style="font-size:12px; color:#888;">-</td>
+          <td>
+            ${key.startsWith('feature_') ? '<span class="badge badge-green">功能开关</span>' : ''}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function updateConfig(key, value) {
+      const res = await apiCall('/api/config', {
+        method: 'POST',
+        body: JSON.stringify({ key, value, description: '' })
+      });
+      if (res.ok) { alert('更新成功'); }
+      else alert('更新失败');
+    }
+
+    function showConfigModal() {
+      document.getElementById('configForm').style.display = 'block';
+      document.getElementById('configModalTitle').textContent = '新增配置';
+      ['configKey', 'configValue', 'configDesc'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('configModal').classList.add('active');
+    }
+
+    async function saveConfig() {
+      const key = document.getElementById('configKey').value;
+      const value = document.getElementById('configValue').value;
+      const desc = document.getElementById('configDesc').value;
+      const platform = document.getElementById('configPlatform').value;
+      
+      if (!key) { alert('请输入配置键'); return; }
+      
+      const res = await apiCall('/api/config', {
+        method: 'POST',
+        body: JSON.stringify({ key, value, description: desc, platform })
+      });
+      if (res.ok) { closeModal('configModal'); loadConfigList(); alert('保存成功'); }
+      else alert('保存失败');
+    }
+
+    // ========== 版本管理 ==========
+    async function loadVersionList() {
+      const res = await apiCall('/api/config/versions');
+      const tbody = document.getElementById('versionList');
+      if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">加载失败</td></tr>'; return; }
+      if (!res.data.data?.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">暂无版本</td></tr>'; return; }
+      
+      tbody.innerHTML = res.data.data.map(v => `
+        <tr>
+          <td><strong>${v.version}</strong></td>
+          <td>${v.platform}</td>
+          <td>${v.is_mandatory ? '<span class="badge badge-orange">是</span>' : '否'}</td>
+          <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${v.download_url || '-'}</td>
+          <td><span class="status status-${v.status}">${v.status}</span></td>
+          <td style="font-size:12px; color:#888;">${new Date(v.created_at).toLocaleDateString('zh-CN')}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteVersion(${v.id})">删除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function showVersionModal() {
+      ['verVersion', 'verUrl', 'verNotes'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('verContent').value = '';
+      document.getElementById('verMandatory').value = '0';
+      document.getElementById('verPlatform').value = 'android';
+      document.getElementById('versionModal').classList.add('active');
+    }
+
+    async function saveVersion() {
+      const version = document.getElementById('verVersion').value;
+      const platform = document.getElementById('verPlatform').value;
+      const mandatory = parseInt(document.getElementById('verMandatory').value);
+      const url = document.getElementById('verUrl').value;
+      const content = document.getElementById('verContent').value.split('\\n').filter(Boolean);
+      const notes = document.getElementById('verNotes').value;
+      
+      if (!version) { alert('请输入版本号'); return; }
+      
+      const res = await apiCall('/api/config/versions', {
+        method: 'POST',
+        body: JSON.stringify({ version, platform, isMandatory: mandatory, downloadUrl: url, content, releaseNotes: notes })
+      });
+      if (res.ok) { closeModal('versionModal'); loadVersionList(); alert('发布成功'); }
+      else alert('发布失败: ' + (res.data?.error || ''));
+    }
+
+    async function deleteVersion(id) {
+      if (!confirm('确定删除此版本?')) return;
+      const res = await apiCall('/api/config/versions/' + id, { method: 'DELETE' });
+      if (res.ok) { loadVersionList(); alert('删除成功'); }
+      else alert('删除失败');
+    }
+
+    // ========== 通用 ==========
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // 初始化
+    window.addEventListener('load', () => {
+      if (authToken) {
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('mainApp').classList.add('active');
+        loadDashboard();
+      }
+      
+      // 支持 Enter 键登录
+      document.getElementById('adminPassword').addEventListener('keypress', e => {
+        if (e.key === 'Enter') login();
+      });
+    });
+  </script>
+</body>
+</html>
