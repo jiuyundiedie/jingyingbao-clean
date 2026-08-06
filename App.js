@@ -25,6 +25,11 @@ import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BACKEND_URL, API, apiUrl, apiFetch, getMode } from './config';
+
+// ===== 后端模式检测 =====
+// 当 BACKEND_URL 配置后自动走后端代理，否则走本地 mock
+const USE_BACKEND = !!BACKEND_URL;
 
 // ===== 工具函数 =====
 let toastHideTimer = null;
@@ -119,9 +124,8 @@ const SHADOW = {
   elevation: 6,
 };
 
-// ===== AI视觉模型配置（直接硬编码，不依赖process.env）=====
-// 所有密钥直接写入代码，确保APK构建后100%可用
-// 1. 阿里云百炼
+// ===== AI视觉模型配置 =====
+// 密钥已迁移到后端 config.js, 后端不可用时可使用以下备用密钥
 const ALIBABA_API_KEY = "";
 const ALIBABA_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
@@ -140,6 +144,74 @@ const ZHIPU_MODEL = "glm-4-flash";
 // 5. 百度AI
 const BAIDU_API_KEY = "2X4R2K4qq9u3K9769BOjDXtq";
 const BAIDU_SECRET_KEY = "oHTvqHAZvXUyAMBTrF8n93GnoE41lqri";
+
+// ===== 后端代理 AI 调用（优先走后端，降级直连）=====
+async function aiChatViaBackend(messages, provider = 'zhipu', systemPrompt) {
+  if (!USE_BACKEND) return null; // 未配置后端时跳过
+  try {
+    const res = await apiFetch(API.aiChat, {
+      method: 'POST',
+      body: JSON.stringify({ messages, provider, system_prompt: systemPrompt }),
+    });
+    if (res.ok && res.data?.success) {
+      return res.data.content;
+    }
+    return null;
+  } catch (e) {
+    console.log('[AI Backend] 降级到本地模式:', e.message);
+    return null;
+  }
+}
+
+async function aiImageViaBackend(prompt, provider = 'siliconflow_img', size = '1024x1024') {
+  if (!USE_BACKEND) return null;
+  try {
+    const res = await apiFetch(API.aiImage, {
+      method: 'POST',
+      body: JSON.stringify({ prompt, provider, size }),
+    });
+    if (res.ok && res.data?.success) {
+      return res.data.imageUrl;
+    }
+    return null;
+  } catch (e) {
+    console.log('[AI Backend] 图片生成降级到本地模式:', e.message);
+    return null;
+  }
+}
+
+// ===== 后端验证码 =====
+async function sendSmsViaBackend(phone, purpose = 'login') {
+  if (!USE_BACKEND) return null;
+  try {
+    const res = await apiFetch(API.sendSms, {
+      method: 'POST',
+      body: JSON.stringify({ phone, purpose }),
+    });
+    if (res.ok && res.data?.success) {
+      return res.data.message;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function loginViaBackend(phone, code, role, shopName, employeeName) {
+  if (!USE_BACKEND) return null;
+  try {
+    const res = await apiFetch(API.login, {
+      method: 'POST',
+      body: JSON.stringify({ phone, code, role, shopName, employeeName }),
+    });
+    if (res.ok && res.data?.success) {
+      return { token: res.data.token, user: res.data.user };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
 
 // ===== 日期工具 =====
 const getTodayStr = () => {
@@ -195,8 +267,19 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
 async function fetchZhipuChat(msgList, prompt, signal) {
   // 检查是否已取消
   if (signal && signal.aborted) return '已取消';
+
+  // 优先走后端代理（部署后自动切换）
+  if (USE_BACKEND) {
+    console.log('[AI] 尝试后端代理模式...');
+    const backendResult = await aiChatViaBackend(msgList, 'zhipu', prompt);
+    if (backendResult && backendResult !== '已取消') {
+      console.log('[AI] 后端代理成功');
+      return backendResult;
+    }
+    console.log('[AI] 后端代理不可用，降级到本地模式');
+  }
   
-  // 验证API密钥
+  // 验证API密钥（本地模式）
   if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) {
     console.error('[AI] ZHIPU_API_KEY 未配置! length:', ZHIPU_API_KEY?.length || 0);
     return '抱歉，AI服务密钥未配置，请检查后重试';
@@ -1776,6 +1859,7 @@ const LoginScreen = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPrivacyAuth, setShowPrivacyAuth] = useState(false);
   const [policyView, setPolicyView] = useState('home'); // 'home' | 'privacy' | 'agreement'
+  const [codeCountdown, setCodeCountdown] = useState(0);
   const previousAccounts = state.previousAccounts || [];
   const [showCodeLogin, setShowCodeLogin] = useState(previousAccounts.length === 0); // default expanded if no history
 
@@ -1839,6 +1923,18 @@ const LoginScreen = () => {
         return;
       }
       console.log('[Login] Validation passed');
+
+      // 优先走后端登录（部署后自动切换）
+      if (USE_BACKEND) {
+        console.log('[Login] 尝试后端登录...');
+        const backendResult = await loginViaBackend(phone, code, role, shopName, employeeName);
+        if (backendResult) {
+          console.log('[Login] 后端登录成功');
+          await AsyncStorage.setItem('auth_token', backendResult.token);
+        } else {
+          console.log('[Login] 后端不可用，降级到本地模式');
+        }
+      }
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       
@@ -2025,6 +2121,33 @@ const LoginScreen = () => {
     return num.slice(0, 3) + '****' + num.slice(7);
   };
 
+  const handleGetCode = async () => {
+    if (codeCountdown > 0) return;
+    if (!phone || phone.length !== 11) {
+      showToast('请输入11位手机号');
+      return;
+    }
+    // 优先走后端发送验证码
+    if (USE_BACKEND) {
+      const result = await sendSmsViaBackend(phone, 'login');
+      if (result) {
+        showToast(result); // 后端会返回 "验证码已发送: xxxxxx"
+      } else {
+        showToast('验证码已发送（开发模式: 123456）');
+      }
+    } else {
+      showToast('验证码已发送（开发模式: 123456）');
+    }
+    // 60秒倒计时
+    setCodeCountdown(60);
+    const timer = setInterval(() => {
+      setCodeCountdown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handlePrivacyAgree = async () => {
     try {
       await AsyncStorage.setItem('privacy_agreed_ever', 'true');
@@ -2190,7 +2313,7 @@ const LoginScreen = () => {
             <Text style={[styles.label, { marginBottom: 6 }]}>验证码</Text>
             <View style={[styles.codeRow, { marginBottom: 12 }]}>
               <TextInput style={[styles.formInput, styles.codeInput]} placeholder="验证码 (123456)" keyboardType="numeric" value={code} onChangeText={setCode} />
-              <TouchableOpacity style={styles.getCodeBtn}><Text style={styles.getCodeText}>获取验证码</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.getCodeBtn} onPress={handleGetCode} disabled={codeCountdown > 0}><Text style={styles.getCodeText}>{codeCountdown > 0 ? codeCountdown + 's 后重发' : '获取验证码'}</Text></TouchableOpacity>
             </View>
 
             <Text style={[styles.label, { marginBottom: 6 }]}>店铺名称</Text>
