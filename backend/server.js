@@ -107,6 +107,15 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/config', configRoutes);
 
 // ========== 管理后台静态页面 ==========
+// /admin 重定向到 /admin/admin.html
+app.get('/admin', (req, res) => {
+  res.redirect('/admin/admin.html');
+});
+app.get('/admin/', (req, res) => {
+  res.redirect('/admin/admin.html');
+});
+
+// 静态文件服务
 app.use('/admin', express.static(path.join(__dirname, 'public')));
 
 // 根路径重定向到管理后台
