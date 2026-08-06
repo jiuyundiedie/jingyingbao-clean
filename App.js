@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1775,8 +1775,8 @@ const LoginScreen = () => {
   const [initialized, setInitialized] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPrivacyAuth, setShowPrivacyAuth] = useState(false);
-  const [showCodeLogin, setShowCodeLogin] = useState(previousAccounts.length === 0); // default expanded if no history
   const previousAccounts = state.previousAccounts || [];
+  const [showCodeLogin, setShowCodeLogin] = useState(previousAccounts.length === 0); // default expanded if no history
 
   // 首次进入检查是否接受过隐私政策，未接受则弹出安居客样式授权弹窗
   useEffect(() => {
