@@ -1775,6 +1775,7 @@ const LoginScreen = () => {
   const [initialized, setInitialized] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPrivacyAuth, setShowPrivacyAuth] = useState(false);
+  const [policyView, setPolicyView] = useState('home'); // 'home' | 'privacy' | 'agreement'
   const previousAccounts = state.previousAccounts || [];
   const [showCodeLogin, setShowCodeLogin] = useState(previousAccounts.length === 0); // default expanded if no history
 
@@ -2028,6 +2029,7 @@ const LoginScreen = () => {
     try {
       await AsyncStorage.setItem('privacy_agreed_ever', 'true');
     } catch (e) {}
+    setPolicyView('home');
     setShowPrivacyAuth(false);
   };
 
@@ -2255,69 +2257,223 @@ const LoginScreen = () => {
         visible={showPrivacyAuth}
         transparent
         animationType="fade"
+        onRequestClose={() => { if (policyView !== 'home') setPolicyView('home'); }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
           <View style={{
             width: '100%',
-            maxWidth: 340,
             backgroundColor: '#FFFFFF',
-            borderRadius: 16,
-            padding: 24,
+            borderRadius: 20,
+            overflow: 'hidden',
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 16,
-            elevation: 10,
+            shadowOpacity: 0.18,
+            shadowRadius: 20,
+            elevation: 12,
           }}>
-            <Text style={{
-              fontSize: 18,
-              fontWeight: '700',
-              color: TEXT_MAIN,
-              textAlign: 'center',
-              marginBottom: 14,
-            }}>隐私政策授权提示</Text>
-
-            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22, marginBottom: 8 }}>
-              欢迎下载并使用经营宝APP！
-            </Text>
-
-            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
-              为保障您的个人信息及合法权益，请在使用前认真阅读
-              <Text style={{ color: PRIMARY_COLOR, fontWeight: '600' }} onPress={() => navigation.navigate('UserAgreement')}>《经营宝用户服务协议》</Text>
-              与
-              <Text style={{ color: PRIMARY_COLOR, fontWeight: '600' }} onPress={() => navigation.navigate('PrivacyPolicy')}>《经营宝隐私政策》</Text>
-              。我们将严格按照协议为您提供安全、可靠的服务。
-            </Text>
-
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20, marginBottom: 18, backgroundColor: '#F5F7FA', padding: 10, borderRadius: 8 }}>
-              【重点提示】
-              {'\n'}1、我们仅会在必要场景下申请相关权限（如存储、相机、相册等）；
-              {'\n'}2、未经您同意，我们不会向任意第三方共享您的个人信息；
-              {'\n'}3、您可以在"我的 - 设置"中随时查询、更正或删除您的个人信息。
-            </Text>
-
-            <View style={{ flexDirection: 'column', gap: 10 }}>
-              <TouchableOpacity
-                onPress={handlePrivacyAgree}
-                style={{
-                  backgroundColor: '#00B578',
-                  borderRadius: 24,
-                  paddingVertical: 13,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>同意并继续</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePrivacyDisagree}
-                style={{
-                  paddingVertical: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: TEXT_THIRD, fontSize: 14 }}>不同意</Text>
-              </TouchableOpacity>
+            {/* 弹窗头部 */}
+            <View style={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 12, alignItems: 'center' }}>
+              {policyView !== 'home' ? (
+                <TouchableOpacity style={{ position: 'absolute', left: 16, top: 18, padding: 6 }} onPress={() => setPolicyView('home')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="arrow-back" size={22} color={TEXT_MAIN} />
+                </TouchableOpacity>
+              ) : null}
+              <Text style={{ fontSize: 19, fontWeight: '700', color: TEXT_MAIN }}>
+                {policyView === 'privacy' ? '经营宝隐私政策' : policyView === 'agreement' ? '经营宝用户服务协议' : '隐私政策授权提示'}
+              </Text>
+              {policyView !== 'home' && (
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>更新日期：2026年7月31日</Text>
+              )}
             </View>
+
+            {/* 内容区域 - 可滚动 */}
+            <ScrollView
+              style={{ maxHeight: 320, paddingHorizontal: 24 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {policyView === 'home' ? (
+                // ========== 首页内容 ==========
+                <View>
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN, lineHeight: 24, marginBottom: 12, textAlign: 'center' }}>
+                    欢迎下载并使用经营宝APP！
+                  </Text>
+
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 14 }}>
+                    为保障您的个人信息及合法权益，请在使用前认真阅读
+                  </Text>
+
+                  {/* 可点击的协议链接 */}
+                  <TouchableOpacity onPress={() => setPolicyView('agreement')} style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 15 }}>《经营宝用户服务协议》</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setPolicyView('privacy')} style={{ paddingVertical: 8 }}>
+                    <Text style={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 15 }}>《经营宝隐私政策》</Text>
+                  </TouchableOpacity>
+
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginTop: 8, marginBottom: 12 }}>
+                    我们将严格按照协议为您提供安全、可靠的服务。
+                  </Text>
+
+                  <View style={{ backgroundColor: '#F5F7FA', padding: 14, borderRadius: 10, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 13, color: TEXT_MAIN, fontWeight: '600', marginBottom: 6 }}>【重点提示】</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, lineHeight: 20 }}>
+                      {'\n'}1、我们仅会在必要场景下申请相关权限（如存储、相机、相册等）；
+                      {'\n'}2、未经您同意，我们不会向任意第三方共享您的个人信息；
+                      {'\n'}3、您可以在"我的 - 设置"中随时查询、更正或删除您的个人信息。
+                    </Text>
+                  </View>
+                </View>
+              ) : policyView === 'privacy' ? (
+                // ========== 隐私政策全文 ==========
+                <View>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    一、信息收集
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    我们仅收集您主动提供的信息，包括：手机号、店铺名称、商品信息等。应用运行所需的必要权限（相机、存储、通知）将在使用时向您申请。我们不收集您的个人敏感信息，不进行用户行为追踪。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    二、数据存储
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    您的所有经营数据存储在本地设备，不会上传至任何服务器。AI对话功能的历史记录仅保存在本地。建议您定期导出数据并妥善备份。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    三、AI服务隐私
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    AI助手对话需通过网络API调用，对话内容将发送至第三方AI服务。发送至AI服务的内容不包含您的账号密码等敏感信息。拍照识别功能的图片会发送至图像识别服务进行处理。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    四、权限使用说明
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    · 相机权限：用于拍照识别商品数量、出入库拍照
+                    {'\n'}· 存储权限：用于保存图片、导出数据
+                    {'\n'}· 通知权限：用于发送订单、库存提醒
+                    {'\n'}· 相册权限：用于选择商品图片、客户头像
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    五、信息共享
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    我们不会向任何第三方共享您的个人信息，除非：获得您的明确同意；法律法规要求；为维护您或他人的合法权益。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    六、您的权利
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    您有权随时查询、更正、删除您的个人信息。您可以在"我的 - 设置"中执行相关操作。如您对个人信息处理有任何疑问，可通过应用内反馈功能联系我们。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 8, fontWeight: '600' }}>
+                    七、政策更新
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 20 }}>
+                    本政策可能会更新，更新后会在应用内通知您。继续使用应用即视为同意更新后的政策。
+                  </Text>
+                </View>
+              ) : (
+                // ========== 用户服务协议全文 ==========
+                <View>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    一、服务内容
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    经营宝为个体工商户和中小企业提供店铺经营管理工具，包括但不限于：库存管理、订单核销、客户管理、AI经营助手等功能。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    二、账号使用
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    1. 您需提供真实的店铺信息完成注册
+                    {'\n'}2. 您应妥善保管账号密码，因您自身原因导致的损失由您自行承担
+                    {'\n'}3. 员工账号权限由店主分配，店主对员工使用行为负责
+                    {'\n'}4. 禁止将账号转借、出租、出售给任何第三方使用
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    三、用户行为规范
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    您承诺不利用本应用从事违法违规活动，包括但不限于：
+                    {'\n'}· 伪造、变造经营数据
+                    {'\n'}· 利用AI功能生成违法违规内容
+                    {'\n'}· 攻击、干扰应用正常运行
+                    {'\n'}· 侵犯他人合法权益
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    四、服务变更与终止
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    我们有权根据产品发展需要调整或终止部分服务，会提前通过应用内通知告知您。因不可抗力导致服务中断的，我们不承担责任。
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 16, fontWeight: '600' }}>
+                    五、免责声明
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 16 }}>
+                    1. AI生成内容仅供参考，不构成任何经营建议或承诺
+                    {'\n'}2. 因网络故障、设备损坏等原因造成的数据丢失，我们不承担责任
+                    {'\n'}3. 您理解并同意，本应用提供的是经营管理工具，不对您的经营结果作出保证
+                  </Text>
+
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 24, marginBottom: 8, fontWeight: '600' }}>
+                    六、协议修改
+                  </Text>
+                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 20 }}>
+                    本协议可能会不定期更新，更新后将在应用内通知您。继续使用本应用即视为同意修改后的协议。
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* 弹窗底部按钮区 */}
+            {policyView === 'home' ? (
+              <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                <TouchableOpacity
+                  onPress={handlePrivacyAgree}
+                  style={{
+                    backgroundColor: '#00B578',
+                    borderRadius: 26,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                    marginBottom: 10,
+                  }}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>同意并继续</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handlePrivacyDisagree}
+                  style={{ paddingVertical: 8, alignItems: 'center' }}
+                >
+                  <Text style={{ color: TEXT_THIRD, fontSize: 14 }}>不同意</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+                <TouchableOpacity
+                  onPress={() => setPolicyView('home')}
+                  style={{
+                    backgroundColor: '#F5F7FA',
+                    borderRadius: 26,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: TEXT_MAIN, fontSize: 16, fontWeight: '600' }}>返回</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -8883,34 +9039,17 @@ const HomePage = () => {
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
-  const [showAgreement, setShowAgreement] = useState(false);
 
-  // 登录后先弹出协议弹窗，关闭后再弹出使用帮助
+  // 登录后弹出使用帮助（首次登录时）
   useEffect(() => {
     const checkOnLogin = async () => {
-      const agreementShown = await AsyncStorage.getItem('agreement_shown');
-      if (!agreementShown) {
-        setShowAgreement(true);
-      } else {
-        const helpShown = await AsyncStorage.getItem('help_guide_shown');
-        if (!helpShown) {
-          setShowHelpGuide(true);
-        }
+      const helpShown = await AsyncStorage.getItem('help_guide_shown');
+      if (!helpShown) {
+        setShowHelpGuide(true);
       }
     };
     checkOnLogin();
   }, []);
-
-  // 协议弹窗关闭后，弹出使用帮助
-  const handleAgreementClose = async () => {
-    setShowAgreement(false);
-    await AsyncStorage.setItem('agreement_shown', 'true');
-    const helpShown = await AsyncStorage.getItem('help_guide_shown');
-    if (!helpShown) {
-      setShowHelpGuide(true);
-      await AsyncStorage.setItem('help_guide_shown', 'true');
-    }
-  };
 
   if (!user) {
     return (
@@ -9144,7 +9283,6 @@ const HomePage = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
-      <AgreementModal visible={showAgreement} onClose={handleAgreementClose} />
       <HelpGuideCarousel visible={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
       <CommonHeader 
         title="经营宝" 
