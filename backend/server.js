@@ -11,6 +11,9 @@ const aiRoutes = require('./routes/ai');
 const dataRoutes = require('./routes/data');
 const membershipRoutes = require('./routes/membership');
 const couponsRoutes = require('./routes/coupons');
+const analyticsRoutes = require('./routes/analytics');
+const feedbackRoutes = require('./routes/feedback');
+const configRoutes = require('./routes/config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +44,9 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/coupons', couponsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/config', configRoutes);
 
 // ========== 全局错误处理 ==========
 app.use((err, req, res, next) => {

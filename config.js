@@ -59,6 +59,15 @@ export const API = {
   couponsMy: '/api/coupons/my/user-coupons',
   couponsRedeem: '/api/coupons/redeem',
   couponsStats: '/api/coupons/stats',
+  // 分析与反馈
+  analyticsTrack: '/api/analytics/track',
+  analyticsTrackBatch: '/api/analytics/track/batch',
+  analyticsCrash: '/api/analytics/crash',
+  feedback: '/api/feedback',
+  feedbackMy: '/api/feedback/my',
+  // 版本与配置
+  versionCheck: '/api/config/check',
+  remoteConfig: '/api/config',
 };
 
 // ========== 辅助函数 ==========
@@ -102,4 +111,18 @@ export async function apiFetch(endpoint, options = {}, token = '') {
 // 当前模式判断
 export function getMode() {
   return BACKEND_URL ? 'backend' : 'mock';
+}
+
+// ========== 设备信息采集 ==========
+export function getDeviceInfo() {
+  try {
+    const { Platform, Version, Dimensions } = require('react-native');
+    return {
+      platform: Platform.OS,
+      osVersion: Version,
+      screen: `${Dimensions.get('window').width}x${Dimensions.get('window').height}`,
+    };
+  } catch (e) {
+    return { platform: 'unknown' };
+  }
 }

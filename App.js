@@ -3076,7 +3076,8 @@ const SettingDrawer = ({ visible, onClose }) => {
                       <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
                       <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                     </TouchableOpacity>
-                    <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                    {/* 商家会员 - 暂时隐藏，上架后开启 */}
+                    {/* <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('MerchantMembership'), 300); }}>
                       <Ionicons name="crown-outline" size={22} color="#FF6B35" style={{ marginRight: 12 }} />
                       <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>商家会员</Text>
@@ -3084,7 +3085,7 @@ const SettingDrawer = ({ visible, onClose }) => {
                         <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>PRO</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} style={{ marginLeft: 6 }} />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                   </>
                 )}
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
@@ -3629,26 +3630,59 @@ const FeedbackScreen = ({ navigation }) => {
   const [feedbackType, setFeedbackType] = useState('功能建议');
   const [content, setContent] = useState('');
   const [contact, setContact] = useState('');
-  const types = ['功能建议', '问题反馈', '体验优化', '其他'];
+  const [submitting, setSubmitting] = useState(false);
+  const types = ['功能建议', '问题反馈', '体验优化', '投诉反馈', '其他'];
 
   const handleSubmit = async () => {
     if (!content.trim()) { showToast('请输入反馈内容'); return; }
+    if (submitting) return;
+    setSubmitting(true);
+    
+    try {
+      const { submitFeedback } = require('../utils/tracker');
+      const typeMap = { '功能建议': 'feedback', '问题反馈': 'bug', '体验优化': 'feedback', '投诉反馈': 'complaint', '其他': 'feedback' };
+      
+      const result = await submitFeedback({
+        type: typeMap[feedbackType] || 'feedback',
+        title: `${feedbackType} - ${content.substring(0, 30)}`,
+        content: content.trim() + (contact ? `\n联系方式: ${contact}` : ''),
+        token: state.token || '',
+      });
+      
+      if (result.success) {
+        showToast('反馈已提交，感谢您的支持！');
+        navigation.goBack();
+      } else {
+        // 后端失败时保存到本地
+        saveLocally(feedbackType, content, contact);
+        showToast('反馈已保存，网络恢复后会自动同步');
+        navigation.goBack();
+      }
+    } catch (e) {
+      // 离线模式保存到本地
+      saveLocally(feedbackType, content, contact);
+      showToast('反馈已保存');
+      navigation.goBack();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveLocally = async (type, content, contact) => {
     try {
       const feedback = {
         id: Date.now().toString(),
-        type: feedbackType,
+        type,
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.55.0',
+        version: '5.58.40',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
       existing.push(feedback);
       await AsyncStorage.setItem('user_feedbacks', JSON.stringify(existing));
-      showToast('反馈已提交，感谢您的支持！');
-      navigation.goBack();
-    } catch (e) { showToast('提交失败，请重试'); }
+    } catch (e) {}
   };
 
   return (
@@ -3688,19 +3722,58 @@ const FeedbackScreen = ({ navigation }) => {
           maxLength={50}
         />
 
-        <TouchableOpacity style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, padding: 16, alignItems: 'center' }} onPress={handleSubmit}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>提交反馈</Text>
+        <TouchableOpacity 
+          style={{ 
+            backgroundColor: submitting ? TEXT_THIRD : PRIMARY_COLOR, 
+            borderRadius: 12, 
+            padding: 16, 
+            alignItems: 'center' 
+          }} 
+          onPress={handleSubmit}
+          disabled={submitting}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+            {submitting ? '提交中...' : '提交反馈'}
+          </Text>
         </TouchableOpacity>
+        
+        <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'center', marginTop: 16, lineHeight: 18 }}>
+          您的反馈将帮助我们改进产品体验<br/>
+          我们会在1-3个工作日内处理您的反馈
+        </Text>
       </ScrollView>
     </View>
   );
 };
 
-// 版本更新检查
+// 版本更新检查 - 优先使用后端 API，GitHub 作为备用
 async function checkAppUpdate(showToastIfLatest = false) {
   try {
-    const currentVersion = '5.55.0';
-    // GitHub Releases API 检查最新版本
+    const currentVersion = '5.58.40';
+    
+    // 优先使用后端版本检查
+    try {
+      const { checkVersion } = require('../utils/version');
+      const result = await checkVersion(currentVersion);
+      if (result && result.hasUpdate) {
+        return {
+          hasUpdate: true,
+          version: result.version,
+          notes: result.releaseNotes || '',
+          url: result.downloadUrl || '',
+          isMandatory: result.isMandatory,
+          content: result.content,
+        };
+      }
+      if (result && !result.hasUpdate) {
+        if (showToastIfLatest) showToast('当前已是最新版本');
+        return { hasUpdate: false };
+      }
+    } catch (e) {
+      // 后端不可用时走 GitHub
+    }
+    
+    // GitHub Releases API 作为备用
     const res = await fetch('https://api.github.com/repos/jiuyundiedie/jingyingbao-clean/releases/latest');
     if (!res.ok) {
       if (showToastIfLatest) showToast('检查更新失败');
@@ -11828,6 +11901,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
 
@@ -11913,6 +11989,28 @@ export default function App() {
     loadData();
   }, []);
 
+  // 初始化远程配置和版本检查
+  useEffect(() => {
+    const initConfig = async () => {
+      try {
+        const { initAppConfig } = require('./utils/version');
+        const result = await initAppConfig();
+        
+        if (result.maintenance) {
+          setMaintenanceMode(true);
+        }
+        
+        if (result.version?.hasUpdate) {
+          setUpdateInfo(result.version);
+          setShowUpdateModal(true);
+        }
+      } catch (e) {
+        console.warn('配置初始化失败', e);
+      }
+    };
+    initConfig();
+  }, []);
+
   useEffect(() => {
     if (!loading) { saveAllData(state); }
   }, [state, loading]);
@@ -11992,6 +12090,91 @@ export default function App() {
           </AppContext.Provider>
         </GlobalErrorBoundary>
       </SafeAreaProvider>
+      
+      {/* 更新弹窗 */}
+      {showUpdateModal && updateInfo && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 20,
+            width: 300,
+            padding: 24,
+            alignItems: 'center',
+          }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8 }}>
+              {updateInfo.isMandatory ? '必须更新' : '发现新版本'}
+            </Text>
+            <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '600', marginBottom: 16 }}>
+              v{updateInfo.version}
+            </Text>
+            {updateInfo.content?.length > 0 && (
+              <View style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>更新内容：</Text>
+                {updateInfo.content.map((item, i) => (
+                  <Text key={i} style={{ fontSize: 13, color: TEXT_MAIN, lineHeight: 20 }}>
+                    • {item}
+                  </Text>
+                ))}
+              </View>
+            )}
+            <TouchableOpacity
+              style={{
+                backgroundColor: PRIMARY_COLOR,
+                paddingHorizontal: 32,
+                paddingVertical: 12,
+                borderRadius: 24,
+                marginTop: 8,
+              }}
+              onPress={() => {
+                if (updateInfo.downloadUrl) {
+                  Linking.openURL(updateInfo.downloadUrl).catch(() => {});
+                }
+                if (!updateInfo.isMandatory) {
+                  setShowUpdateModal(false);
+                }
+              }}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>
+                {updateInfo.isMandatory ? '立即更新' : '前往更新'}
+              </Text>
+            </TouchableOpacity>
+            {!updateInfo.isMandatory && (
+              <TouchableOpacity
+                style={{ marginTop: 12 }}
+                onPress={() => setShowUpdateModal(false)}>
+                <Text style={{ fontSize: 14, color: TEXT_THIRD }}>稍后再说</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+      
+      {/* 维护模式提示 */}
+      {maintenanceMode && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#FF6B35',
+          padding: 8,
+          alignItems: 'center',
+          zIndex: 9998,
+        }}>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>
+            系统维护中，部分功能暂不可用
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

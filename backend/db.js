@@ -231,6 +231,64 @@ CREATE INDEX IF NOT EXISTS idx_coupons_shop_id ON coupons(shop_id);
 CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(status);
 CREATE INDEX IF NOT EXISTS idx_user_coupons_user_id ON user_coupons(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_coupons_status ON user_coupons(status);
+
+-- ========== 分析与反馈系统 ==========
+CREATE TABLE IF NOT EXISTS user_behavior_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  shop_id INTEGER DEFAULT 0,
+  action TEXT NOT NULL,
+  page TEXT DEFAULT '',
+  detail TEXT DEFAULT '{}',
+  duration_ms INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS user_feedbacks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  shop_id INTEGER DEFAULT 0,
+  type TEXT DEFAULT 'feedback', -- feedback/complaint/crash
+  title TEXT DEFAULT '',
+  content TEXT NOT NULL,
+  device_info TEXT DEFAULT '{}',
+  app_version TEXT DEFAULT '',
+  status TEXT DEFAULT 'pending', -- pending/processing/resolved
+  reply TEXT DEFAULT '',
+  rating INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS app_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  version TEXT NOT NULL,
+  platform TEXT DEFAULT 'android', -- android/ios
+  is_mandatory INTEGER DEFAULT 0,
+  download_url TEXT DEFAULT '',
+  content TEXT DEFAULT '[]', -- 更新内容 JSON
+  min_version TEXT DEFAULT '',
+  status TEXT DEFAULT 'active',
+  release_notes TEXT DEFAULT '',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS remote_configs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  config_key TEXT UNIQUE NOT NULL,
+  config_value TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  platform TEXT DEFAULT 'all',
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_behavior_logs_user_id ON user_behavior_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_behavior_logs_action ON user_behavior_logs(action);
+CREATE INDEX IF NOT EXISTS idx_behavior_logs_created_at ON user_behavior_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON user_feedbacks(status);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_type ON user_feedbacks(type);
 `);
 
 module.exports = db;
