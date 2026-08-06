@@ -1036,8 +1036,8 @@ const calcDailyReport = (state) => {
     let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
     todayOrders.forEach(order => {
       switch(order.platform) {
-        case "外卖平台": meituanIncome += order.couponPrice || 0; break;
-        case "短视频平台": douyinIncome += order.couponPrice || 0; break;
+        case "美团": meituanIncome += order.couponPrice || 0; break;
+        case "抖音来客": douyinIncome += order.couponPrice || 0; break;
         case "大众点评": dianpingIncome += order.couponPrice || 0; break;
       }
     });
@@ -1774,7 +1774,24 @@ const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [showPrivacyAuth, setShowPrivacyAuth] = useState(false);
+  const [showCodeLogin, setShowCodeLogin] = useState(previousAccounts.length === 0); // default expanded if no history
   const previousAccounts = state.previousAccounts || [];
+
+  // 首次进入检查是否接受过隐私政策，未接受则弹出安居客样式授权弹窗
+  useEffect(() => {
+    const checkPrivacy = async () => {
+      try {
+        const agreed = await AsyncStorage.getItem('privacy_agreed_ever');
+        if (agreed !== 'true') {
+          setShowPrivacyAuth(true);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    checkPrivacy();
+  }, []);
 
   useEffect(() => {
     if (!initialized) {
@@ -2007,115 +2024,304 @@ const LoginScreen = () => {
     return num.slice(0, 3) + '****' + num.slice(7);
   };
 
-  return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }} style={{ backgroundColor: '#F5F7FA' }}>
-      <Text style={styles.loginTitle}>经营宝</Text>
-      <Text style={styles.loginSubtitle}>登录您的店铺账号</Text>
+  const handlePrivacyAgree = async () => {
+    try {
+      await AsyncStorage.setItem('privacy_agreed_ever', 'true');
+    } catch (e) {}
+    setShowPrivacyAuth(false);
+  };
 
-      {/* 快捷手机号一键登录 */}
-      {previousAccounts.length > 0 && (
-        <View style={{ marginBottom: 20 }}>
-          <TouchableOpacity
-            style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 30, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-            onPress={handleQuickLogin}
-            disabled={loading}
-          >
-            <Ionicons name="phone-portrait" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
-              {loading ? '登录中...' : `一键登录 ${maskedPhone(previousAccounts[0].phone)}`}
-            </Text>
+  const handlePrivacyDisagree = () => {
+    Alert.alert('提示', '需要同意隐私政策才能使用本应用', [
+      { text: '退出应用', onPress: () => { if (BackHandler) { BackHandler.exitApp(); } } },
+      { text: '重新考虑', style: 'cancel' }
+    ]);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20 }} style={{ backgroundColor: '#FFFFFF' }} keyboardShouldPersistTaps="handled">
+
+        {/* 顶部关闭按钮 */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginBottom: 20 }}>
+          <TouchableOpacity onPress={() => { BackHandler.exitApp(); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="close" size={28} color={TEXT_MAIN} />
           </TouchableOpacity>
-          <TouchableOpacity style={{ alignSelf: 'center', marginTop: 12 }} onPress={() => setShowHistory(!showHistory)}>
-            <Text style={{ fontSize: 14, color: TEXT_THIRD }}>切换账号 ›</Text>
-          </TouchableOpacity>
-          {showHistory && (
-            <View style={{ marginTop: 8, backgroundColor: BG_CARD, borderRadius: 12, padding: 8 }}>
-              {previousAccounts.map((account, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderBottomWidth: i < previousAccounts.length - 1 ? 1 : 0, borderBottomColor: BORDER_COLOR }}
-                  onPress={() => { handleHistorySelect(account); }}
-                >
-                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY_COLOR + '15', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: PRIMARY_COLOR }}>{(account.name || '老')[0]}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{account.shopName} · {account.name || '老板'}</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{maskedPhone(account.phone)} · {account.role}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+          <View style={{ width: 28 }} />
+        </View>
+
+        {/* LOGO 与 欢迎语 */}
+        <View style={{ alignItems: 'center', marginBottom: 32 }}>
+          <View style={{
+            width: 76,
+            height: 76,
+            borderRadius: 18,
+            backgroundColor: PRIMARY_COLOR,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 18,
+            shadowColor: PRIMARY_COLOR,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 8,
+            elevation: 4,
+          }}>
+            <Ionicons name="briefcase" size={40} color="#FFFFFF" />
+          </View>
+          <Text style={{ fontSize: 24, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 1 }}>欢迎来到经营宝</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 8 }}>让店铺经营更简单，更高效</Text>
+        </View>
+
+        {/* 一键登录卡片（有历史账号时展示） */}
+        {previousAccounts.length > 0 && !showCodeLogin && (
+          <View style={{ marginBottom: 16 }}>
+            <View style={{
+              backgroundColor: BG_CARD,
+              borderRadius: 18,
+              padding: 20,
+              borderWidth: 1,
+              borderColor: BORDER_COLOR,
+              marginBottom: 22,
+            }}>
+              <Text style={{ fontSize: 14, color: TEXT_SECOND, textAlign: 'center', marginBottom: 6 }}>本机已登录账号</Text>
+              <Text style={{
+                fontSize: 28,
+                fontWeight: '700',
+                color: TEXT_MAIN,
+                textAlign: 'center',
+                letterSpacing: 2,
+                paddingVertical: 10,
+              }}>{maskedPhone(previousAccounts[0].phone)}</Text>
+              <Text style={{ fontSize: 13, color: TEXT_THIRD, textAlign: 'center' }}>{previousAccounts[0].shopName} · {previousAccounts[0].name || '老板'}</Text>
+            </View>
+
+            {/* 勾选协议 + 一键登录按钮 */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, paddingHorizontal: 4 }}>
+              <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 6, marginTop: 2 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: agreeTerms ? '#00B578' : BORDER_COLOR, backgroundColor: agreeTerms ? '#00B578' : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  {agreeTerms && <Ionicons name="checkmark" size={12} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: TEXT_SECOND, lineHeight: 18, flex: 1 }}>
+                我已阅读并同意
+                <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}>《用户服务协议》</Text>
+                <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('PrivacyPolicy')}>《隐私政策》</Text>
+                及<Text style={{ color: TEXT_THIRD }}>《运营商认证服务条款》</Text>
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: agreeTerms ? '#00B578' : '#B7E4CC',
+                borderRadius: 26,
+                paddingVertical: 15,
+                alignItems: 'center',
+                marginBottom: 14,
+              }}
+              onPress={handleQuickLogin}
+              disabled={!agreeTerms || loading}
+            >
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+                {loading ? '登录中...' : '一键登录'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => { setShowCodeLogin(true); }}>
+                <Text style={{ fontSize: 14, color: PRIMARY_COLOR }}>手机验证码登录 ›</Text>
+              </TouchableOpacity>
+            </View>
+
+            {previousAccounts.length > 1 && (
+              <TouchableOpacity style={{ alignSelf: 'center', marginTop: 14 }} onPress={() => setShowHistory(!showHistory)}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>切换其他账号 ›</Text>
+              </TouchableOpacity>
+            )}
+
+            {showHistory && previousAccounts.length > 0 && (
+              <View style={{ marginTop: 10, backgroundColor: BG_CARD, borderRadius: 12, padding: 6, borderWidth: 1, borderColor: BORDER_COLOR }}>
+                {previousAccounts.map((account, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: i < previousAccounts.length - 1 ? 1 : 0, borderBottomColor: BORDER_COLOR }}
+                    onPress={() => { setAgreeTerms(true); handleHistorySelect(account); }}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: PRIMARY_COLOR + '18', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: PRIMARY_COLOR }}>{(account.name || '老')[0]}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: TEXT_MAIN }}>{account.shopName} · {account.name || '老板'}</Text>
+                      <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{maskedPhone(account.phone)} · {account.role}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={TEXT_THIRD} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* 手机验证码登录表单 */}
+        {(showCodeLogin || previousAccounts.length === 0) && (
+          <View style={{ marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT_MAIN }}>手机号登录</Text>
+              {previousAccounts.length > 0 && (
+                <TouchableOpacity onPress={() => { setShowCodeLogin(false); }}>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD }}>返回一键登录 ›</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <Text style={[styles.label, { marginBottom: 6 }]}>选择角色</Text>
+            <View style={styles.roleSelector}>
+              {['商家', '员工'].map(r => (
+                <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)}>
+                  <Text style={[styles.roleText, role === r && { color: '#fff' }]}>{r}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
-        </View>
-      )}
 
-      {/* 分隔线 */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
-        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginHorizontal: 12 }}>其他登录方式</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
-      </View>
+            <Text style={[styles.label, { marginTop: 14, marginBottom: 6 }]}>手机号</Text>
+            <TextInput style={[styles.formInput, { marginBottom: 12 }]} placeholder="请输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
 
-      <Text style={styles.label}>选择角色</Text>
-      <View style={styles.roleSelector}>
-        {['商家', '员工'].map(r => (
-          <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)}>
-            <Text style={[styles.roleText, role === r && { color: '#fff' }]}>{r}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <Text style={styles.label}>手机号</Text>
-      <TextInput style={[styles.formInput, { marginBottom: 12 }]} placeholder="请输入手机号" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-      <Text style={styles.label}>验证码</Text>
-      <View style={[styles.codeRow, { marginBottom: 16 }]}>
-        <TextInput style={[styles.formInput, styles.codeInput]} placeholder="验证码 (123456)" keyboardType="numeric" value={code} onChangeText={setCode} />
-        <TouchableOpacity style={styles.getCodeBtn}><Text style={styles.getCodeText}>获取验证码</Text></TouchableOpacity>
-      </View>
-      <Text style={styles.label}>店铺名称</Text>
-      <TextInput style={styles.formInput} placeholder="请输入店铺名称" value={shopName} onChangeText={setShopName} />
-      {role === '员工' && (
-        <>
-          <Text style={styles.label}>员工姓名</Text>
-          <TextInput style={styles.formInput} placeholder="请输入您的姓名" value={employeeName} onChangeText={setEmployeeName} />
-        </>
-      )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8, flexWrap: 'wrap' }}>
-        <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 8 }}>
-          <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
-            {agreeTerms && <Ionicons name="checkmark" size={14} color="#fff" />}
+            <Text style={[styles.label, { marginBottom: 6 }]}>验证码</Text>
+            <View style={[styles.codeRow, { marginBottom: 12 }]}>
+              <TextInput style={[styles.formInput, styles.codeInput]} placeholder="验证码 (123456)" keyboardType="numeric" value={code} onChangeText={setCode} />
+              <TouchableOpacity style={styles.getCodeBtn}><Text style={styles.getCodeText}>获取验证码</Text></TouchableOpacity>
+            </View>
+
+            <Text style={[styles.label, { marginBottom: 6 }]}>店铺名称</Text>
+            <TextInput style={styles.formInput} placeholder="请输入店铺名称（必填）" value={shopName} onChangeText={setShopName} />
+
+            {role === '员工' && (
+              <>
+                <Text style={[styles.label, { marginTop: 14, marginBottom: 6 }]}>员工姓名</Text>
+                <TextInput style={styles.formInput} placeholder="请输入您的姓名（必填）" value={employeeName} onChangeText={setEmployeeName} />
+              </>
+            )}
+
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18, marginBottom: 14 }}>
+              <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)} style={{ marginRight: 6, marginTop: 2 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: agreeTerms ? PRIMARY_COLOR : BORDER_COLOR, backgroundColor: agreeTerms ? PRIMARY_COLOR : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                  {agreeTerms && <Ionicons name="checkmark" size={12} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: TEXT_SECOND, lineHeight: 18, flex: 1 }}>
+                我已阅读并同意
+                <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('UserAgreement')}> 《用户协议》 </Text>
+                和
+                <Text style={{ color: PRIMARY_COLOR }} onPress={() => navigation.navigate('PrivacyPolicy')}> 《隐私政策》 </Text>
+              </Text>
+            </View>
+
+            <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
+              <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>我已阅读并同意</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('UserAgreement')}>
-          <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《用户协议》</Text>
-        </TouchableOpacity>
-        <Text style={{ fontSize: 13, color: TEXT_SECOND }}>和</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
-          <Text style={{ fontSize: 13, color: PRIMARY_COLOR }}>《隐私政策》</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={[styles.loginBtn, (!agreeTerms || loading) && { opacity: 0.5 }]} onPress={handleLogin} disabled={!agreeTerms || loading}>
-        <Text style={styles.loginBtnText}>{loading ? '登录中...' : '登录'}</Text>
-      </TouchableOpacity>
+        )}
 
-      {/* 第三方登录 */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 16 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
-        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginHorizontal: 12 }}>第三方登录</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-        <TouchableOpacity
-          style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#07C160', justifyContent: 'center', alignItems: 'center' }}
-          onPress={handleWeChatLogin}
-          disabled={loading}
-        >
-          <Ionicons name="logo-wechat" size={28} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        {/* 其他登录方式 / 第三方登录 */}
+        <View style={{ marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 22 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+            <Text style={{ fontSize: 13, color: TEXT_THIRD, marginHorizontal: 12 }}>其他登录方式</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: BORDER_COLOR }} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24 }}>
+            <TouchableOpacity
+              style={{
+                width: 56, height: 56, borderRadius: 28,
+                backgroundColor: '#07C160',
+                justifyContent: 'center', alignItems: 'center',
+                shadowColor: '#07C160',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.22,
+                shadowRadius: 5,
+                elevation: 3,
+              }}
+              onPress={handleWeChatLogin}
+              disabled={loading}
+            >
+              <Ionicons name="logo-wechat" size={30} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'center', marginTop: 12 }}>微信授权快捷登录</Text>
+        </View>
+      </ScrollView>
+
+      {/* 首次启动 - 安居客样式隐私政策授权弹窗 */}
+      <Modal
+        visible={showPrivacyAuth}
+        transparent
+        animationType="fade"
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+          <View style={{
+            width: '100%',
+            maxWidth: 340,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 16,
+            padding: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 16,
+            elevation: 10,
+          }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: '700',
+              color: TEXT_MAIN,
+              textAlign: 'center',
+              marginBottom: 14,
+            }}>隐私政策授权提示</Text>
+
+            <Text style={{ fontSize: 14, color: TEXT_MAIN, lineHeight: 22, marginBottom: 8 }}>
+              欢迎下载并使用经营宝APP！
+            </Text>
+
+            <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22, marginBottom: 10 }}>
+              为保障您的个人信息及合法权益，请在使用前认真阅读
+              <Text style={{ color: PRIMARY_COLOR, fontWeight: '600' }} onPress={() => navigation.navigate('UserAgreement')}>《经营宝用户服务协议》</Text>
+              与
+              <Text style={{ color: PRIMARY_COLOR, fontWeight: '600' }} onPress={() => navigation.navigate('PrivacyPolicy')}>《经营宝隐私政策》</Text>
+              。我们将严格按照协议为您提供安全、可靠的服务。
+            </Text>
+
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20, marginBottom: 18, backgroundColor: '#F5F7FA', padding: 10, borderRadius: 8 }}>
+              【重点提示】
+              {'\n'}1、我们仅会在必要场景下申请相关权限（如存储、相机、相册等）；
+              {'\n'}2、未经您同意，我们不会向任意第三方共享您的个人信息；
+              {'\n'}3、您可以在"我的 - 设置"中随时查询、更正或删除您的个人信息。
+            </Text>
+
+            <View style={{ flexDirection: 'column', gap: 10 }}>
+              <TouchableOpacity
+                onPress={handlePrivacyAgree}
+                style={{
+                  backgroundColor: '#00B578',
+                  borderRadius: 24,
+                  paddingVertical: 13,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>同意并继续</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handlePrivacyDisagree}
+                style={{
+                  paddingVertical: 10,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: TEXT_THIRD, fontSize: 14 }}>不同意</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 // ===== 第一段结束 =====// ================== 设置抽屉（含推送时间，图标已美化） ==================
@@ -3103,7 +3309,7 @@ const AboutScreen = ({ navigation }) => {
         <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12 }}>
           <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>核心功能</Text>
           <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 24 }}>
-            • 订单核销：支持外卖平台、短视频平台、大众点评扫码核销{'\n'}
+            • 订单核销：支持美团、抖音来客、大众点评扫码核销{'\n'}
             • 库存管理：出入库记录、商品管理、AI拍照盘点{'\n'}
             • 员工协作：内部沟通、私聊、员工管理{'\n'}
             • AI助手：智能问答、图片生成、经营分析{'\n'}
@@ -3495,14 +3701,14 @@ const HelpGuideCarousel = ({ visible, onClose }) => {
       color: '#5B6DF0',
       title: '欢迎使用经营宝',
       desc: '专为商家打造的智能经营管理工具\n订单核销 · 库存管理 · AI助手 · 团队协作',
-      features: ['一键扫码核销，支持外卖平台/短视频平台/点评', 'AI拍照盘点，智能识别库存数量', '内部团队沟通，高效协作管理'],
+      features: ['一键扫码核销，支持美团/抖音来客/大众点评', 'AI拍照盘点，智能识别库存数量', '内部团队沟通，高效协作管理'],
     },
     {
       icon: 'qr-code',
       color: '#00B42A',
       title: '订单核销',
       desc: '支持多平台扫码核销，快速验证顾客订单',
-      features: ['点击核销按钮打开扫码', '支持外卖平台、短视频平台、大众点评', '核销记录自动保存，可随时查看'],
+      features: ['点击核销按钮打开扫码', '支持美团、抖音来客、大众点评', '核销记录自动保存，可随时查看'],
     },
     {
       icon: 'swap-horizontal',
@@ -4142,7 +4348,7 @@ const ProductOverview = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [name, setName] = useState('');
   const [stock, setStock] = useState('');
-  const [platform, setPlatform] = useState('外卖平台');
+  const [platform, setPlatform] = useState('美团');
   const [code, setCode] = useState('');
   const [loadingPlatform, setLoadingPlatform] = useState(null);
   const [shelfModalVisible, setShelfModalVisible] = useState(false);
@@ -4196,7 +4402,7 @@ const ProductOverview = () => {
     setEditingItem(item);
     setName(item.name);
     setStock(String(item.stock));
-    setPlatform(item.platform || '外卖平台');
+    setPlatform(item.platform || '美团');
     setCode(item.code || '');
     setModalVisible(true);
   };
@@ -4226,7 +4432,7 @@ const ProductOverview = () => {
     try {
       if (!currentShelfGoods) { showToast('请先选择商品'); return; }
       setLoadingPlatform('all');
-      const prompt = `请将以下商品信息分别生成适合外卖平台、短视频平台、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
+      const prompt = `请将以下商品信息分别生成适合美团、抖音来客、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
 
       Alert.alert('一键上架所有平台', reply);
@@ -4244,7 +4450,7 @@ const ProductOverview = () => {
         title="商品总览" 
         showBack={true}
         navigation={navigation}
-        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('外卖平台'); setCode(''); setModalVisible(true); }}>
+        rightComponent={<TouchableOpacity onPress={() => { setEditingItem(null); setName(''); setStock(''); setPlatform('美团'); setCode(''); setModalVisible(true); }}>
           <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>}
       />
@@ -4252,7 +4458,7 @@ const ProductOverview = () => {
       {/* 上架提示 */}
       <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF8E7', borderBottomWidth: 1, borderColor: '#FFE0B2' }}>
         <Text style={{ fontSize: 14, color: '#E65100', fontWeight: '600' }}>📤 商品上架功能</Text>
-        <Text style={{ fontSize: 12, color: '#EF6C00', marginTop: 4 }}>选择商品后点击"上架"按钮，可一键生成外卖平台、短视频平台、大众点评的上架内容</Text>
+        <Text style={{ fontSize: 12, color: '#EF6C00', marginTop: 4 }}>选择商品后点击"上架"按钮，可一键生成美团、抖音来客、大众点评的上架内容</Text>
       </View>
 
       <FlatList
@@ -4292,7 +4498,7 @@ const ProductOverview = () => {
             <TextInput style={styles.formInput} value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="数量" />
             <Text style={styles.label}>平台</Text>
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-              {['外卖平台', '短视频平台', '大众点评'].map(p => (
+              {['美团', '抖音来客', '大众点评'].map(p => (
                 <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                   <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
                 </TouchableOpacity>
@@ -4320,7 +4526,7 @@ const ProductOverview = () => {
               当前库存: {currentShelfGoods?.stock}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['外卖平台', '短视频平台', '大众点评'].map(p => (
+              {['美团', '抖音来客', '大众点评'].map(p => (
                 <TouchableOpacity
                   key={p}
                   style={[styles.miniBlueBtn, { flex: 1, backgroundColor: loadingPlatform === p ? '#999' : PRIMARY_COLOR }]}
@@ -5011,7 +5217,7 @@ const StockManage = () => {
       const goods = (state.goodsList || []).find(g => g.id === goodsId);
       if (!goods) { showToast('商品不存在'); return; }
       setLoadingPlatform('all');
-      const prompt = `请将以下商品信息分别生成适合外卖平台、短视频平台、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
+      const prompt = `请将以下商品信息分别生成适合美团、抖音来客、大众点评三个平台的上架格式，每个平台用分隔线隔开，包含标题、价格、库存、描述和宣传语。名称：${goods.name}，库存：${goods.stock}。`;
       const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手，擅长多平台格式转换。');
       Alert.alert('一键上架所有平台', reply);
       showToast('已生成所有平台上架内容');
@@ -5114,16 +5320,16 @@ const StockManage = () => {
         {sortedGoods.map(g => {
           const getPlatformIcon = (platform) => {
             switch(platform) {
-              case '外卖平台': return 'shopping-cart-outline';
-              case '短视频平台': return 'music-video-outline';
+              case '美团': return 'shopping-cart-outline';
+              case '抖音来客': return 'music-video-outline';
               case '大众点评': return 'star-outline';
               default: return 'storefront-outline';
             }
           };
           const getPlatformColor = (platform) => {
             switch(platform) {
-              case '外卖平台': return '#FFD100';
-              case '短视频平台': return '#000000';
+              case '美团': return '#FFD100';
+              case '抖音来客': return '#000000';
               case '大众点评': return '#FF6B00';
               default: return PRIMARY_COLOR;
             }
@@ -5655,7 +5861,7 @@ const CustomerService = () => {
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [currentPlatform, setCurrentPlatform] = useState('外卖平台');
+  const [currentPlatform, setCurrentPlatform] = useState('美团');
   const [messages, setMessages] = useState([]);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showQuickReply, setShowQuickReply] = useState(false);
@@ -5960,7 +6166,7 @@ const CustomerService = () => {
       />
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, backgroundColor: BG_CARD, borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
-        {['外卖平台', '短视频平台', '大众点评'].map(p => {
+        {['美团', '抖音来客', '大众点评'].map(p => {
           const platformCustomers = customerByPlatform(p);
           const platformUnread = platformCustomers.reduce((s, c) => s + c.unread, 0);
           return (
@@ -7720,7 +7926,7 @@ const MerchantAssistant = () => {
     } else if (isFood) {
       return {
         '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
-        '营销推广': ['招牌菜推荐文案', '开业活动方案', '外卖平台运营', '短视频美食脚本'],
+        '营销推广': ['招牌菜推荐文案', '开业活动方案', '美团运营', '短视频美食脚本'],
         '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
         '分类经营': ['奶茶店选址建议', '小吃配方优化', '套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略'],
       };
@@ -7765,7 +7971,7 @@ const MerchantAssistant = () => {
     if (industry === '餐饮类') {
       return {
         '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
-        '营销推广': ['招牌菜推荐文案', '开业活动方案', '外卖平台运营', '节日促销海报'],
+        '营销推广': ['招牌菜推荐文案', '开业活动方案', '美团运营', '节日促销海报'],
         '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
         '分类经营': ['套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略', '新品推广计划', '客户回访话术'],
       };
@@ -8041,7 +8247,7 @@ ${styleDesc}
 - 极致光影效果，专业布光，层次感分明
 - 高级色彩搭配，色彩心理学应用，视觉冲击力强
 - 精致细节处理，每个元素都经过精心设计
-- 符合当前主流社交媒体（小红书、短视频平台、微信朋友圈）的爆款视觉风格
+- 符合当前主流社交媒体（小红书、抖音来客、微信朋友圈）的爆款视觉风格
 - 参考国际顶级广告公司（奥美、麦肯光明、智威汤逊）的创意水准
 - 融入2024-2025年度最流行的设计趋势（极简主义、新复古、有机形态、流体渐变）
 - 品牌调性统一，视觉语言专业
@@ -8052,9 +8258,9 @@ ${styleDesc}
 - 文字与图形完美融合，信息层次清晰
 
 【适用场景】
-- 社交媒体推广（小红书、短视频平台、微信）
+- 社交媒体推广（小红书、抖音来客、微信）
 - 线下宣传物料（海报、易拉宝、灯箱）
-- 电商平台主图（外卖平台、大众点评、短视频平台商城）
+- 电商平台主图（美团、大众点评、抖音来客商城）
 
 请生成一张具有强烈视觉吸引力、专业级别的商业图片，让观众一眼就被吸引！`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
@@ -8721,8 +8927,8 @@ const HomePage = () => {
   todayOrders.forEach(order => {
     if (order && order.platform) {
       switch(order.platform) {
-        case '外卖平台': meituanIncome += order.couponPrice || 0; break;
-        case '短视频平台': douyinIncome += order.couponPrice || 0; break;
+        case '美团': meituanIncome += order.couponPrice || 0; break;
+        case '抖音来客': douyinIncome += order.couponPrice || 0; break;
         case '大众点评': dianpingIncome += order.couponPrice || 0; break;
       }
     }
@@ -9261,7 +9467,7 @@ const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const [orderCode, setOrderCode] = useState('');
-  const [platform, setPlatform] = useState('外卖平台');
+  const [platform, setPlatform] = useState('美团');
   const [couponPrice, setCouponPrice] = useState('');
   const [scanning, setScanning] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
@@ -9396,7 +9602,7 @@ const VerifyOrder = () => {
           </View>
           <Text style={styles.label}>平台</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-            {['外卖平台', '短视频平台', '大众点评'].map(p => (
+            {['美团', '抖音来客', '大众点评'].map(p => (
               <TouchableOpacity key={p} style={[styles.tagNormal, platform === p && styles.tagActive]} onPress={() => setPlatform(p)}>
                 <Text style={{ color: platform === p ? '#fff' : TEXT_MAIN }}>{p}</Text>
               </TouchableOpacity>
@@ -10977,299 +11183,4 @@ const SplashScreenComponent = ({ onComplete }) => {
         friction: 8,
         tension: 100,
         useNativeDriver: true,
-      }),
-      Animated.timing(textOpacity, {
-        toValue: 1,
-        duration: 1000,
-        delay: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // 3秒后退出开屏
-    setTimeout(() => {
-      Animated.timing(containerOpacity, {
-        toValue: 0,
-        duration: 500,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }).start(() => {
-        onComplete();
-      });
-    }, 3000);
-  }, [onComplete]);
-
-  return (
-    <Animated.View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', opacity: containerOpacity }}>
-      {/* Logo 动画 */}
-      <Animated.View style={{ transform: [{ scale: logoScale }] }}>
-        <Image source={require('./assets/icon.png')} style={{ width: 120, height: 120, borderRadius: 30, ...SHADOW }} resizeMode="contain" />
-      </Animated.View>
-      
-      {/* 应用名称 */}
-      <Animated.View style={{ marginTop: 24, opacity: textOpacity }}>
-        <Text style={{ fontSize: 28, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
-        <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginTop: 8 }}>智能经营管理助手</Text>
-      </Animated.View>
-
-      {/* 底部版本号 */}
-      <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.4</Text>
-      </Animated.View>
-    </Animated.View>
-  );
-};
-
-// ================== 全局错误边界 ==================
-class GlobalErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('[GlobalErrorBoundary]', error, errorInfo);
-  }
-
-  handleRestart = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE, padding: 30 }}>
-          <Image
-            source={require('./assets/icon.png')}
-            style={{ width: 80, height: 80, marginBottom: 20, borderRadius: 16 }}
-            resizeMode="contain"
-          />
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8 }}>
-            应用遇到问题
-          </Text>
-          <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginBottom: 24 }}>
-            抱歉,应用发生了意外错误。请尝试重新启动。
-          </Text>
-          <TouchableOpacity
-            style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24 }}
-            onPress={this.handleRestart}
-          >
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>重新启动</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// ================== App 容器 ==================
-// 通知处理配置：前台时显示横幅
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
-// 全局App状态引用，供消息发送时判断是否在后台
-const appStateRef = { current: 'active' };
-
-// 发送本地通知（仅当App在后台或锁屏时）
-async function sendLocalNotification(title, body, data = {}) {
-  if (appStateRef.current === 'active') return; // 前台时不发通知，只显示红点
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: title || '经营宝',
-        body: body || '您有新消息',
-        data,
-        sound: 'default',
-      },
-      trigger: null, // 立即发送
-    });
-  } catch (e) {
-    console.warn('发送通知失败', e);
-  }
-}
-
-export default function App() {
-  const [state, dispatch] = useReducer(appReducer, initialState);
-  const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
-  const [isFirstLaunch, setIsFirstLaunch] = useState(true);
-  const notificationListener = useRef(null);
-  const responseListener = useRef(null);
-
-  useEffect(() => {
-    const appStateListener = AppState.addEventListener('change', (nextAppState) => {
-      appStateRef.current = nextAppState;
-      if (nextAppState === 'active' && !isFirstLaunch) {
-        setShowSplash(false);
-      }
-    });
-    return () => { appStateListener.remove(); };
-  }, [isFirstLaunch]);
-
-  // 申请通知权限 + 注册通知监听
-  useEffect(() => {
-    (async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        console.warn('通知权限未授予');
-      }
-    })();
-
-    // 监听前台收到的通知
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      // 前台时收到通知只更新红点，不重复弹通知
-    });
-
-    // 监听用户点击通知
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
-      if (data?.screen && navigationRef.current) {
-        // 根据通知点击跳转到对应页面
-        if (data.screen === 'internal') {
-          navigationRef.current.navigate('MainTabs', { screen: '内部' });
-        } else if (data.screen === 'customerService') {
-          navigationRef.current.navigate('MainTabs', { screen: '客服' });
-        } else if (data.screen === 'privateChat' && data.phone && data.name) {
-          navigationRef.current.navigate('PrivateChat', { phone: data.phone, name: data.name });
-        }
-      }
-    });
-
-    return () => {
-      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
-      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const appData = await loadAllData();
-        if (appData) {
-          dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
-        } else {
-          const userStr = await AsyncStorage.getItem('user');
-          const shopStr = await AsyncStorage.getItem('shopInfo');
-          if (userStr && shopStr) {
-            try {
-              const user = JSON.parse(userStr);
-              const shopInfo = JSON.parse(shopStr);
-              if (user && shopInfo && user.phone && shopInfo.shopName) {
-                dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-              }
-            } catch (parseError) {
-              console.warn('数据解析失败', parseError);
-              await AsyncStorage.removeItem('user');
-              await AsyncStorage.removeItem('shopInfo');
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('加载失败', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) { saveAllData(state); }
-  }, [state, loading]);
-
-  // 监听新消息，在后台时发送系统通知
-  const lastMsgCountRef = useRef({ group: 0, private: 0, customer: 0 });
-  useEffect(() => {
-    if (!state.user || loading) return;
-    // 统计群聊新消息
-    let groupTotal = 0;
-    Object.values(state.groupChatMessages || {}).forEach(msgs => { groupTotal += (msgs?.length || 0); });
-    // 统计私聊新消息
-    let privateTotal = 0;
-    Object.values(state.privateChatMessages || {}).forEach(msgs => { privateTotal += (msgs?.length || 0); });
-    // 统计客服消息
-    let customerTotal = 0;
-    Object.values(state.messages || {}).forEach(msgs => { customerTotal += (msgs?.length || 0); });
-
-    const prev = lastMsgCountRef.current;
-    // 群聊新消息
-    if (groupTotal > prev.group && appStateRef.current !== 'active') {
-      const allGroupMsgs = Object.values(state.groupChatMessages || {}).flat();
-      const newMsg = allGroupMsgs[allGroupMsgs.length - 1];
-      if (newMsg && newMsg.fromPhone !== state.user?.phone) {
-        sendLocalNotification(`内部消息 - ${newMsg.from || '同事'}`, newMsg.text || newMsg.image ? '[图片]' : '新消息', { screen: 'internal' });
-      }
-    }
-    // 私聊新消息
-    if (privateTotal > prev.private && appStateRef.current !== 'active') {
-      for (const [chatPhone, msgs] of Object.entries(state.privateChatMessages || {})) {
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg && lastMsg.fromPhone !== state.user?.phone) {
-          sendLocalNotification(`私聊 - ${lastMsg.fromName || '联系人'}`, lastMsg.text || (lastMsg.image ? '[图片]' : '新消息'), { screen: 'privateChat', phone: chatPhone, name: lastMsg.fromName || '联系人' });
-          break;
-        }
-      }
-    }
-    // 客服新消息
-    if (customerTotal > prev.customer && appStateRef.current !== 'active') {
-      for (const [chatPhone, msgs] of Object.entries(state.messages || {})) {
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg && lastMsg.from === 'customer') {
-          sendLocalNotification(`客服消息 - ${chatPhone}`, lastMsg.text || '新消息', { screen: 'customerService' });
-          break;
-        }
-      }
-    }
-    lastMsgCountRef.current = { group: groupTotal, private: privateTotal, customer: customerTotal };
-  }, [state.groupChatMessages, state.privateChatMessages, state.messages, state.user, loading]);
-
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-    setIsFirstLaunch(false);
-  };
-
-  if (showSplash && isFirstLaunch) {
-    return <SplashScreenComponent onComplete={handleSplashComplete} />;
-  }
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <GlobalErrorBoundary>
-          <AppContext.Provider value={{ state, dispatch }}>
-            <NavigationContainer ref={navigationRef}>
-              {state.user ? <AppStack /> : <AuthStack />}
-            </NavigationContainer>
-            <CustomToast />
-          </AppContext.Provider>
-        </GlobalErrorBoundary>
-      </SafeAreaProvider>
-    </View>
-  );
-}
-// ===== 第三段结束 =====
+  
