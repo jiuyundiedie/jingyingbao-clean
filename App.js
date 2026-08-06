@@ -3076,6 +3076,15 @@ const SettingDrawer = ({ visible, onClose }) => {
                       <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
                       <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                     </TouchableOpacity>
+                    <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('MerchantMembership'), 300); }}>
+                      <Ionicons name="crown-outline" size={22} color="#FF6B35" style={{ marginRight: 12 }} />
+                      <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>商家会员</Text>
+                      <View style={{ backgroundColor: '#FF6B35', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>PRO</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} style={{ marginLeft: 6 }} />
+                    </TouchableOpacity>
                   </>
                 )}
                 <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
@@ -10556,6 +10565,252 @@ function RootTabs() {
   );
 }
 
+// ================== 商家会员页面 ==================
+const MerchantMembershipScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
+  // Mock 会员套餐数据
+  const plans = [
+    {
+      id: 1,
+      name: '月度版',
+      duration: 1,
+      price: 29.9,
+      originalPrice: 39.9,
+      features: ['基础会员功能', '客服支持', '数据统计'],
+      color: '#5B6DF0',
+      icon: 'calendar-outline',
+    },
+    {
+      id: 2,
+      name: '季度版',
+      duration: 3,
+      price: 79.9,
+      originalPrice: 119.7,
+      features: ['全部基础功能', '高级数据分析', '优先客服支持', '营销工具'],
+      color: '#FF6B35',
+      icon: 'medal-outline',
+      recommended: true,
+    },
+    {
+      id: 3,
+      name: '年度版',
+      duration: 12,
+      price: 259.9,
+      originalPrice: 478.8,
+      features: ['全部高级功能', 'AI 智能助手', '无限优惠券', '专属客户经理', '多设备同步'],
+      color: '#FFD700',
+      icon: 'star-outline',
+    },
+  ];
+
+  const benefits = [
+    { icon: 'analytics-outline', title: '高级数据分析', desc: '深入洞察经营数据' },
+    { icon: 'megaphone-outline', title: '营销工具', desc: '优惠券、活动策划' },
+    { icon: 'people-outline', title: '客户管理', desc: '会员体系、标签分组' },
+    { icon: 'chatbubbles-outline', title: '优先客服', desc: '专属客户经理' },
+    { icon: 'cloud-outline', title: '云同步', desc: '多设备数据同步' },
+    { icon: 'sparkles-outline', title: 'AI 助手', desc: '智能经营建议' },
+  ];
+
+  const handlePurchase = (plan) => {
+    setSelectedPlan(plan);
+    setShowPurchaseModal(true);
+  };
+
+  const confirmPurchase = () => {
+    setShowPurchaseModal(false);
+    showToast('支付成功！会员已开通');
+    setCurrentPlan({
+      name: selectedPlan.name,
+      expiresAt: new Date(Date.now() + selectedPlan.duration * 30 * 24 * 60 * 60 * 1000),
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader title="商家会员" showBack navigation={navigation} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* 当前状态卡片 */}
+        <View style={{ margin: 16 }}>
+          {currentPlan ? (
+            <View style={{ borderRadius: 20, overflow: 'hidden', backgroundColor: '#667eea' }}>
+              <View style={{ padding: 20, backgroundColor: '#667eea' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <Ionicons name="crown" size={32} color="#FFD700" />
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginLeft: 8 }}>{currentPlan.name}</Text>
+                </View>
+                <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.9)' }}>
+                  有效期至 {new Date(currentPlan.expiresAt).toLocaleDateString()}
+                </Text>
+                <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
+                  <View style={{ height: '100%', width: '70%', backgroundColor: '#FFD700' }} />
+                </View>
+                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>使用中 (剩余30%)</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Ionicons name="crown-outline" size={32} color="#FF6B35" />
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginLeft: 8 }}>开通商家会员</Text>
+              </View>
+              <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
+                解锁全部高级功能，让经营更简单！选择适合您的套餐开始体验。
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* 套餐选择 */}
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, paddingHorizontal: 16, marginBottom: 12 }}>选择套餐</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+          {plans.map(plan => (
+            <TouchableOpacity
+              key={plan.id}
+              style={{
+                width: 180,
+                backgroundColor: BG_CARD,
+                borderRadius: 16,
+                padding: 16,
+                marginRight: 12,
+                borderWidth: plan.recommended ? 2 : 0,
+                borderColor: plan.recommended ? PRIMARY_COLOR : 'transparent',
+                ...SHADOW,
+              }}
+              onPress={() => handlePurchase(plan)}
+            >
+              {plan.recommended && (
+                <View style={{ position: 'absolute', top: 0, right: 0, backgroundColor: PRIMARY_COLOR, paddingHorizontal: 8, paddingVertical: 2, borderTopRightRadius: 14, borderBottomLeftRadius: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>推荐</Text>
+                </View>
+              )}
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: plan.color + '20', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                <Ionicons name={plan.icon} size={24} color={plan.color} />
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 4 }}>{plan.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 }}>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: plan.color }}>¥{plan.price}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, textDecorationLine: 'line-through', marginLeft: 8 }}>¥{plan.originalPrice}</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: TEXT_THIRD, marginBottom: 12 }}>
+                {plan.duration}个月 · 省¥{(plan.originalPrice - plan.price).toFixed(1)}
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: plan.color, borderRadius: 20, paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => handlePurchase(plan)}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>立即开通</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* 会员权益 */}
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, paddingHorizontal: 16, marginTop: 24, marginBottom: 12 }}>会员权益</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 }}>
+          {benefits.map((b, i) => (
+            <View key={i} style={{ width: '50%', padding: 4 }}>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR + '20', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name={b.icon} size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN, marginBottom: 4 }}>{b.title}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{b.desc}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* 常见问题 */}
+        <View style={{ marginHorizontal: 16, marginTop: 24 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 12 }}>常见问题</Text>
+          {[
+            { q: '会员到期后会自动续费吗？', a: '不会自动续费，到期后可手动续期。' },
+            { q: '开通后多久能使用？', a: '支付成功后立即生效，所有会员功能即刻解锁。' },
+            { q: '会员可以退款吗？', a: '开通7天内可申请全额退款，超过7天按剩余天数折算。' },
+            { q: '支持哪些支付方式？', a: '支持微信支付、支付宝、银行卡等多种支付方式。' },
+          ].map((item, i) => (
+            <TouchableOpacity
+              key={i}
+              style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 10, ...SHADOW }}
+              onPress={() => { /* toggle expand */ }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN }}>{item.q}</Text>
+                <Ionicons name="chevron-down" size={16} color={TEXT_THIRD} />
+              </View>
+              <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 8, lineHeight: 20 }}>{item.a}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* 支付弹窗 */}
+      <Modal visible={showPurchaseModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>确认订单</Text>
+              <TouchableOpacity onPress={() => setShowPurchaseModal(false)}>
+                <Ionicons name="close" size={24} color={TEXT_THIRD} />
+              </TouchableOpacity>
+            </View>
+            
+            {selectedPlan && (
+              <View style={{ backgroundColor: BG_PAGE, borderRadius: 12, padding: 16, marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: selectedPlan.color + '20', justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name={selectedPlan.icon} size={24} color={selectedPlan.color} />
+                  </View>
+                  <View style={{ marginLeft: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN }}>{selectedPlan.name}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{selectedPlan.duration}个月</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND }}>实付款</Text>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: selectedPlan.color }}>¥{selectedPlan.price}</Text>
+                </View>
+              </View>
+            )}
+
+            <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT_MAIN, marginBottom: 12 }}>选择支付方式</Text>
+            <View style={{ marginBottom: 20 }}>
+              {[
+                { id: 'wechat', name: '微信支付', icon: 'logo-wechat', color: '#07C160' },
+                { id: 'alipay', name: '支付宝', icon: 'logo-alipay', color: '#1677FF' },
+              ].map((method, i) => (
+                <TouchableOpacity
+                  key={method.id}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: i < 1 ? 1 : 0, borderBottomColor: BORDER_COLOR }}
+                >
+                  <Ionicons name={method.icon} size={24} color={method.color} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>{method.name}</Text>
+                  <Ionicons name="radio-button-on" size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 24, paddingVertical: 16, alignItems: 'center' }}
+              onPress={confirmPurchase}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>确认支付</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'center', marginTop: 12 }}>
+              支付即视为同意《会员服务协议》
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
 // ================== 会员管理 ==================
 const MemberManageScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
@@ -11423,6 +11678,7 @@ function AppStack() {
       <Stack.Screen name="ClearCache" component={ClearCacheScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="MemberManage" component={MemberManageScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="CouponManage" component={CouponManageScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="MerchantMembership" component={MerchantMembershipScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SupplierManage" component={SupplierManageScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="StockAlert" component={StockAlertScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="DataExport" component={DataExportScreen} options={{ gestureEnabled: true }} />

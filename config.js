@@ -47,6 +47,18 @@ export const API = {
   inventory: '/api/data/inventory',
   customers: '/api/data/customers',
   sync: '/api/data/sync',
+  // 会员
+  membershipPlans: '/api/membership/plans',
+  membershipCurrent: '/api/membership/current',
+  membershipPurchase: '/api/membership/purchase',
+  membershipHistory: '/api/membership/history',
+  // 优惠券
+  coupons: '/api/coupons',
+  couponsClaim: '/api/coupons/claim',
+  couponsSend: '/api/coupons/send-to-customers',
+  couponsMy: '/api/coupons/my/user-coupons',
+  couponsRedeem: '/api/coupons/redeem',
+  couponsStats: '/api/coupons/stats',
 };
 
 // ========== 辅助函数 ==========

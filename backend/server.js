@@ -9,6 +9,8 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const aiRoutes = require('./routes/ai');
 const dataRoutes = require('./routes/data');
+const membershipRoutes = require('./routes/membership');
+const couponsRoutes = require('./routes/coupons');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +39,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/data', dataRoutes);
+app.use('/api/membership', membershipRoutes);
+app.use('/api/coupons', couponsRoutes);
 
 // ========== 全局错误处理 ==========
 app.use((err, req, res, next) => {
