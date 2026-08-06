@@ -9411,9 +9411,10 @@ const HomePage = () => {
         // 发送私聊欢迎消息给员工
         const bossName = state.user?.name || '老板';
         const shopName = state.shopInfo?.shopName || '门店';
+        const bossTitle = bossName === '老板' ? '老板' : `老板${bossName}`;
         const privateWelcome = {
           id: Date.now().toString(),
-          text: `欢迎 ${staff.name} 加入${shopName}！我是老板${bossName}，以后工作中有任何问题随时找我沟通。`,
+          text: `欢迎 ${staff.name} 加入${shopName}！我是${bossTitle}，以后工作中有任何问题随时找我沟通。`,
           from: 'staff',
           fromPhone: state.user?.phone || 'boss',
           fromName: bossName,
@@ -10169,18 +10170,15 @@ const PrivateChat = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <CommonHeader 
-        title="" 
+        title={name || '私聊'} 
         showBack={true}
         navigation={navigation}
-        leftComponent={<TouchableOpacity onPress={() => navigation.goBack()}><Text style={{ fontSize: 20 }}>&lt;</Text></TouchableOpacity>}
-        rightComponent={<View style={{ width: 24 }} />}
+        rightComponent={
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: 11, color: TEXT_THIRD }}>{phone}</Text>
+          </View>
+        }
       />
-      <View style={{ backgroundColor: BG_CARD, paddingHorizontal: 20, paddingBottom: 10, borderBottomWidth: 0, ...SHADOW }}>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.pageTitle}>{name || '私聊'}</Text>
-          <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{phone}</Text>
-        </View>
-      </View>
       {selectedImages.length > 0 && (
         <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
           <ScrollView horizontal>
