@@ -11183,4 +11183,299 @@ const SplashScreenComponent = ({ onComplete }) => {
         friction: 8,
         tension: 100,
         useNativeDriver: true,
-  
+      }),
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 1000,
+        delay: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // 3秒后退出开屏
+    setTimeout(() => {
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => {
+        onComplete();
+      });
+    }, 3000);
+  }, [onComplete]);
+
+  return (
+    <Animated.View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', opacity: containerOpacity }}>
+      {/* Logo 动画 */}
+      <Animated.View style={{ transform: [{ scale: logoScale }] }}>
+        <Image source={require('./assets/icon.png')} style={{ width: 120, height: 120, borderRadius: 30, ...SHADOW }} resizeMode="contain" />
+      </Animated.View>
+      
+      {/* 应用名称 */}
+      <Animated.View style={{ marginTop: 24, opacity: textOpacity }}>
+        <Text style={{ fontSize: 28, fontWeight: 'bold', color: TEXT_MAIN }}>经营宝</Text>
+        <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginTop: 8 }}>智能经营管理助手</Text>
+      </Animated.View>
+
+      {/* 底部版本号 */}
+      <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.4</Text>
+      </Animated.View>
+    </Animated.View>
+  );
+};
+
+// ================== 全局错误边界 ==================
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[GlobalErrorBoundary]', error, errorInfo);
+  }
+
+  handleRestart = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG_PAGE, padding: 30 }}>
+          <Image
+            source={require('./assets/icon.png')}
+            style={{ width: 80, height: 80, marginBottom: 20, borderRadius: 16 }}
+            resizeMode="contain"
+          />
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN, marginBottom: 8 }}>
+            应用遇到问题
+          </Text>
+          <Text style={{ fontSize: 14, color: TEXT_THIRD, textAlign: 'center', marginBottom: 24 }}>
+            抱歉,应用发生了意外错误。请尝试重新启动。
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24 }}
+            onPress={this.handleRestart}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>重新启动</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ================== App 容器 ==================
+// 通知处理配置：前台时显示横幅
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// 全局App状态引用，供消息发送时判断是否在后台
+const appStateRef = { current: 'active' };
+
+// 发送本地通知（仅当App在后台或锁屏时）
+async function sendLocalNotification(title, body, data = {}) {
+  if (appStateRef.current === 'active') return; // 前台时不发通知，只显示红点
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: title || '经营宝',
+        body: body || '您有新消息',
+        data,
+        sound: 'default',
+      },
+      trigger: null, // 立即发送
+    });
+  } catch (e) {
+    console.warn('发送通知失败', e);
+  }
+}
+
+export default function App() {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [isFirstLaunch, setIsFirstLaunch] = useState(true);
+  const notificationListener = useRef(null);
+  const responseListener = useRef(null);
+
+  useEffect(() => {
+    const appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      appStateRef.current = nextAppState;
+      if (nextAppState === 'active' && !isFirstLaunch) {
+        setShowSplash(false);
+      }
+    });
+    return () => { appStateListener.remove(); };
+  }, [isFirstLaunch]);
+
+  // 申请通知权限 + 注册通知监听
+  useEffect(() => {
+    (async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.warn('通知权限未授予');
+      }
+    })();
+
+    // 监听前台收到的通知
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      // 前台时收到通知只更新红点，不重复弹通知
+    });
+
+    // 监听用户点击通知
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data?.screen && navigationRef.current) {
+        // 根据通知点击跳转到对应页面
+        if (data.screen === 'internal') {
+          navigationRef.current.navigate('MainTabs', { screen: '内部' });
+        } else if (data.screen === 'customerService') {
+          navigationRef.current.navigate('MainTabs', { screen: '客服' });
+        } else if (data.screen === 'privateChat' && data.phone && data.name) {
+          navigationRef.current.navigate('PrivateChat', { phone: data.phone, name: data.name });
+        }
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
+      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const appData = await loadAllData();
+        if (appData) {
+          dispatch({ type: 'RESTORE_ALL_DATA', payload: appData });
+        } else {
+          const userStr = await AsyncStorage.getItem('user');
+          const shopStr = await AsyncStorage.getItem('shopInfo');
+          if (userStr && shopStr) {
+            try {
+              const user = JSON.parse(userStr);
+              const shopInfo = JSON.parse(shopStr);
+              if (user && shopInfo && user.phone && shopInfo.shopName) {
+                dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
+              }
+            } catch (parseError) {
+              console.warn('数据解析失败', parseError);
+              await AsyncStorage.removeItem('user');
+              await AsyncStorage.removeItem('shopInfo');
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('加载失败', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) { saveAllData(state); }
+  }, [state, loading]);
+
+  // 监听新消息，在后台时发送系统通知
+  const lastMsgCountRef = useRef({ group: 0, private: 0, customer: 0 });
+  useEffect(() => {
+    if (!state.user || loading) return;
+    // 统计群聊新消息
+    let groupTotal = 0;
+    Object.values(state.groupChatMessages || {}).forEach(msgs => { groupTotal += (msgs?.length || 0); });
+    // 统计私聊新消息
+    let privateTotal = 0;
+    Object.values(state.privateChatMessages || {}).forEach(msgs => { privateTotal += (msgs?.length || 0); });
+    // 统计客服消息
+    let customerTotal = 0;
+    Object.values(state.messages || {}).forEach(msgs => { customerTotal += (msgs?.length || 0); });
+
+    const prev = lastMsgCountRef.current;
+    // 群聊新消息
+    if (groupTotal > prev.group && appStateRef.current !== 'active') {
+      const allGroupMsgs = Object.values(state.groupChatMessages || {}).flat();
+      const newMsg = allGroupMsgs[allGroupMsgs.length - 1];
+      if (newMsg && newMsg.fromPhone !== state.user?.phone) {
+        sendLocalNotification(`内部消息 - ${newMsg.from || '同事'}`, newMsg.text || newMsg.image ? '[图片]' : '新消息', { screen: 'internal' });
+      }
+    }
+    // 私聊新消息
+    if (privateTotal > prev.private && appStateRef.current !== 'active') {
+      for (const [chatPhone, msgs] of Object.entries(state.privateChatMessages || {})) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.fromPhone !== state.user?.phone) {
+          sendLocalNotification(`私聊 - ${lastMsg.fromName || '联系人'}`, lastMsg.text || (lastMsg.image ? '[图片]' : '新消息'), { screen: 'privateChat', phone: chatPhone, name: lastMsg.fromName || '联系人' });
+          break;
+        }
+      }
+    }
+    // 客服新消息
+    if (customerTotal > prev.customer && appStateRef.current !== 'active') {
+      for (const [chatPhone, msgs] of Object.entries(state.messages || {})) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.from === 'customer') {
+          sendLocalNotification(`客服消息 - ${chatPhone}`, lastMsg.text || '新消息', { screen: 'customerService' });
+          break;
+        }
+      }
+    }
+    lastMsgCountRef.current = { group: groupTotal, private: privateTotal, customer: customerTotal };
+  }, [state.groupChatMessages, state.privateChatMessages, state.messages, state.user, loading]);
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    setIsFirstLaunch(false);
+  };
+
+  if (showSplash && isFirstLaunch) {
+    return <SplashScreenComponent onComplete={handleSplashComplete} />;
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <GlobalErrorBoundary>
+          <AppContext.Provider value={{ state, dispatch }}>
+            <NavigationContainer ref={navigationRef}>
+              {state.user ? <AppStack /> : <AuthStack />}
+            </NavigationContainer>
+            <CustomToast />
+          </AppContext.Provider>
+        </GlobalErrorBoundary>
+      </SafeAreaProvider>
+    </View>
+  );
+}
+// ===== 第三段结束 =====
