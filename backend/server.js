@@ -22,6 +22,37 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_IP_WHITELIST = (process.env.ADMIN_IP_WHITELIST || '').split(',').filter(Boolean);
+
+// ========== IP 白名单检查（管理后台）==========
+function ipWhitelistCheck(req, res, next) {
+  // 只对管理后台相关路径生效
+  if (req.path.startsWith('/admin') || req.path.startsWith('/api/admin') || 
+      req.path.startsWith('/api/feedback/admin') || req.path.startsWith('/api/config/versions') ||
+      req.path.startsWith('/api/analytics/stats')) {
+    
+    // 未配置白名单时跳过
+    if (ADMIN_IP_WHITELIST.length === 0) {
+      return next();
+    }
+    
+    const clientIp = (req.headers['x-forwarded-for'] || req.connection.remoteAddress || '').split(',')[0].trim();
+    const isAllowed = ADMIN_IP_WHITELIST.some(allowed => {
+      // 支持 CIDR 和精确匹配
+      if (allowed.includes('/')) {
+        // 简化处理：只检查前缀
+        return clientIp.startsWith(allowed.split('/')[0].substring(0, allowed.split('/')[0].lastIndexOf('.')));
+      }
+      return clientIp === allowed || clientIp.endsWith('.' + allowed.split('.').pop());
+    });
+    
+    if (!isAllowed) {
+      console.warn(`[Admin] IP ${clientIp} 访问管理后台被拒绝`);
+      return res.status(403).json({ error: '禁止访问' });
+    }
+  }
+  next();
+}
 
 // ========== 中间件 ==========
 app.use(cors({
@@ -30,6 +61,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// IP 白名单检查（管理后台安全）
+app.use(ipWhitelistCheck);
 
 // 静态文件目录（图片上传等）
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
