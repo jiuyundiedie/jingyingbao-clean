@@ -1634,6 +1634,7 @@ const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = 
   
   return (
     <View style={{ backgroundColor }}>
+      <View style={styles.safeTop} />
       <View style={[styles.headerBar, { backgroundColor }]}>
         {leftComponent ? leftComponent : (
           showBack ? (
@@ -1662,7 +1663,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: BG_CARD,
     borderBottomWidth: 0,
-    ...SHADOW,
   },
   // 美化的返回按钮
   backBtn: {
