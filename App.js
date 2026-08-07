@@ -1627,7 +1627,6 @@ const loadAllData = async () => {
 
 // ===== 统一头部组件 =====
 const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = BG_CARD, showBack = false, onBack, navigation }) => {
-  const StatusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : (Platform.OS === 'ios' ? 44 : 0);
   const handleBack = () => {
     if (onBack) onBack();
     else if (navigation) navigation.goBack();
@@ -1635,7 +1634,6 @@ const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = 
   
   return (
     <View style={{ backgroundColor }}>
-      <View style={{ height: StatusBarHeight, backgroundColor }} />
       <View style={[styles.headerBar, { backgroundColor }]}>
         {leftComponent ? leftComponent : (
           showBack ? (
@@ -3592,7 +3590,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.55.0';
+  const APP_VERSION = '5.60.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3692,7 +3690,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.59.1',
+        version: '5.60.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -6746,7 +6744,9 @@ const CustomerService = () => {
               <Text style={{ fontSize: 24 }}>😊</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-              <Ionicons name="star" size={22} color={PRIMARY_COLOR} />
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: PRIMARY_COLOR + '20', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="flash" size={16} color={PRIMARY_COLOR} />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowMediaOptions(true)}>
               <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
@@ -6876,9 +6876,14 @@ const InternalChat = () => {
   const startCall = async (type) => {
     setShowMediaOptions(false);
     if (type === 'video') {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        showToast('需要相机权限');
+      try {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          showToast('需要相机权限');
+          return;
+        }
+      } catch (e) {
+        showToast('相机权限获取失败');
         return;
       }
     }
@@ -6888,7 +6893,8 @@ const InternalChat = () => {
     setCallingName('正在呼叫...');
     setTimeout(() => {
       setCallStatus('connected');
-      setCallingName('内部沟通群');
+      setCallingName(type === 'video' ? '内部视频通话' : '内部语音通话');
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
       callTimerRef.current = setInterval(() => {
         setCallDuration(prev => prev + 1);
       }, 1000);
@@ -7018,6 +7024,34 @@ const InternalChat = () => {
     }
   };
 
+  const handleSendFile = async () => {
+    setShowMediaOptions(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/*', 'text/*', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.type === 'success') {
+        const fileMsg = {
+          id: Date.now().toString(),
+          type: 'file',
+          fileName: result.name || '文件',
+          fileSize: result.size || 0,
+          fileUri: result.uri,
+          text: `[文件] ${result.name || '文件'}`,
+          from: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
+          time: new Date().toISOString(),
+        };
+        dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId, message: fileMsg } });
+        showToast('文件已发送');
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    } catch (error) {
+      showToast('选择文件失败');
+    }
+  };
+
   const goToChatSettings = () => {
     navigation.navigate('ChatSetting', { chatId });
   };
@@ -7054,11 +7088,36 @@ const InternalChat = () => {
                       </View>
                     </View>
                   )}
-                  <View style={msg.image ? (isMe ? styles.imageMsgRight : styles.imageMsgLeft) : (isMe ? styles.bubbleRight : styles.bubbleLeft)}>
-                    {!isMe && !msg.image && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
+                  <View style={[msg.image ? (isMe ? styles.imageMsgRight : styles.imageMsgLeft) : (isMe ? styles.bubbleRight : styles.bubbleLeft)]}>
+                    {!isMe && !msg.image && msg.type !== 'file' && <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 4, fontWeight: '500' }}>{msg.from}</Text>}
                     {msg.image ? (
                       <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                         <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                      </TouchableOpacity>
+                    ) : msg.type === 'file' ? (
+                      <TouchableOpacity
+                        onPress={async () => {
+                          if (msg.fileUri) {
+                            try {
+                              if (await Sharing.isAvailableAsync()) {
+                                await Sharing.shareAsync(msg.fileUri);
+                              } else {
+                                showToast('预览失败');
+                              }
+                            } catch (e) { showToast('打开文件失败'); }
+                          } else {
+                            showToast('文件不可用');
+                          }
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 4 }}
+                      >
+                        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                          <Ionicons name="document-outline" size={20} color={PRIMARY_COLOR} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '500' }} numberOfLines={1}>{msg.fileName || '文件'}</Text>
+                          {msg.fileSize ? <Text style={{ fontSize: 11, color: TEXT_THIRD, marginTop: 2 }}>{(msg.fileSize / 1024).toFixed(1)} KB</Text> : null}
+                        </View>
                       </TouchableOpacity>
                     ) : (
                       <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
@@ -7096,26 +7155,31 @@ const InternalChat = () => {
         )}
         
         {showMediaOptions && (
-          <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('gallery')}>
-              <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize: 12, color: TEXT_MAIN }}>相册</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
-              <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize: 12, color: TEXT_MAIN }}>拍照</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
-              <Ionicons name="call-outline" size={24} color={SUCCESS_COLOR} />
-              <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>语音通话</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
-              <Ionicons name="videocam-outline" size={24} color={PRIMARY_COLOR} />
-              <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>视频通话</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-              <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
-              <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+          <View style={{ paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' }}>
+              <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => pickImage('gallery')}>
+                <Ionicons name="images-outline" size={26} color={PRIMARY_COLOR} />
+                <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>相册</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => pickImage('camera')}>
+                <Ionicons name="camera-outline" size={26} color={PRIMARY_COLOR} />
+                <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>拍照</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => handleSendFile()}>
+                <Ionicons name="document-outline" size={26} color={PRIMARY_COLOR} />
+                <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>文件</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
+                <Ionicons name="call-outline" size={26} color={SUCCESS_COLOR} />
+                <Text style={{ fontSize: 12, color: SUCCESS_COLOR, marginTop: 4 }}>语音</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
+                <Ionicons name="videocam-outline" size={26} color={PRIMARY_COLOR} />
+                <Text style={{ fontSize: 12, color: PRIMARY_COLOR, marginTop: 4 }}>视频</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 8, paddingHorizontal: 24, paddingVertical: 8, backgroundColor: '#F5F5F5', borderRadius: 20 }} onPress={() => setShowMediaOptions(false)}>
+              <Text style={{ fontSize: 13, color: TEXT_SECOND }}>取消</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -7175,9 +7239,9 @@ const InternalChat = () => {
       {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', backgroundColor: '#1a1a1a', zIndex: 1000 }}>
           {callType === 'video' && callStatus === 'connected' && (
-            <Camera 
+            <CameraView 
               style={{ flex: 1, width: '100%', height: '100%' }} 
-              type={CameraType.front}
+              facing="front"
             />
           )}
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: callType === 'video' && callStatus === 'connected' ? 'transparent' : '#1a1a1a' }}>
@@ -8945,7 +9009,9 @@ ${businessContext}
               <Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowQuickReply(!showQuickReply)}>
-              <Ionicons name="star" size={22} color={PRIMARY_COLOR} />
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: PRIMARY_COLOR + '20', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="flash" size={16} color={PRIMARY_COLOR} />
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -10024,6 +10090,20 @@ const PrivateChat = ({ route, navigation }) => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [showMentionList, setShowMentionList] = useState(false);
+  const [callType, setCallType] = useState('voice');
+  const [callStatus, setCallStatus] = useState('idle');
+  const [callDuration, setCallDuration] = useState(0);
+  const [callingName, setCallingName] = useState('');
+  const callTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current);
+        callTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 当前用户信息
   const currentUser = state.user;
@@ -10189,6 +10269,117 @@ const PrivateChat = ({ route, navigation }) => {
     setSelectedImages(newList);
   };
 
+  const handleSendFile = async () => {
+    setShowMediaOptions(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/*', 'text/*', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.type === 'success') {
+        const fileMsg = {
+          id: Date.now().toString(),
+          type: 'file',
+          fileName: result.name || '文件',
+          fileSize: result.size || 0,
+          fileUri: result.uri,
+          text: `[文件] ${result.name || '文件'}`,
+          from: 'staff',
+          fromName: state.user?.name || '我',
+          fromPhone: state.user?.phone || '',
+          platform: 'private',
+          time: new Date().toISOString(),
+          read: false,
+        };
+        setMessages(prev => [...prev, fileMsg]);
+        dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { phone, message: fileMsg } });
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    } catch (error) {
+      showToast('选择文件失败');
+    }
+  };
+
+  const startCall = async (type) => {
+    setShowMediaOptions(false);
+    setCallType(type);
+    setCallStatus('calling');
+    setCallDuration(0);
+    setCallingName(name || '对方');
+    if (type === 'voice') {
+      // 真实语音通话：尝试调用系统拨号
+      if (phone) {
+        try {
+          const telUrl = `tel:${phone.replace(/[^0-9+]/g, '')}`;
+          const canOpen = await Linking.canOpenURL(telUrl);
+          if (canOpen) {
+            // 先展示通话模拟界面，让用户有反馈；真正的拨打交给系统
+            showToast('正在通过系统拨号...');
+            // 1.5 秒后自动结束模拟通话（由系统接管）
+            callTimerRef.current = setInterval(() => {
+              setCallDuration(prev => prev + 1);
+            }, 1000);
+            setCallStatus('connected');
+            // 拨打失败时回退到模拟界面
+            Linking.openURL(telUrl).catch(() => {
+              setCallStatus('connected');
+              setCallingName(name || '对方');
+              if (callTimerRef.current) clearInterval(callTimerRef.current);
+              callTimerRef.current = setInterval(() => {
+                setCallDuration(prev => prev + 1);
+              }, 1000);
+              showToast('已切换为模拟通话');
+            });
+            return;
+          }
+        } catch (e) {}
+      }
+      // 无法拨号时回退为模拟通话（可切换扬声器/静音/挂断）
+      setTimeout(() => {
+        setCallStatus('connected');
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        callTimerRef.current = setInterval(() => {
+          setCallDuration(prev => prev + 1);
+        }, 1000);
+      }, 1500);
+      return;
+    }
+    // 视频通话
+    if (type === 'video') {
+      try {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          showToast('需要相机权限');
+          setCallStatus('idle');
+          return;
+        }
+      } catch (e) {
+        showToast('相机权限获取失败');
+        setCallStatus('idle');
+        return;
+      }
+      setTimeout(() => {
+        setCallStatus('connected');
+        if (callTimerRef.current) clearInterval(callTimerRef.current);
+        callTimerRef.current = setInterval(() => {
+          setCallDuration(prev => prev + 1);
+        }, 1000);
+      }, 2000);
+    }
+  };
+
+  const endCall = () => {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+    setCallStatus('ended');
+    setTimeout(() => {
+      setCallStatus('idle');
+      setCallDuration(0);
+    }, 400);
+  };
+
   return (
     <View style={styles.container}>
       <CommonHeader 
@@ -10239,10 +10430,35 @@ const PrivateChat = ({ route, navigation }) => {
                   </View>
                 </View>
               )}
-              <View style={msg.image ? (isSelf ? styles.imageMsgRight : styles.imageMsgLeft) : (isSelf ? styles.bubbleRight : styles.bubbleLeft)}>
+              <View style={[msg.image ? (isSelf ? styles.imageMsgRight : styles.imageMsgLeft) : (isSelf ? styles.bubbleRight : styles.bubbleLeft)]}>
                 {msg.image ? (
                   <TouchableOpacity onPress={() => setFullscreenImage(msg.image)} onLongPress={() => handleImageLongPress(msg.image)}>
                     <Image source={{ uri: msg.image }} style={styles.imageMessage} />
+                  </TouchableOpacity>
+                ) : msg.type === 'file' ? (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (msg.fileUri) {
+                        try {
+                          if (await Sharing.isAvailableAsync()) {
+                            await Sharing.shareAsync(msg.fileUri);
+                          } else {
+                            showToast('预览失败');
+                          }
+                        } catch (e) { showToast('打开文件失败'); }
+                      } else {
+                        showToast('文件不可用');
+                      }
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 4 }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                      <Ionicons name="document-outline" size={20} color={PRIMARY_COLOR} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '500' }} numberOfLines={1}>{msg.fileName || '文件'}</Text>
+                      {msg.fileSize ? <Text style={{ fontSize: 11, color: TEXT_THIRD, marginTop: 2 }}>{(msg.fileSize / 1024).toFixed(1)} KB</Text> : null}
+                    </View>
                   </TouchableOpacity>
                 ) : (
                   <Text style={{ fontSize: 15, color: TEXT_MAIN }}>{msg.text}</Text>
@@ -10269,27 +10485,37 @@ const PrivateChat = ({ route, navigation }) => {
         )}
       </ScrollView>
       {showMediaOptions && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
-            <Ionicons name="camera-outline" size={24} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>拍照</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
-            <Ionicons name="images-outline" size={24} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>相册</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => { setShowVoiceModal(true); setVoiceText(''); }}>
-            <Ionicons name="mic-outline" size={24} color={PRIMARY_COLOR} />
-            <Text style={{ fontSize: 12, color: TEXT_SECOND }}>语音</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flex: 1, alignItems: 'center', padding: 8 }} onPress={() => setShowMediaOptions(false)}>
-            <Ionicons name="close-outline" size={24} color={DANGER_COLOR} />
-            <Text style={{ fontSize: 12, color: DANGER_COLOR }}>取消</Text>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+            <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => pickImages('camera')}>
+              <Ionicons name="camera-outline" size={26} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>拍照</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => pickImages('library')}>
+              <Ionicons name="images-outline" size={26} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>相册</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => handleSendFile()}>
+              <Ionicons name="document-outline" size={26} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: TEXT_MAIN, marginTop: 4 }}>文件</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => startCall('voice')}>
+              <Ionicons name="call-outline" size={26} color={SUCCESS_COLOR} />
+              <Text style={{ fontSize: 12, color: SUCCESS_COLOR, marginTop: 4 }}>语音</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: '20%', alignItems: 'center', padding: 8 }} onPress={() => startCall('video')}>
+              <Ionicons name="videocam-outline" size={26} color={PRIMARY_COLOR} />
+              <Text style={{ fontSize: 12, color: PRIMARY_COLOR, marginTop: 4 }}>视频</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={{ alignSelf: 'center', marginTop: 8, paddingHorizontal: 24, paddingVertical: 8, backgroundColor: '#F5F5F5', borderRadius: 20 }} onPress={() => setShowMediaOptions(false)}>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND }}>取消</Text>
           </TouchableOpacity>
         </View>
       )}
       <View style={styles.inputBar}>
         <TouchableOpacity onPress={() => setShowMediaOptions(true)} style={{ paddingHorizontal: 8 }}><Ionicons name="add-circle-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowVoiceModal(true)} style={{ paddingHorizontal: 4 }}><Ionicons name="mic-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TouchableOpacity onPress={() => setShowMentionList(true)} style={{ paddingHorizontal: 4 }}><Ionicons name="at-outline" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
         <TextInput
           style={styles.inputBox}
@@ -10357,6 +10583,48 @@ const PrivateChat = ({ route, navigation }) => {
         onClose={() => setFullscreenImage(null)}
         isOwnMessage={true}
       />
+    )}
+    {(callStatus === 'calling' || callStatus === 'connected' || callStatus === 'ended') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', backgroundColor: '#1a1a1a', zIndex: 1000 }}>
+        {callType === 'video' && callStatus === 'connected' && (
+          <CameraView style={{ flex: 1, width: '100%', height: '100%' }} facing="front" />
+        )}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: callType === 'video' && callStatus === 'connected' ? 'transparent' : '#1a1a1a' }}>
+          <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: BG_CARD, justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+            {callType === 'video' ? (
+              <Ionicons name="videocam-outline" size={48} color={PRIMARY_COLOR} />
+            ) : (
+              <Ionicons name="person-outline" size={48} color={PRIMARY_COLOR} />
+            )}
+          </View>
+          <Text style={{ fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 4 }}>{callingName}</Text>
+          <Text style={{ fontSize: 14, color: '#aaa', marginBottom: 8 }}>
+            {callType === 'video' ? '📹 视频通话' : '📞 语音通话'}
+          </Text>
+          <Text style={{ fontSize: 16, color: '#aaa', marginBottom: 8 }}>
+            {callStatus === 'calling' ? '正在呼叫...' : callStatus === 'connected' ? formatDuration(callDuration) : '通话已结束'}
+          </Text>
+          {callType === 'voice' && callStatus === 'connected' && (
+            <Text style={{ fontSize: 12, color: '#888', marginBottom: 24 }}>对方可能正在使用系统通话</Text>
+          )}
+          <View style={{ flexDirection: 'row', gap: 32 }}>
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已静音')}>
+              <Ionicons name="mic-off-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换扬声器')}>
+              <Ionicons name="volume-high-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+            {callType === 'video' && (
+              <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' }} onPress={() => showToast('已切换摄像头')}>
+                <Ionicons name="camera-reverse-outline" size={28} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: DANGER_COLOR, justifyContent: 'center', alignItems: 'center' }} onPress={endCall}>
+              <Ionicons name="call-outline" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     )}
     <CustomImagePicker 
       visible={showCustomPicker}
