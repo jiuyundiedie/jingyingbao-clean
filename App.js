@@ -2182,22 +2182,7 @@ const LoginScreen = () => {
 
         {/* LOGO 与 欢迎语 */}
         <View style={{ alignItems: 'center', marginBottom: 32 }}>
-          <View style={{
-            width: 84,
-            height: 84,
-            borderRadius: 20,
-            backgroundColor: '#1A5F8B',
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 20,
-            shadowColor: '#1A5F8B',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.15,
-            shadowRadius: 12,
-            elevation: 6,
-          }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: 2 }}>经</Text>
-          </View>
+          <Image source={require('./assets/icon.png')} style={{ width: 84, height: 84, borderRadius: 20, marginBottom: 20 }} resizeMode="cover" />
           <Text style={{ fontSize: 26, fontWeight: '800', color: TEXT_MAIN, letterSpacing: 1.5 }}>欢迎来到经营宝</Text>
           <Text style={{ fontSize: 15, color: TEXT_SECOND, marginTop: 10, letterSpacing: 0.5 }}>让店铺经营更简单，更高效</Text>
         </View>
@@ -12447,7 +12432,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.54.4</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.60.0</Text>
       </Animated.View>
     </Animated.View>
   );
