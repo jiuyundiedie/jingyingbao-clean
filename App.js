@@ -3692,7 +3692,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.58.40',
+        version: '5.59.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -10541,6 +10541,22 @@ const StaffManage = () => {
     dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: staff.phone } });
     const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
     dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
+    
+    // 发送私聊欢迎消息给员工
+    const bossName = (state.user?.name || '').trim();
+    const shopName = state.shopInfo?.shopName || '门店';
+    const bossTitle = bossName && bossName !== '老板' ? `老板${bossName}` : '老板';
+    const privateWelcome = {
+      id: Date.now().toString() + '_private',
+      text: `欢迎 ${staff.name} 加入${shopName}！我是${bossTitle}，以后工作中有任何问题随时找我沟通。`,
+      from: '老板',
+      fromPhone: state.user?.phone || '',
+      time: new Date().toISOString(),
+      type: 'text'
+    };
+    const targetPhone = staff.phone;
+    dispatch({ type: 'ADD_PRIVATE_MESSAGE', payload: { targetPhone, message: privateWelcome } });
+    
     showToast(`${staff.name} 已批准入职`);
   };
 
