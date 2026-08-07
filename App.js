@@ -2185,23 +2185,23 @@ const LoginScreen = () => {
         {/* LOGO 与 欢迎语 */}
         <View style={{ alignItems: 'center', marginBottom: 32 }}>
           <View style={{
-            width: 76,
-            height: 76,
-            borderRadius: 18,
-            backgroundColor: PRIMARY_COLOR,
+            width: 84,
+            height: 84,
+            borderRadius: 20,
+            backgroundColor: '#1A5F8B',
             justifyContent: 'center',
             alignItems: 'center',
-            marginBottom: 18,
-            shadowColor: PRIMARY_COLOR,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.2,
-            shadowRadius: 8,
-            elevation: 4,
+            marginBottom: 20,
+            shadowColor: '#1A5F8B',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.15,
+            shadowRadius: 12,
+            elevation: 6,
           }}>
-            <Ionicons name="briefcase" size={40} color="#FFFFFF" />
+            <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: 2 }}>经</Text>
           </View>
-          <Text style={{ fontSize: 24, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 1 }}>欢迎来到经营宝</Text>
-          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 8 }}>让店铺经营更简单，更高效</Text>
+          <Text style={{ fontSize: 26, fontWeight: '800', color: TEXT_MAIN, letterSpacing: 1.5 }}>欢迎来到经营宝</Text>
+          <Text style={{ fontSize: 15, color: TEXT_SECOND, marginTop: 10, letterSpacing: 0.5 }}>让店铺经营更简单，更高效</Text>
         </View>
 
         {/* 一键登录卡片（有历史账号时展示） */}
@@ -3692,7 +3692,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.59.0',
+        version: '5.59.1',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -10374,31 +10374,70 @@ const PlatformAccountsScreen = ({ navigation }) => {
   const accounts = state.platformAccounts || {};
   const [editing, setEditing] = useState(null);
   const [phoneInput, setPhoneInput] = useState('');
+  const [codeInput, setCodeInput] = useState('');
+  const [codeCountdown, setCodeCountdown] = useState(0);
+  const [authStep, setAuthStep] = useState(1); // 1:输入手机号 2:输入验证码 3:授权登录
+  const [showAuthLoading, setShowAuthLoading] = useState(false);
 
   const platforms = [
-    { key: 'meituan', name: '美团', color: '#FFD100', icon: 'restaurant-outline', placeholder: '请输入美团客服手机号' },
-    { key: 'douyin', name: '抖音来客', color: '#000000', icon: 'logo-tiktok', placeholder: '请输入抖音来客客服手机号' },
-    { key: 'dianping', name: '大众点评', color: '#FF6A00', icon: 'chatbubbles-outline', placeholder: '请输入大众点评客服手机号' },
+    { key: 'meituan', name: '美团', color: '#FFD100', icon: 'restaurant-outline', desc: '美团客服账号，查看外卖与到店咨询' },
+    { key: 'douyin', name: '抖音来客', color: '#000000', icon: 'logo-tiktok', desc: '抖音来客账号，查看短视频带货咨询' },
+    { key: 'dianping', name: '大众点评', color: '#FF6A00', icon: 'chatbubbles-outline', desc: '大众点评账号，查看点评咨询与回复评价' },
   ];
+
+  const handleGetCode = () => {
+    if (codeCountdown > 0) return;
+    if (!phoneInput || phoneInput.length !== 11) {
+      showToast('请输入11位手机号');
+      return;
+    }
+    showToast(`验证码已发送（开发模式: 123456）`);
+    setCodeCountdown(60);
+    const timer = setInterval(() => {
+      setCodeCountdown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleBind = (platform) => {
     setEditing(platform);
     setPhoneInput(accounts[platform.key]?.phone || '');
+    setCodeInput('');
+    setAuthStep(1);
   };
 
-  const handleSave = () => {
-    if (!editing) return;
-    if (!phoneInput || phoneInput.length !== 11) {
-      showToast('请输入正确的11位手机号');
-      return;
+  const handleNextStep = () => {
+    if (authStep === 1) {
+      if (!phoneInput || phoneInput.length !== 11) {
+        showToast('请输入正确的11位手机号');
+        return;
+      }
+      handleGetCode();
+      setAuthStep(2);
+    } else if (authStep === 2) {
+      if (codeInput !== '123456') {
+        showToast('验证码错误');
+        return;
+      }
+      setAuthStep(3);
+    } else if (authStep === 3) {
+      setShowAuthLoading(true);
+      // 模拟平台授权流程
+      setTimeout(() => {
+        dispatch({
+          type: 'SET_PLATFORM_ACCOUNTS',
+          payload: { [editing.key]: { phone: phoneInput, bound: true, authorizedAt: new Date().toISOString() } }
+        });
+        showToast(`${editing.name}授权绑定成功`);
+        setShowAuthLoading(false);
+        setEditing(null);
+        setPhoneInput('');
+        setCodeInput('');
+        setAuthStep(1);
+      }, 2500);
     }
-    dispatch({
-      type: 'SET_PLATFORM_ACCOUNTS',
-      payload: { [editing.key]: { phone: phoneInput, bound: true } }
-    });
-    showToast(`${editing.name}账号绑定成功`);
-    setEditing(null);
-    setPhoneInput('');
   };
 
   const handleUnbind = (platform) => {
@@ -10414,6 +10453,17 @@ const PlatformAccountsScreen = ({ navigation }) => {
     ]);
   };
 
+  const handleEnterPlatform = (platform) => {
+    const account = accounts[platform.key];
+    if (!account?.bound) return;
+    showToast(`正在进入${platform.name}用户回复界面...`);
+    // 跳转到客服页面并自动选中对应平台标签
+    navigation.navigate('客服');
+    setTimeout(() => {
+      // 模拟选中平台标签的逻辑（在客服页面中通过state.selectedPlatform读取）
+    }, 300);
+  };
+
   return (
     <View style={styles.container}>
       <CommonHeader 
@@ -10422,35 +10472,67 @@ const PlatformAccountsScreen = ({ navigation }) => {
         navigation={navigation}
       />
       <ScrollView style={{ padding: 16 }}>
-        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 16, ...SHADOW }}>
-          <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
-            绑定各平台客服账号后，可在客服页面查看对应平台的顾客咨询消息。请确保填写的手机号是您在各平台注册的客服账号。
-          </Text>
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 18, marginBottom: 20, ...SHADOW }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR + '15', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="link" size={22} color={PRIMARY_COLOR} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6 }}>授权第三方平台账号</Text>
+              <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>
+                绑定后可直接接收和回复各平台顾客咨询消息，无需来回切换多个App。
+              </Text>
+            </View>
+          </View>
         </View>
 
         {platforms.map(platform => {
           const account = accounts[platform.key] || {};
           return (
-            <View key={platform.key} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+            <View key={platform.key} style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 18, marginBottom: 14, ...SHADOW }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: platform.color + '20', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name={platform.icon} size={24} color={platform.color} />
+                <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: platform.color + '18', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={platform.icon} size={26} color={platform.color} />
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{platform.name}</Text>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_MAIN }}>{platform.name}</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 4, lineHeight: 18 }}>{platform.desc}</Text>
                   {account.bound ? (
-                    <Text style={{ fontSize: 13, color: SUCCESS_COLOR }}>✓ 已绑定 {account.phone}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                      <View style={{ backgroundColor: SUCCESS_COLOR + '18', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginRight: 8 }}>
+                        <Text style={{ fontSize: 11, color: SUCCESS_COLOR, fontWeight: '600' }}>✓ 已绑定</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{account.phone}</Text>
+                    </View>
                   ) : (
-                    <Text style={{ fontSize: 13, color: TEXT_THIRD }}>未绑定</Text>
+                    <View style={{ backgroundColor: TEXT_THIRD + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginTop: 8, alignSelf: 'flex-start' }}>
+                      <Text style={{ fontSize: 11, color: TEXT_THIRD, fontWeight: '500' }}>未绑定</Text>
+                    </View>
                   )}
                 </View>
+              </View>
+              <View style={{ flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
                 {account.bound ? (
-                  <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: DANGER_COLOR + '20', borderRadius: 8 }} onPress={() => handleUnbind(platform)}>
-                    <Text style={{ fontSize: 13, color: DANGER_COLOR }}>解绑</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity 
+                      style={{ flex: 1, paddingVertical: 12, backgroundColor: DANGER_COLOR + '12', borderRadius: 10, marginRight: 10 }} 
+                      onPress={() => handleUnbind(platform)}
+                    >
+                      <Text style={{ textAlign: 'center', fontSize: 14, color: DANGER_COLOR, fontWeight: '500' }}>解绑账号</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={{ flex: 1.4, paddingVertical: 12, backgroundColor: platform.color, borderRadius: 10 }} 
+                      onPress={() => handleEnterPlatform(platform)}
+                    >
+                      <Text style={{ textAlign: 'center', fontSize: 14, color: '#FFFFFF', fontWeight: '600' }}>进入{platform.name}</Text>
+                    </TouchableOpacity>
+                  </>
                 ) : (
-                  <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: platform.color, borderRadius: 8 }} onPress={() => handleBind(platform)}>
-                    <Text style={{ fontSize: 13, color: '#fff' }}>绑定</Text>
+                  <TouchableOpacity 
+                    style={{ flex: 1, paddingVertical: 12, backgroundColor: platform.color, borderRadius: 10 }} 
+                    onPress={() => handleBind(platform)}
+                  >
+                    <Text style={{ textAlign: 'center', fontSize: 14, color: '#FFFFFF', fontWeight: '600' }}>立即绑定</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -10458,41 +10540,158 @@ const PlatformAccountsScreen = ({ navigation }) => {
           );
         })}
 
-        <View style={{ marginTop: 20, padding: 16, backgroundColor: '#FFF9E6', borderRadius: 12, borderWidth: 1, borderColor: '#FFE58F' }}>
-          <Text style={{ fontSize: 14, color: '#AD6800', lineHeight: 22 }}>
-            💡 <Text style={{ fontWeight: '600' }}>温馨提示：</Text>{'\n'}
-            真实对接各平台API需要官方授权。当前版本为模拟绑定，用于展示账号管理功能。正式版将接入美团/抖音/点评开放平台API。
-          </Text>
+        <View style={{ marginTop: 10, padding: 18, backgroundColor: '#F0F7FF', borderRadius: 14, borderWidth: 1, borderColor: '#BAE0FF' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Ionicons name="information-circle-outline" size={22} color="#1890FF" style={{ marginTop: 1, marginRight: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: '#0050B3', lineHeight: 22 }}>
+                <Text style={{ fontWeight: '600' }}>关于平台授权：</Text>{'\n'}
+                本流程为模拟演示版本。正式版将接入美团开放平台、抖音开放平台、大众点评开放平台的官方OAuth授权。
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
 
       {editing && (
-        <Modal visible={true} transparent animationType="fade" onRequestClose={() => { setEditing(null); setPhoneInput(''); }}>
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => { setEditing(null); setPhoneInput(''); setCodeInput(''); setAuthStep(1); setShowAuthLoading(false); }}>
           <View style={styles.modalMask}>
-            <View style={[styles.modalContent, { width: 320 }]}>
-              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 16 }}>
-                绑定{editing.name}账号
-              </Text>
-              <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>
-                {editing.placeholder}
-              </Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="11位手机号"
-                keyboardType="phone-pad"
-                maxLength={11}
-                value={phoneInput}
-                onChangeText={setPhoneInput}
-                autoFocus
-              />
-              <View style={{ flexDirection: 'row', marginTop: 16 }}>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setEditing(null); setPhoneInput(''); }}>
-                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleSave}>
-                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={[styles.modalContent, { width: 340, padding: 24 }]}>
+              {showAuthLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={editing.color} />
+                  <Text style={{ marginTop: 20, fontSize: 15, color: TEXT_MAIN, fontWeight: '600' }}>
+                    正在跳转{editing.name}授权
+                  </Text>
+                  <Text style={{ marginTop: 10, fontSize: 13, color: TEXT_SECOND }}>
+                    请在{editing.name}页面点击「授权登录」
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: editing.color + '18', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Ionicons name={editing.icon} size={22} color={editing.color} />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT_MAIN }}>绑定{editing.name}账号</Text>
+                      <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 2 }}>步骤 {authStep}/3</Text>
+                    </View>
+                  </View>
+
+                  {/* 步骤指示条 */}
+                  <View style={{ flexDirection: 'row', marginBottom: 24 }}>
+                    {[1, 2, 3].map(s => (
+                      <View key={s} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{
+                          width: 24, height: 24, borderRadius: 12,
+                          backgroundColor: authStep >= s ? (editing.color || PRIMARY_COLOR) : '#F0F0F0',
+                          justifyContent: 'center', alignItems: 'center'
+                        }}>
+                          {authStep > s ? (
+                            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                          ) : (
+                            <Text style={{ fontSize: 12, color: authStep >= s ? '#FFFFFF' : TEXT_THIRD, fontWeight: '600' }}>{s}</Text>
+                          )}
+                        </View>
+                        {s < 3 && <View style={{ flex: 1, height: 3, backgroundColor: authStep > s ? (editing.color || PRIMARY_COLOR) : '#F0F0F0', marginHorizontal: 6, borderRadius: 2 }} />}
+                      </View>
+                    ))}
+                  </View>
+
+                  {authStep === 1 && (
+                    <>
+                      <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>
+                        请输入您在{editing.name}注册的客服账号手机号
+                      </Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="11位手机号"
+                        keyboardType="phone-pad"
+                        maxLength={11}
+                        value={phoneInput}
+                        onChangeText={setPhoneInput}
+                        autoFocus
+                      />
+                    </>
+                  )}
+
+                  {authStep === 2 && (
+                    <>
+                      <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 10 }}>
+                        验证码已发送至 {phoneInput}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TextInput
+                          style={{ ...styles.formInput, flex: 1, marginRight: 10 }}
+                          placeholder="6位验证码"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          value={codeInput}
+                          onChangeText={setCodeInput}
+                          autoFocus
+                        />
+                        <TouchableOpacity 
+                          style={{ paddingHorizontal: 14, paddingVertical: 13, backgroundColor: codeCountdown > 0 ? '#F0F0F0' : (editing.color || PRIMARY_COLOR), borderRadius: 10, minWidth: 96 }}
+                          onPress={handleGetCode}
+                          disabled={codeCountdown > 0}
+                        >
+                          <Text style={{ 
+                            fontSize: 13, 
+                            color: codeCountdown > 0 ? TEXT_THIRD : '#FFFFFF', 
+                            fontWeight: '600',
+                            textAlign: 'center'
+                          }}>
+                            {codeCountdown > 0 ? `${codeCountdown}s后重发` : '获取验证码'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+
+                  {authStep === 3 && (
+                    <>
+                      <View style={{ padding: 16, backgroundColor: '#F9FAFB', borderRadius: 12, marginBottom: 10 }}>
+                        <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '600', marginBottom: 12 }}>
+                          {editing.name}将授权以下内容：
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 }}>
+                          <Ionicons name="checkmark-circle" size={18} color={SUCCESS_COLOR} style={{ marginTop: 2, marginRight: 10 }} />
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>获取您的顾客咨询消息列表</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 }}>
+                          <Ionicons name="checkmark-circle" size={18} color={SUCCESS_COLOR} style={{ marginTop: 2, marginRight: 10 }} />
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>回复顾客咨询消息</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                          <Ionicons name="checkmark-circle" size={18} color={SUCCESS_COLOR} style={{ marginTop: 2, marginRight: 10 }} />
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 20 }}>读取历史聊天记录用于同步</Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 11, color: TEXT_THIRD, lineHeight: 18 }}>
+                        点击「授权登录」即表示您同意《{editing.name}开放平台服务协议》及《数据授权协议》
+                      </Text>
+                    </>
+                  )}
+
+                  <View style={{ flexDirection: 'row', marginTop: 24 }}>
+                    <TouchableOpacity 
+                      style={{ flex: 1, paddingVertical: 13, backgroundColor: '#F0F0F0', borderRadius: 10, marginRight: 10 }} 
+                      onPress={() => { setEditing(null); setPhoneInput(''); setCodeInput(''); setAuthStep(1); }}
+                    >
+                      <Text style={{ textAlign: 'center', fontSize: 14, color: TEXT_SECOND, fontWeight: '500' }}>取消</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={{ flex: 1, paddingVertical: 13, backgroundColor: editing.color || PRIMARY_COLOR, borderRadius: 10 }} 
+                      onPress={handleNextStep}
+                    >
+                      <Text style={{ textAlign: 'center', fontSize: 14, color: '#FFFFFF', fontWeight: '600' }}>
+                        {authStep === 3 ? '授权登录' : '下一步'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         </Modal>

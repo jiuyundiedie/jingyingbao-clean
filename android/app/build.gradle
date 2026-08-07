@@ -92,8 +92,8 @@ android {
         applicationId 'com.jingyingbao.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 91
-        versionName "5.59.0"
+        versionCode 92
+        versionName "5.59.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
