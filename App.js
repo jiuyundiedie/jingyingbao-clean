@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1207,6 +1207,7 @@ const generateMonthReport = (state) => {
 const defaultState = {
   user: null,
   shopInfo: { shopName: '', phone: '', industry: '餐饮类' },
+  platformAccounts: { meituan: { phone: '', bound: false }, douyin: { phone: '', bound: false }, dianping: { phone: '', bound: false } },
   previousAccounts: [],
   globalOrderRecord: [],
   globalStockRecord: [],
@@ -1262,6 +1263,10 @@ function appReducer(state, action) {
       return { ...state, shopInfo: action.payload };
     case 'SET_SHOP_INFO':
       return { ...state, shopInfo: { ...state.shopInfo, ...action.payload } };
+    case 'SET_PLATFORM_ACCOUNTS':
+      return { ...state, platformAccounts: { ...state.platformAccounts, ...action.payload } };
+    case 'LOGOUT_PLATFORM_ACCOUNTS':
+      return { ...state, platformAccounts: { meituan: { phone: '', bound: false }, douyin: { phone: '', bound: false }, dianping: { phone: '', bound: false } } };
     case 'ADD_ORDER_RECORD':
       return { ...state, globalOrderRecord: [action.payload, ...(state.globalOrderRecord || [])] };
     case 'ADD_STOCK_RECORD':
@@ -1481,6 +1486,7 @@ function appReducer(state, action) {
         coupons: Array.isArray(r.coupons) ? r.coupons : [],
         suppliers: Array.isArray(r.suppliers) ? r.suppliers : [],
         stockAlerts: (r.stockAlerts && typeof r.stockAlerts === 'object') ? r.stockAlerts : {},
+        platformAccounts: { meituan: { phone: '', bound: false }, douyin: { phone: '', bound: false }, dianping: { phone: '', bound: false }, ...(r.platformAccounts || {}) },
       };
     }
     case 'ADD_AI_MESSAGE': {
@@ -1587,6 +1593,7 @@ const saveAllData = async (state) => {
       previousAccounts: state.previousAccounts || [],
       user: state.user,
       shopInfo: state.shopInfo,
+      platformAccounts: state.platformAccounts || { meituan: { phone: '', bound: false }, douyin: { phone: '', bound: false }, dianping: { phone: '', bound: false } },
       costCache: state.costCache || { purchaseCost: "", fixedCost: "" },
       shopConfig: state.shopConfig || { shopName: "我的门店", industry: "餐饮类" },
       lastBusinessInput: state.lastBusinessInput || { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
@@ -3074,6 +3081,15 @@ const SettingDrawer = ({ visible, onClose }) => {
                       <Ionicons name="storefront-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                       <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>门店信息</Text>
                       <Text style={{ fontSize: 14, color: TEXT_SECOND }}>{shopName || '未设置'}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                    </TouchableOpacity>
+                    <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); setTimeout(() => navigation.navigate('PlatformAccounts'), 300); }}>
+                      <Ionicons name="business-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                      <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>平台账号</Text>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD }}>
+                        {Object.values(state.platformAccounts || {}).filter(a => a?.bound).length}/3 已绑定
+                      </Text>
                       <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                     </TouchableOpacity>
                     {/* 商家会员 - 暂时隐藏，上架后开启 */}
@@ -6530,6 +6546,8 @@ const CustomerService = () => {
         {['美团', '抖音来客', '大众点评'].map(p => {
           const platformCustomers = customerByPlatform(p);
           const platformUnread = platformCustomers.reduce((s, c) => s + c.unread, 0);
+          const accountKey = p === '美团' ? 'meituan' : p === '抖音来客' ? 'douyin' : 'dianping';
+          const account = state.platformAccounts?.[accountKey];
           return (
             <TouchableOpacity key={p} onPress={() => { setCurrentPlatform(p); setSelectedPhone(''); }}>
               <View style={{ alignItems: 'center' }}>
@@ -6538,6 +6556,9 @@ const CustomerService = () => {
                   fontWeight: currentPlatform === p ? '700' : '400',
                   color: currentPlatform === p ? PRIMARY_COLOR : TEXT_SECOND
                 }}>{p}</Text>
+                {account?.bound && (
+                  <Text style={{ fontSize: 10, color: SUCCESS_COLOR, marginTop: 2 }}>✓ {account.phone}</Text>
+                )}
                 {platformUnread > 0 && (
                   <View style={{ backgroundColor: DANGER_COLOR, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, marginTop: 2 }}>
                     <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{platformUnread > 99 ? '99+' : platformUnread}</Text>
@@ -9409,9 +9430,10 @@ const HomePage = () => {
         const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
         dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
         // 发送私聊欢迎消息给员工
-        const bossName = state.user?.name || '老板';
+        const bossName = (state.user?.name || '').trim();
         const shopName = state.shopInfo?.shopName || '门店';
-        const bossTitle = bossName === '老板' ? '老板' : `老板${bossName}`;
+        // 只有当老板有真实姓名（不是空或'老板'）时才添加前缀
+        const bossTitle = bossName && bossName !== '老板' ? `老板${bossName}` : '老板';
         const privateWelcome = {
           id: Date.now().toString(),
           text: `欢迎 ${staff.name} 加入${shopName}！我是${bossTitle}，以后工作中有任何问题随时找我沟通。`,
@@ -10342,6 +10364,139 @@ const PrivateChat = ({ route, navigation }) => {
       onSend={handlePrivatePickerSend}
       maxSelection={10}
     />
+    </View>
+  );
+};
+
+// ================== 平台账号管理页面 ==================
+const PlatformAccountsScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const accounts = state.platformAccounts || {};
+  const [editing, setEditing] = useState(null);
+  const [phoneInput, setPhoneInput] = useState('');
+
+  const platforms = [
+    { key: 'meituan', name: '美团', color: '#FFD100', icon: 'restaurant-outline', placeholder: '请输入美团客服手机号' },
+    { key: 'douyin', name: '抖音来客', color: '#000000', icon: 'logo-tiktok', placeholder: '请输入抖音来客客服手机号' },
+    { key: 'dianping', name: '大众点评', color: '#FF6A00', icon: 'chatbubbles-outline', placeholder: '请输入大众点评客服手机号' },
+  ];
+
+  const handleBind = (platform) => {
+    setEditing(platform);
+    setPhoneInput(accounts[platform.key]?.phone || '');
+  };
+
+  const handleSave = () => {
+    if (!editing) return;
+    if (!phoneInput || phoneInput.length !== 11) {
+      showToast('请输入正确的11位手机号');
+      return;
+    }
+    dispatch({
+      type: 'SET_PLATFORM_ACCOUNTS',
+      payload: { [editing.key]: { phone: phoneInput, bound: true } }
+    });
+    showToast(`${editing.name}账号绑定成功`);
+    setEditing(null);
+    setPhoneInput('');
+  };
+
+  const handleUnbind = (platform) => {
+    Alert.alert('确认解绑', `确定要解绑${platform.name}账号吗？`, [
+      { text: '取消' },
+      { text: '解绑', style: 'destructive', onPress: () => {
+        dispatch({
+          type: 'SET_PLATFORM_ACCOUNTS',
+          payload: { [platform.key]: { phone: '', bound: false } }
+        });
+        showToast('已解绑');
+      }}
+    ]);
+  };
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader 
+        title="平台账号绑定" 
+        showBack={true}
+        navigation={navigation}
+      />
+      <ScrollView style={{ padding: 16 }}>
+        <View style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 16, ...SHADOW }}>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 22 }}>
+            绑定各平台客服账号后，可在客服页面查看对应平台的顾客咨询消息。请确保填写的手机号是您在各平台注册的客服账号。
+          </Text>
+        </View>
+
+        {platforms.map(platform => {
+          const account = accounts[platform.key] || {};
+          return (
+            <View key={platform.key} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: platform.color + '20', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={platform.icon} size={24} color={platform.color} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{platform.name}</Text>
+                  {account.bound ? (
+                    <Text style={{ fontSize: 13, color: SUCCESS_COLOR }}>✓ 已绑定 {account.phone}</Text>
+                  ) : (
+                    <Text style={{ fontSize: 13, color: TEXT_THIRD }}>未绑定</Text>
+                  )}
+                </View>
+                {account.bound ? (
+                  <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: DANGER_COLOR + '20', borderRadius: 8 }} onPress={() => handleUnbind(platform)}>
+                    <Text style={{ fontSize: 13, color: DANGER_COLOR }}>解绑</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: platform.color, borderRadius: 8 }} onPress={() => handleBind(platform)}>
+                    <Text style={{ fontSize: 13, color: '#fff' }}>绑定</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          );
+        })}
+
+        <View style={{ marginTop: 20, padding: 16, backgroundColor: '#FFF9E6', borderRadius: 12, borderWidth: 1, borderColor: '#FFE58F' }}>
+          <Text style={{ fontSize: 14, color: '#AD6800', lineHeight: 22 }}>
+            💡 <Text style={{ fontWeight: '600' }}>温馨提示：</Text>{'\n'}
+            真实对接各平台API需要官方授权。当前版本为模拟绑定，用于展示账号管理功能。正式版将接入美团/抖音/点评开放平台API。
+          </Text>
+        </View>
+      </ScrollView>
+
+      {editing && (
+        <Modal visible={true} transparent animationType="fade" onRequestClose={() => { setEditing(null); setPhoneInput(''); }}>
+          <View style={styles.modalMask}>
+            <View style={[styles.modalContent, { width: 320 }]}>
+              <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 16 }}>
+                绑定{editing.name}账号
+              </Text>
+              <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>
+                {editing.placeholder}
+              </Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="11位手机号"
+                keyboardType="phone-pad"
+                maxLength={11}
+                value={phoneInput}
+                onChangeText={setPhoneInput}
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', marginTop: 16 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 }} onPress={() => { setEditing(null); setPhoneInput(''); }}>
+                  <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleSave}>
+                  <Text style={{ textAlign: 'center', color: '#fff' }}>保存</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -11750,6 +11905,7 @@ function AppStack() {
       <Stack.Screen name="MemberManage" component={MemberManageScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="CouponManage" component={CouponManageScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="MerchantMembership" component={MerchantMembershipScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="PlatformAccounts" component={PlatformAccountsScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SupplierManage" component={SupplierManageScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="StockAlert" component={StockAlertScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="DataExport" component={DataExportScreen} options={{ gestureEnabled: true }} />
