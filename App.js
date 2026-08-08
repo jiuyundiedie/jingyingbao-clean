@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1654,7 +1654,7 @@ const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = 
 
 // ===== 样式 =====
 const styles = StyleSheet.create({
-  safeTop: { height: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 32) },
+  safeTop: { height: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 32), backgroundColor: BG_CARD },
   headerBar: {
     height: 56,
     flexDirection: 'row',
@@ -3575,7 +3575,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.62.0';
+  const APP_VERSION = '5.63.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3675,7 +3675,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.62.0',
+        version: '5.63.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -9560,7 +9560,6 @@ const HomePage = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} />
       <SettingDrawer visible={settingOpen} onClose={() => setSettingOpen(false)} />
       <HelpGuideCarousel visible={showHelpGuide} onClose={() => setShowHelpGuide(false)} />
       <CommonHeader 
@@ -12432,7 +12431,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.62.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.63.0</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -12702,6 +12701,7 @@ export default function App() {
 
   return (
     <View style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG_CARD} translucent />
       <SafeAreaProvider>
         <GlobalErrorBoundary>
           <AppContext.Provider value={{ state, dispatch }}>
