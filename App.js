@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -155,6 +155,103 @@ const detectIndustryFromName = (name) => {
   
   // 如果没有匹配到任何关键词，默认餐饮类
   return bestScore > 0 ? bestIndustry : '餐饮类';
+};
+
+// 行业专属海报/广告语模板（用户可自行填写关键词）
+const INDUSTRY_TEMPLATES = {
+  '餐饮类': {
+    '海报': [
+      { title: '新品上市', prompt: '为我的餐饮店「{店名}」设计一张新品上市海报，菜品名称：{菜品名}，价格：{价格}，卖点：{卖点描述}，风格要求：美食特写、暖色调、诱人食欲' },
+      { title: '节日促销', prompt: '为「{店名}」设计{节日名称}促销海报，活动：{活动内容}，折扣：{折扣力度}，时间：{活动时间}，风格：节日喜庆、红金配色' },
+      { title: '招牌推荐', prompt: '为「{店名}」设计招牌菜推荐海报，招牌菜：{菜品名}，特色：{特色描述}，月销量：{销量}份，风格：高端美食摄影、精致摆盘' },
+      { title: '外卖满减', prompt: '为「{店名}」设计外卖满减海报，满{金额}减{金额}，满{金额}减{金额}，配送范围：{范围}，风格：醒目数字、橙色系、促下单' },
+      { title: '开业活动', prompt: '为「{店名}」设计新店开业海报，开业日期：{日期}，活动：{活动内容}，地址：{地址}，风格：热闹喜庆、开业花篮、红毯' },
+    ],
+    '广告语': [
+      { title: '招牌菜广告语', prompt: '为「{店名}」写3条招牌菜广告语，菜品：{菜品名}，特色：{特色}，目标：吸引顾客下单' },
+      { title: '节日广告语', prompt: '为「{店名}」写3条{节日}广告语，活动：{活动内容}，风格：温馨、有感染力' },
+      { title: '外卖广告语', prompt: '为「{店名}」写3条外卖广告语，卖点：{卖点}，配送时间：{时间}，风格：简洁有力、促行动' },
+    ],
+  },
+  '服务类': {
+    '海报': [
+      { title: '服务推广', prompt: '为「{店名}」设计服务推广海报，服务项目：{服务名}，价格：{价格}，特色：{特色}，风格：高端优雅、品质感' },
+      { title: '会员卡', prompt: '为「{店名}」设计会员卡海报，会员权益：{权益}，充值：{金额}，赠送：{赠送内容}，风格：尊贵金色、钻石质感' },
+      { title: '节日特惠', prompt: '为「{店名}」设计{节日}特惠海报，项目：{项目}，原价{原价}现价{现价}，风格：节日温馨、柔和色调' },
+      { title: '体验活动', prompt: '为「{店名}」设计免费体验海报，体验项目：{项目}，名额：{名额}个，时间：{时间}，风格：清新自然、邀请感' },
+    ],
+    '广告语': [
+      { title: '服务广告语', prompt: '为「{店名}」写3条服务广告语，核心服务：{服务名}，优势：{优势}，目标：建立信任' },
+      { title: '会员广告语', prompt: '为「{店名}」写3条会员招募广告语，权益：{权益}，风格：尊贵感、专属感' },
+    ],
+  },
+  '企业类': {
+    '海报': [
+      { title: '企业宣传', prompt: '为「{店名}」设计企业宣传海报，主营业务：{业务}，成立年份：{年份}，风格：商务蓝金、专业大气' },
+      { title: '产品发布', prompt: '为「{店名}」设计新品发布海报，产品名：{产品名}，核心功能：{功能}，发布日期：{日期}，风格：科技感、深色背景' },
+      { title: '招商合作', prompt: '为「{店名}」设计招商海报，合作类型：{类型}，优势：{优势}，联系方式：{电话}，风格：商务正式、数据图表' },
+      { title: '活动会议', prompt: '为「{店名}」设计会议活动海报，主题：{主题}，时间：{时间}，地点：{地点}，风格：简约商务、高端感' },
+    ],
+    '广告语': [
+      { title: '品牌广告语', prompt: '为「{店名}」写3条品牌广告语，定位：{定位}，目标客群：{客群}，风格：专业可信' },
+      { title: '产品广告语', prompt: '为「{店名}」写3条产品广告语，产品：{产品名}，卖点：{卖点}，风格：简洁有力' },
+    ],
+  },
+  '零售类': {
+    '海报': [
+      { title: '新品上架', prompt: '为「{店名}」设计新品上架海报，商品：{商品名}，价格：{价格}，风格：潮流时尚、ins风' },
+      { title: '换季清仓', prompt: '为「{店名}」设计换季清仓海报，折扣：{折扣}，品类：{品类}，时间：{时间}，风格：醒目红色、大字促销' },
+      { title: '会员日', prompt: '为「{店名}」设计会员日海报，会员折扣：{折扣}，双倍积分，时间：{时间}，风格：紫色尊享、积分元素' },
+      { title: '直播预告', prompt: '为「{店名}」设计直播预告海报，直播时间：{时间}，爆款商品：{商品}，福利：{福利}，风格：直播元素、倒计时' },
+    ],
+    '广告语': [
+      { title: '促销广告语', prompt: '为「{店名}」写3条促销广告语，活动：{活动}，折扣：{折扣}，风格：紧迫感、促行动' },
+      { title: '新品广告语', prompt: '为「{店名}」写3条新品广告语，商品：{商品名}，特色：{特色}，风格：时尚潮流' },
+    ],
+  },
+  '教育类': {
+    '海报': [
+      { title: '招生简章', prompt: '为「{店名}」设计招生海报，课程：{课程名}，适合年龄：{年龄}，开课时间：{时间}，风格：清新明亮、教育感' },
+      { title: '免费试听', prompt: '为「{店名}」设计免费试听课海报，课程：{课程名}，时间：{时间}，名额：{名额}人，风格：活泼亲切、邀请感' },
+      { title: '暑期班', prompt: '为「{店名}」设计暑期班海报，课程：{课程名}，周期：{周期}，价格：{价格}，风格：夏日活力、学习氛围' },
+      { title: '成果展示', prompt: '为「{店名}」设计学员成果海报，学员：{学员名}，成果：{成果}，风格：荣誉感、成就感' },
+    ],
+    '广告语': [
+      { title: '招生广告语', prompt: '为「{店名}」写3条招生广告语，课程：{课程名}，特色：{特色}，风格：专业可信、家长安心' },
+      { title: '试听广告语', prompt: '为「{店名}」写3条试听课广告语，课程：{课程名}，免费体验，风格：亲切邀请' },
+    ],
+  },
+  '医疗类': {
+    '海报': [
+      { title: '健康科普', prompt: '为「{店名}」设计健康科普海报，主题：{主题}，科普要点：{要点}，风格：专业洁净、蓝白绿配色' },
+      { title: '义诊活动', prompt: '为「{店名}」设计义诊海报，时间：{时间}，地点：{地点}，项目：{项目}，风格：温暖关怀、医疗专业' },
+      { title: '体检套餐', prompt: '为「{店名}」设计体检套餐海报，套餐名：{套餐名}，价格：{价格}，项目数：{数量}项，风格：简洁专业、数据感' },
+      { title: '专家坐诊', prompt: '为「{店名}」设计专家坐诊海报，专家：{专家名}，科室：{科室}，时间：{时间}，风格：权威专业、信赖感' },
+    ],
+    '广告语': [
+      { title: '服务广告语', prompt: '为「{店名}」写3条服务广告语，特色：{特色}，风格：专业可信赖、温暖关怀' },
+      { title: '体检广告语', prompt: '为「{店名}」写3条体检广告语，套餐：{套餐名}，优惠：{优惠}，风格：健康提醒、预防为主' },
+    ],
+  },
+  '休闲娱乐': {
+    '海报': [
+      { title: '主题派对', prompt: '为「{店名}」设计主题派对海报，主题：{主题名}，时间：{时间}，门票：{价格}，风格：潮流炫酷、霓虹灯光' },
+      { title: '开业活动', prompt: '为「{店名}」设计开业海报，日期：{日期}，活动：{活动内容}，福利：{福利}，风格：热闹派对、音乐元素' },
+      { title: '会员优惠', prompt: '为「{店名}」设计会员优惠海报，充值{金额}送{金额}，特权：{特权}，风格：夜店风、金色质感' },
+      { title: '短剧推广', prompt: '为「{店名}」设计短剧推广海报，剧名：{剧名}，类型：{类型}，上线时间：{时间}，风格：剧情感、悬念海报' },
+      { title: '直播预告', prompt: '为「{店名}」设计直播预告海报，主播：{主播名}，时间：{时间}，内容：{内容}，风格：短视频风格、流量元素' },
+    ],
+    '广告语': [
+      { title: '活动广告语', prompt: '为「{店名}」写3条活动广告语，活动：{活动名}，特色：{特色}，风格：潮流有趣、吸引年轻人' },
+      { title: '会员广告语', prompt: '为「{店名}」写3条会员广告语，权益：{权益}，风格：尊享感、潮流感' },
+    ],
+  },
+};
+
+// 获取指定行业的模板列表
+const getIndustryTemplates = (industry, type) => {
+  const templates = INDUSTRY_TEMPLATES[industry] || INDUSTRY_TEMPLATES['餐饮类'];
+  return templates[type] || templates['海报'];
 };
 
 const { width, height } = Dimensions.get('window');
@@ -8352,6 +8449,15 @@ const MerchantAssistant = () => {
   const [downloading, setDownloading] = useState(false);
   const [streamingMsgId, setStreamingMsgId] = useState(null);
   const AbortControllerRef = useRef(null);
+  // 模板选择器
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templateType, setTemplateType] = useState('海报');
+  // AI关键词实时推荐
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const suggestionTimerRef = useRef(null);
+  const suggestionAbortRef = useRef(null);
+  const lastSuggestionInputRef = useRef('');
 
   // Keep messagesRef in sync with state
   useEffect(() => {
@@ -8719,19 +8825,94 @@ const MerchantAssistant = () => {
   };
 
   const handleMarketing = (type) => {
+    // 海报和广告语：弹出模板选择器
+    if (type === '海报' || type === '广告语') {
+      setTemplateType(type);
+      setShowTemplatePicker(true);
+      setShowQuickReply(false);
+      return;
+    }
+    
     const data = collectBusinessDataForReport();
     const platformData = Object.entries(data.platformStats).map(([p, s]) => `${p}：${s.count}单 ¥${s.revenue}`).join('，') || '暂无';
     
     const prompts = {
       '文案': `帮我写一条关于${shopName}的${industry}爆款营销文案，要求有吸引力、适合社交平台传播`,
-      '海报': `帮我设计一张${shopName}${industry}店铺的宣传海报文字描述，要求突出卖点`,
-      '广告语': `帮我写3条${shopName}${industry}店铺的简短有力广告语`,
       '日报': `【${shopName}今日经营日报】\n\n店铺类型：${industry}\n今日订单：${data.todayOrders}单\n今日营收：¥${data.todayRevenue}\n各平台销售：${platformData}\n采购成本：¥${data.purchaseCost}\n固定成本：¥${data.fixedCost}\n损耗金额：¥${data.loss}\n其他成本：¥${data.otherCost}\n总成本：¥${data.totalCost}\n利润：¥${data.profit}\n利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n差评数：${data.badReviewCount}\n\n请基于以上真实数据，结合${industry}行业全网销售情况，为我生成一份专业的日报，包含：\n1. 今日经营数据分析\n2. 与行业平均水平对比\n3. 利润优化建议\n4. 库存管理建议\n5. 明日经营策略`,
       '周报': `【${shopName}本周经营周报】\n\n店铺类型：${industry}\n本周订单：${data.weekOrders}单\n本周营收：¥${data.weekRevenue}\n日均订单：${Number(data.weekOrders / 7).toFixed(1)}单\n日均营收：¥${Number(data.weekRevenue / 7).toFixed(2)}\n各平台销售：${platformData}\n本周采购成本：¥${data.purchaseCost}\n本周固定成本：¥${data.fixedCost}\n本周损耗：¥${data.loss}\n本周利润：¥${data.profit}\n本周利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n\n请基于以上真实数据，结合${industry}行业本周销售趋势，为我生成一份专业的周报，包含：\n1. 本周经营数据汇总\n2. 每日数据趋势分析\n3. 与上周对比变化\n4. 各平台表现分析\n5. 利润构成分析\n6. 下周经营优化建议`,
       '月报': `【${shopName}本月经营月报】\n\n店铺类型：${industry}\n本月订单：${data.monthOrders}单\n本月营收：¥${data.monthRevenue}\n日均订单：${Number(data.monthOrders / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(1)}单\n日均营收：¥${Number(data.monthRevenue / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(2)}\n各平台销售：${platformData}\n采购成本：¥${data.purchaseCost}\n固定成本：¥${data.fixedCost}\n损耗金额：¥${data.loss}\n其他成本：¥${data.otherCost}\n总成本：¥${data.totalCost}\n总利润：¥${data.profit}\n利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n\n请基于以上真实数据，结合${industry}行业本月市场情况，为我生成一份专业的月报，包含：\n1. 本月经营数据全面汇总\n2. 各周数据趋势分析\n3. 成本结构分析\n4. 利润变化原因分析\n5. 库存周转分析\n6. 与上月对比总结\n7. 下月经营规划建议`,
     };
     setInputText(prompts[type] || '');
-    if (type === '海报' || type === '广告语') setShowImageGen(true);
+  };
+
+  // 选择模板后，将模板prompt填入输入框（替换{店名}为实际店名）
+  const handleSelectTemplate = (template) => {
+    let prompt = template.prompt.replace(/\{店名\}/g, shopName);
+    setInputText(prompt);
+    setShowTemplatePicker(false);
+    if (templateType === '海报') setShowImageGen(true);
+  };
+
+  // AI关键词实时推荐：用户输入时，debounce后调用AI生成关键词建议
+  const fetchAiSuggestions = async (text) => {
+    if (!text || text.trim().length < 2) {
+      setAiSuggestions([]);
+      setSuggestionLoading(false);
+      return;
+    }
+    
+    // 中止上一次请求
+    if (suggestionAbortRef.current) {
+      try { suggestionAbortRef.current.abort(); } catch (e) {}
+    }
+    suggestionAbortRef.current = new AbortController();
+    setSuggestionLoading(true);
+    
+    try {
+      const result = await fetchZhipuChat([], 
+        `你是营销助手。用户正在输入关于「${shopName}」（${industry}行业）的营销需求。用户当前输入："${text}"。请根据用户输入内容，生成3-5个相关的关键词或短语建议，帮助用户完善描述。每个建议2-8个字，用逗号分隔，只返回关键词，不要其他文字。`, 
+        suggestionAbortRef.current.signal
+      );
+      
+      // 解析AI返回的关键词
+      const keywords = result.split(/[,，、\n]/).map(k => k.trim()).filter(k => k && k.length >= 2 && k.length <= 12).slice(0, 5);
+      setAiSuggestions(keywords);
+    } catch (e) {
+      // 被中断或出错时不更新
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  // 输入变化时的debounce处理
+  const handleInputChange = (text) => {
+    setInputText(text);
+    
+    // 清除上一次定时器
+    if (suggestionTimerRef.current) {
+      clearTimeout(suggestionTimerRef.current);
+    }
+    
+    // 如果输入为空，清除建议
+    if (!text.trim()) {
+      setAiSuggestions([]);
+      setSuggestionLoading(false);
+      return;
+    }
+    
+    // debounce 600ms 后请求AI建议
+    suggestionTimerRef.current = setTimeout(() => {
+      fetchAiSuggestions(text);
+    }, 600);
+  };
+
+  // 点击关键词建议：追加到输入框
+  const handleSuggestionClick = (keyword) => {
+    const newText = inputText + (inputText.endsWith(' ') || !inputText ? '' : '，') + keyword;
+    setInputText(newText);
+    setAiSuggestions([]);
+    // 追加后继续生成新的建议
+    handleInputChange(newText);
   };
 
   const toggleImageGen = () => {
@@ -8795,6 +8976,11 @@ const MerchantAssistant = () => {
       setImageUri(null);
       setShowMediaOptions(false);
       setShowEmoji(false);
+      // 发送后清除AI关键词建议
+      setAiSuggestions([]);
+      setSuggestionLoading(false);
+      if (suggestionTimerRef.current) { clearTimeout(suggestionTimerRef.current); suggestionTimerRef.current = null; }
+      if (suggestionAbortRef.current) { try { suggestionAbortRef.current.abort(); } catch (e) {} suggestionAbortRef.current = null; }
       if (type === 'image') {
         setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
         return;
@@ -9156,13 +9342,69 @@ ${businessContext}
           </Modal>
         )}
         
+        {/* 模板选择器 */}
+        {showTemplatePicker && (
+          <Modal visible={showTemplatePicker} transparent animationType="slide" onRequestClose={() => setShowTemplatePicker(false)}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }} onPress={() => setShowTemplatePicker(false)} activeOpacity={1}>
+              <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' }}>
+                <View style={{ width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 12 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>{industry} - {templateType}模板</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>选择模板后可自行修改</Text>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {getIndustryTemplates(industry, templateType).map((tpl, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{ backgroundColor: '#F5F7FA', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'transparent' }}
+                      onPress={() => handleSelectTemplate(tpl)}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                        <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: templateType === '海报' ? '#FF8C00' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 8 }}>
+                          <Ionicons name={templateType === '海报' ? 'image-outline' : 'mic-outline'} size={16} color="#fff" />
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN }}>{tpl.title}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: TEXT_THIRD, lineHeight: 18 }} numberOfLines={2}>{tpl.prompt.replace(/\{店名\}/g, shopName)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={{ paddingVertical: 14, marginTop: 4, alignItems: 'center' }} onPress={() => setShowTemplatePicker(false)}>
+                  <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+        
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
+          {/* AI关键词实时推荐 */}
+          {(aiSuggestions.length > 0 || suggestionLoading) && inputText.trim() && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingTop: 8, alignItems: 'center' }}>
+              {suggestionLoading && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, marginBottom: 4 }}>
+                  <ActivityIndicator size="small" color={PRIMARY_COLOR} style={{ marginRight: 4 }} />
+                  <Text style={{ fontSize: 11, color: TEXT_THIRD }}>AI推荐中</Text>
+                </View>
+              )}
+              {aiSuggestions.map((kw, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{ marginRight: 6, marginBottom: 4, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: LIGHT_PRIMARY, borderRadius: 14, flexDirection: 'row', alignItems: 'center' }}
+                  onPress={() => handleSuggestionClick(kw)}
+                >
+                  <Ionicons name="sparkles-outline" size={11} color={PRIMARY_COLOR} style={{ marginRight: 3 }} />
+                  <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{kw}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
             <TextInput
               style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
-              placeholder={showImageGen ? "输入图片描述..." : "输入问题..."}
+              placeholder={showImageGen ? "输入图片描述，AI会推荐关键词..." : "输入问题，AI会推荐关键词..."}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={handleInputChange}
               multiline
               onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             />
