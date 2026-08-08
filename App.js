@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -113,17 +113,18 @@ const CustomToast = () => {
 const toastRef = { current: null };
 
 // 扩展的行业分类列表
-const INDUSTRY_LIST = ['餐饮类', '服务类', '企业类', '零售类', '教育类', '医疗类', '休闲娱乐'];
+const INDUSTRY_LIST = ['餐饮类', '服务类', '企业类', '零售类', '教育类', '医疗类', '休闲娱乐', '数码电子类'];
 
 // 关键词映射表（用于从店名自动识别行业类型）
 const INDUSTRY_KEYWORDS = {
-  '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','披萨','牛排'],
-  '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','美发','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','娱乐','会所','宠物','诊所','药房','药店','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','维修','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家'],
-  '企业类': ['公司','企业','科技','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','电商','平台','传媒','文化','广告','策划','营销','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储'],
-  '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家电','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','数码','手机','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品'],
-  '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','培训','幼儿园','小学','中学','大学','辅导班','培训班','教育科技'],
-  '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','保健','医美','整形','牙科','眼科','体检中心','康复','理疗'],
-  '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','直播','自媒体','短视频']
+  '数码电子类': ['手机','数码','电子','电脑','笔记本','平板','相机','摄像头','耳机','音响','智能','配件','华为','苹果','小米','OPPO','vivo','荣耀','三星','iPhone','安卓','充电宝','数据线','充电器','科技','通讯','5G','营业厅','家电维修','手机店','电脑城','数码城','旗舰店','大疆','联想','华硕','惠普','戴尔','游戏机','PS5','Switch','VR','智能手表','手环'],
+  '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','牛排'],
+  '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','会所','宠物','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家'],
+  '企业类': ['公司','企业','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','平台','策划','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储'],
+  '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品','零食店','水果店','生鲜'],
+  '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','幼儿园','小学','中学','大学','辅导班','培训班'],
+  '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','医美','整形','牙科','体检中心','康复'],
+  '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','自媒体']
 };
 
 // 统一的行业识别函数：从店名智能识别行业类型
@@ -244,6 +245,19 @@ const INDUSTRY_TEMPLATES = {
     '广告语': [
       { title: '活动广告语', prompt: '为「{店名}」写3条活动广告语，活动：{活动名}，特色：{特色}，风格：潮流有趣、吸引年轻人' },
       { title: '会员广告语', prompt: '为「{店名}」写3条会员广告语，权益：{权益}，风格：尊享感、潮流感' },
+    ],
+  },
+  '数码电子类': {
+    '海报': [
+      { title: '新品发布', prompt: '为「{店名}」设计新品发布海报，品牌型号：{手机型号，如iPhone16/小米15}，核心卖点：{如徕卡拍照/骁龙8Gen4}，首发价：{价格}，时间：{时间}，风格：科技感、深色背景、产品特写' },
+      { title: '以旧换新', prompt: '为「{店名}」设计以旧换新活动海报，活动：旧机最高抵扣{金额}元，换购新品：{型号}，时间：{时间}，风格：绿色环保、科技省钱' },
+      { title: '开业钜惠', prompt: '为「{店名}」设计数码店开业海报，日期：{日期}，爆款：{如iPhone 2999限量抢}，购机送：{如碎屏险/蓝牙耳机}，风格：科技蓝、醒目数字' },
+      { title: '配件促销', prompt: '为「{店名}」设计配件促销海报，品类：{充电器/耳机/壳膜/充电宝}，价格：{如9.9起/买二送一}，时间：{时间}，风格：活泼明快、彩色图标' },
+      { title: '分期免息', prompt: '为「{店名}」设计分期免息海报，产品：{型号}，分期方案：{24期0息/月付300元}，首付：{金额}，风格：高端质感、金融图表' },
+    ],
+    '广告语': [
+      { title: '新品广告语', prompt: '为「{店名}」写3条新品广告语，产品：{型号}，卖点：{卖点}，风格：科技感、参数硬核' },
+      { title: '促销广告语', prompt: '为「{店名}」写3条促销广告语，活动：{活动名}，力度：{力度}，风格：紧迫感、促下单' },
     ],
   },
 };
@@ -8452,6 +8466,10 @@ const MerchantAssistant = () => {
   // 模板选择器
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [templateType, setTemplateType] = useState('海报');
+  // 模板编辑弹窗（点击模板后弹出，用于填写各占位符）
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [placeholderValues, setPlaceholderValues] = useState({});
   // AI关键词实时推荐
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -8673,6 +8691,13 @@ const MerchantAssistant = () => {
           '运营管理': ['包间预约管理', '员工排班优化', '酒水库存控制', '服务标准培训'],
           '分类经营': ['会员权益设计', '主题活动策划', '包场方案设计', '老客回馈计划', '新品推广方案', '异业合作'],
         };
+      case '数码电子类':
+        return {
+          '经营数据': ['今日手机销量统计', '热门机型库存查询', '配件销售占比分析', '本月维修服务量'],
+          '营销推广': ['新品上市宣传文案', '以旧换新活动方案', '手机维修推广话术', '配件组合促销'],
+          '运营管理': ['员工销售提成方案', '库存周转优化', '进货补货建议', '售后服务流程'],
+          '分类经营': ['新品发布会策划', '分期免息活动', '碎屏险套餐设计', '电池换新服务', '贴膜套餐推广', '社群粉丝运营'],
+        };
       default:
         return {
           '经营数据': ['今日营收统计', '客户到店分析', '本月业绩进度'],
@@ -8845,15 +8870,67 @@ const MerchantAssistant = () => {
     setInputText(prompts[type] || '');
   };
 
-  // 选择模板后，将模板prompt填入输入框（替换{店名}为实际店名）
+  // 选择模板后：提取占位符，弹出表单供用户填写
   const handleSelectTemplate = (template) => {
-    let prompt = template.prompt.replace(/\{店名\}/g, shopName);
-    setInputText(prompt);
+    setSelectedTemplate(template);
+    // 提取模板prompt中所有 {xxx} 占位符
+    const placeholders = template.prompt.match(/\{([^{}]+)\}/g) || [];
+    const uniquePlaceholders = [...new Set(placeholders.map(p => p.replace(/[{}]/g, '')))];
+    // 初始化占位符值，{店名}默认填好
+    const initialValues = {};
+    uniquePlaceholders.forEach(key => {
+      if (key === '店名') initialValues[key] = shopName;
+      else initialValues[key] = '';
+    });
+    setPlaceholderValues(initialValues);
     setShowTemplatePicker(false);
+    setShowTemplateEditor(true);
+  };
+
+  // 应用模板：把占位符替换成用户输入，填入输入框
+  const handleApplyTemplate = () => {
+    if (!selectedTemplate) return;
+    let prompt = selectedTemplate.prompt;
+    Object.keys(placeholderValues).forEach(key => {
+      const val = placeholderValues[key] || '';
+      prompt = prompt.replace(new RegExp(`\\{${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}`, 'g'), val);
+    });
+    setInputText(prompt);
+    setShowTemplateEditor(false);
+    setSelectedTemplate(null);
     if (templateType === '海报') setShowImageGen(true);
   };
 
-  // AI关键词实时推荐：用户输入时，debounce后调用AI生成关键词建议
+  // 本地关键词库（AI失败时兜底，按行业划分）
+  const LOCAL_KEYWORDS = {
+    '数码电子类': ['新品上市','以旧换新','分期免息','配件大促','年终大促','开业钜惠','限时秒杀','爆款推荐','购机送礼','碎屏险','维修服务','电池换新','贴膜套餐','蓝牙耳机','智能手表'],
+    '餐饮类': ['新品上市','开业优惠','工作日午餐','夜宵特供','套餐升级','外卖爆品','会员专享','节日套餐','新品试吃','下午茶特惠','满减活动','第二份半价','招牌菜推荐','饮品买一送一'],
+    '服务类': ['新店开业','会员储值','特惠套餐','生日特惠','体验价','老客回馈','限时特价','新客体验','年卡优惠','办卡送好礼','节日专属','团购更划算'],
+    '零售类': ['新品上新','换季清仓','满减活动','会员日','折扣季','新品首发','组合套餐','买二送一','清仓甩卖','限时特卖','爆款推荐','周年庆','节日促销'],
+    '教育类': ['暑期班','寒假班','体验课','名师课堂','一对一辅导','升学冲刺','限时优惠','团报优惠','试听有礼','小班教学','启蒙课程','高考冲刺'],
+    '医疗类': ['体检套餐','节日特惠','口腔护理','视光检查','会员专享','健康义诊','限时折扣','套餐升级','医美体验','首诊优惠','术后康复'],
+    '休闲娱乐': ['主题派对','开业派对','会员日','直播预告','短剧上新','周末活动','限时秒杀','团购优惠','生日包场','周末狂欢','福利活动','新品首播'],
+    '企业类': ['品牌升级','新品发布','年终盛典','客户答谢会','战略发布会','周年庆典','招商合作','商务洽谈','招聘计划','团队建设'],
+  };
+
+  // 本地关键词推荐（兜底方案，不依赖AI接口）
+  const getLocalSuggestions = (text) => {
+    if (!text) return [];
+    const pool = LOCAL_KEYWORDS[industry] || LOCAL_KEYWORDS['零售类'] || [];
+    const lowerText = text.toLowerCase();
+    // 优先匹配和输入内容相关的
+    const matched = pool.filter(k => {
+      const lowerK = k.toLowerCase();
+      return lowerK.includes(lowerText.slice(-2)) || lowerText.includes(lowerK.slice(0, 2));
+    });
+    if (matched.length >= 3) return matched.slice(0, 5);
+    // 不足3个就从库里随机补几个
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const finalList = [...matched, ...shuffled.filter(k => !matched.includes(k))].slice(0, 5);
+    return finalList;
+  };
+
+  // AI关键词实时推荐：用户输入时，debounce后调用AI生成关键词建议，失败时使用本地关键词
   const fetchAiSuggestions = async (text) => {
     if (!text || text.trim().length < 2) {
       setAiSuggestions([]);
@@ -8865,20 +8942,34 @@ const MerchantAssistant = () => {
     if (suggestionAbortRef.current) {
       try { suggestionAbortRef.current.abort(); } catch (e) {}
     }
+    
+    // 先出本地推荐（秒出），AI回来再替换
+    setAiSuggestions(getLocalSuggestions(text));
+    
     suggestionAbortRef.current = new AbortController();
     setSuggestionLoading(true);
     
+    // 设置超时，3秒没回来就放弃AI用本地
+    const timeoutId = setTimeout(() => {
+      try { suggestionAbortRef.current?.abort(); } catch (e) {}
+    }, 3000);
+    
     try {
       const result = await fetchZhipuChat([], 
-        `你是营销助手。用户正在输入关于「${shopName}」（${industry}行业）的营销需求。用户当前输入："${text}"。请根据用户输入内容，生成3-5个相关的关键词或短语建议，帮助用户完善描述。每个建议2-8个字，用逗号分隔，只返回关键词，不要其他文字。`, 
+        `你是营销助手。用户正在输入关于「${shopName}」（${industry}行业）的营销需求。用户当前输入："${text}"。请根据用户输入内容，生成3-5个相关的关键词或短语建议，帮助用户完善描述。每个建议2-8个字，用逗号分隔，只返回关键词，不要其他文字，不要任何解释！`, 
         suggestionAbortRef.current.signal
       );
+      clearTimeout(timeoutId);
       
       // 解析AI返回的关键词
       const keywords = result.split(/[,，、\n]/).map(k => k.trim()).filter(k => k && k.length >= 2 && k.length <= 12).slice(0, 5);
-      setAiSuggestions(keywords);
+      if (keywords && keywords.length >= 2) {
+        setAiSuggestions(keywords);
+      }
+      // 否则保留本地推荐
     } catch (e) {
-      // 被中断或出错时不更新
+      clearTimeout(timeoutId);
+      // AI失败或超时/中断时，保留本地推荐，不清除
     } finally {
       setSuggestionLoading(false);
     }
@@ -9017,6 +9108,7 @@ const MerchantAssistant = () => {
             '餐饮类': '美食餐饮行业，国际美食摄影大师作品风格，专业商业菜品拍摄，米其林级别摆盘，精致餐具搭配，暖色调自然光，画面层次丰富，食物光泽诱人，色彩饱和度高，让人一眼就想下单。参考：米其林餐厅菜单、小红书爆款美食封面、美团首图最佳实践',
             '服务类': '高端服务行业，奢华SPA/美容会所风格，精致优雅的视觉设计，柔和温暖的暖光氛围，精致的服务场景特写，专业商业摄影品质，高品质环境展示，优雅大气。参考：丽思卡尔顿酒店、SK-II广告、小红书高端美容',
             '企业类': '企业商务风格，现代简约商务设计，苹果级别的企业宣传素材，简洁大气的视觉语言，深蓝+金色的专业配色，商务办公场景，专业商业摄影，科技感与专业感并重。参考：苹果官网、IBM企业宣传、华为品牌片',
+            '数码电子类': '数码电子行业，苹果华为小米官网级别的商业产品摄影，极简科技风，深色/纯黑背景+柔光，产品360度无死角展示，金属/玻璃材质高光完美体现，棱角分明，冷峻高级，科技感爆棚。参考：iPhone官网广告图、华为发布会素材、小米商城首图、DJI大疆产品图',
             '零售类': '时尚零售行业，潮流店铺视觉设计，年轻化视觉风格，大胆配色，潮流时尚商品陈列，ins风店面展示。参考：优衣库、ZARA、小红书潮流店铺',
             '教育类': '教育培训行业，清新明亮的视觉风格，蓝白主色调，知识感、专业感、信赖感，现代教室场景，师生互动温馨画面。参考：新东方、学而思、Kumon',
             '医疗类': '专业医疗健康行业，洁净、专业、信赖的视觉语言，蓝白绿色调，现代医疗设备，专业医护形象。参考：平安好医生、微医、公立医院宣传',
@@ -9025,7 +9117,9 @@ const MerchantAssistant = () => {
           
           const styleDesc = industryStyleMap[industry] || industryStyleMap['餐饮类'];
           
-          const fullPrompt = `基于以下需求生成世界级商业图片：${text}
+          const fullPrompt = `【重要-硬性要求】图中绝对不要包含任何文字、汉字、字母、数字、符号、logo、价格标签。所有文字信息留空，只生成纯视觉画面，文字由后期添加。
+
+基于以下需求生成世界级商业图片：${text}
 
 【设计风格】
 ${styleDesc}
@@ -9039,13 +9133,11 @@ ${styleDesc}
 - 参考国际顶级广告公司创意水准（奥美/麦肯光明/FCB）
 - 融入2025年最流行设计趋势：极简主义、新复古、流体渐变、玻璃拟态
 
-【海报/广告排版规范】
+【排版规范-纯视觉】
 - 主体元素占画面60%，视觉冲击力强
-- 标题大而醒目，使用粗体，不超过3行
-- 副标题补充信息，字号为标题的60%
-- 留白合理，信息层次分明
+- 留白区域合理，用于后期叠加文字
 - 配色方案：主色+辅助色+点缀色，不超过4种颜色
-- 品牌logo位置预留，二维码位置预留
+- 画面上方或下方预留20%空白区域用于后期放标题
 
 【适用场景】
 - 社交媒体推广（小红书封面/抖音封面/朋友圈海报）
@@ -9053,7 +9145,7 @@ ${styleDesc}
 - 电商平台主图（美团/大众点评/抖音来客商城首图）
 - 活动宣传（节日促销/新品发布/会员专享）
 
-请生成一张具有强烈视觉冲击力、让观众一眼就想点击下单的专业级商业图片！`;
+【再次强调】任何形式的文字一律不要生成！只做纯视觉设计。`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
@@ -9373,6 +9465,62 @@ ${businessContext}
                   <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
                 </TouchableOpacity>
               </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
+        {/* 模板编辑表单：点击模板后弹窗填写占位符 */}
+        {showTemplateEditor && selectedTemplate && (
+          <Modal visible={showTemplateEditor} transparent animationType="slide" onRequestClose={() => setShowTemplateEditor(false)}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }} onPress={() => setShowTemplateEditor(false)} activeOpacity={1}>
+              <TouchableOpacity style={{ backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 18, padding: 20, maxHeight: '80%' }} activeOpacity={1}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: templateType === '海报' ? '#FF8C00' : PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                    <Ionicons name={templateType === '海报' ? 'image-outline' : 'mic-outline'} size={18} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: TEXT_MAIN }}>{selectedTemplate.title}</Text>
+                    <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>填写以下信息，AI帮您生成{templateType}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowTemplateEditor(false)}>
+                    <Ionicons name="close-outline" size={24} color={TEXT_SECOND} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
+                  {Object.keys(placeholderValues).map((key, idx) => (
+                    <View key={key} style={{ marginBottom: 14 }}>
+                      <Text style={{ fontSize: 13, color: TEXT_MAIN, marginBottom: 6, fontWeight: '500' }}>
+                        {idx === 0 ? '📍' : '📝'} {key}
+                        {key === '店名' && <Text style={{ color: PRIMARY_COLOR, fontSize: 11 }}> （已自动填写）</Text>}
+                      </Text>
+                      <TextInput
+                        style={{
+                          backgroundColor: '#F5F7FA',
+                          borderRadius: 10,
+                          paddingHorizontal: 14,
+                          paddingVertical: 12,
+                          fontSize: 15,
+                          color: TEXT_MAIN,
+                          borderWidth: 1,
+                          borderColor: key === '店名' ? PRIMARY_COLOR + '40' : 'transparent',
+                        }}
+                        placeholder={`请输入${key}`}
+                        placeholderTextColor={TEXT_THIRD}
+                        value={placeholderValues[key]}
+                        onChangeText={(txt) => setPlaceholderValues({ ...placeholderValues, [key]: txt })}
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 }}
+                  onPress={handleApplyTemplate}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>确认并生成{templateType}</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
             </TouchableOpacity>
           </Modal>
         )}
