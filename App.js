@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3198,7 +3198,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               </TouchableOpacity>
 
               <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.67.0</Text>
+                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.68.0</Text>
               </View>
             </View>
           </ScrollView>
@@ -3593,7 +3593,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.67.0';
+  const APP_VERSION = '5.68.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3693,7 +3693,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.67.0',
+        version: '5.68.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -9362,9 +9362,6 @@ const HomePage = () => {
   const user = state.user;
   const insets = useSafeAreaInsets();
   const [settingOpen, setSettingOpen] = useState(false);
-  const settingOpenRef = useRef(false);
-  const exitTimerRef = useRef(null);
-  useEffect(() => { settingOpenRef.current = settingOpen; }, [settingOpen]);
   const [refreshing, setRefreshing] = useState(false);
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
@@ -9560,43 +9557,6 @@ const HomePage = () => {
       showToast('已拒绝');
     } catch (error) { showToast('操作失败'); }
   };
-
-  useFocusEffect(
-    useCallback(() => {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        // 1. 设置抽屉打开时，先关闭抽屉
-        if (settingOpenRef.current) {
-          setSettingOpen(false);
-          return true;
-        }
-
-        // 2. 获取根导航当前路由
-        const rootNav = navigationRef.current;
-        if (!rootNav) return false;
-
-        const rootState = rootNav.getRootState();
-        const currentRoute = rootState.routes[rootState.index];
-
-        // 3. 如果不在 RootTabs（说明在子页面），交给 React Navigation 自动返回
-        if (currentRoute && currentRoute.name !== 'RootTabs') {
-          return false;
-        }
-
-        // 4. 在首页根状态 → 双击退出（类似抖音/快手）
-        if (exitTimerRef.current) {
-          BackHandler.exitApp();
-          return true;
-        }
-        showToast('再按一次退出');
-        exitTimerRef.current = setTimeout(() => { exitTimerRef.current = null; }, 2000);
-        return true;
-      });
-      return () => {
-        backHandler.remove();
-        if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
-      };
-    }, [])
-  );
 
   const getReportData = () => {
     try {
@@ -12524,7 +12484,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.67.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.68.0</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -12620,6 +12580,46 @@ export default function App() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
+  const appExitTimerRef = useRef(null);
+
+  // ===== 全局返回键处理：首页双击退出，子页面正常返回 =====
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      const rootNav = navigationRef.current;
+      if (!rootNav) return false;
+
+      // 未登录不拦截
+      if (!state.user) return false;
+
+      // 获取根导航当前路由
+      const rootState = rootNav.getRootState();
+      if (!rootState || !rootState.routes || rootState.routes.length === 0) return false;
+      const currentRoute = rootState.routes[rootState.index];
+      const isOnRootTabs = currentRoute && currentRoute.name === 'RootTabs';
+
+      if (!isOnRootTabs) {
+        // 子页面：交给 React Navigation 自动返回
+        return false;
+      }
+
+      // 在 RootTabs（首页）：双击退出
+      if (appExitTimerRef.current) {
+        clearTimeout(appExitTimerRef.current);
+        appExitTimerRef.current = null;
+        BackHandler.exitApp();
+        return true;
+      }
+      showToast('再按一次退出');
+      appExitTimerRef.current = setTimeout(() => {
+        appExitTimerRef.current = null;
+      }, 2000);
+      return true;
+    });
+    return () => {
+      backHandler.remove();
+      if (appExitTimerRef.current) { clearTimeout(appExitTimerRef.current); appExitTimerRef.current = null; }
+    };
+  }, [state.user]);
 
   useEffect(() => {
     const appStateListener = AppState.addEventListener('change', (nextAppState) => {
