@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -85,21 +85,29 @@ const handleImageLongPress = (imageUri, onDelete) => {
   Alert.alert('图片操作', '', options);
 };
 
-// 自定义 Toast 组件（点击立即消失）
+// 自定义 Toast 组件（不用Modal，避免Android返回键被拦截）
 const CustomToast = () => {
   const [visible, setVisible] = useState(false);
   const [msg, setMsg] = useState('');
   toastRef.current = { setMsg, setVisible, show: () => setVisible(true) };
+  if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={hideToast}>
-      <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.05)' }} onPress={hideToast}>
-        <View style={{ position: 'absolute', top: 80, left: 0, right: 0, alignItems: 'center' }}>
-          <View style={{ backgroundColor: 'rgba(50,50,50,0.92)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 12, maxWidth: '80%' }}>
-            <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>{msg}</Text>
-          </View>
+    <TouchableOpacity
+      activeOpacity={1}
+      style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        zIndex: 9999,
+        backgroundColor: 'transparent',
+      }}
+      onPress={hideToast}
+    >
+      <View style={{ position: 'absolute', top: 80, left: 0, right: 0, alignItems: 'center' }}>
+        <View style={{ backgroundColor: 'rgba(50,50,50,0.92)', borderRadius: 22, paddingHorizontal: 20, paddingVertical: 12, maxWidth: '80%' }}>
+          <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>{msg}</Text>
         </View>
-      </TouchableOpacity>
-    </Modal>
+      </View>
+    </TouchableOpacity>
   );
 };
 const toastRef = { current: null };
@@ -3198,7 +3206,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               </TouchableOpacity>
 
               <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.68.0</Text>
+                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.69.0</Text>
               </View>
             </View>
           </ScrollView>
@@ -3593,7 +3601,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.68.0';
+  const APP_VERSION = '5.69.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3693,7 +3701,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.68.0',
+        version: '5.69.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -12484,7 +12492,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.68.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.69.0</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -12582,7 +12590,7 @@ export default function App() {
   const responseListener = useRef(null);
   const appExitTimerRef = useRef(null);
 
-  // ===== 全局返回键处理：首页双击退出，子页面正常返回 =====
+  // ===== 全局返回键处理：顶层双击退出，子页面正常返回（和抖音、快手一致） =====
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       const rootNav = navigationRef.current;
@@ -12591,24 +12599,28 @@ export default function App() {
       // 未登录不拦截
       if (!state.user) return false;
 
-      // 获取根导航当前路由
-      const rootState = rootNav.getRootState();
-      if (!rootState || !rootState.routes || rootState.routes.length === 0) return false;
-      const currentRoute = rootState.routes[rootState.index];
-      const isOnRootTabs = currentRoute && currentRoute.name === 'RootTabs';
+      // 用 canGoBack 判断是否在最顶层：true=有子页面，false=在Tab顶层
+      let hasStack = false;
+      try {
+        hasStack = rootNav.canGoBack();
+      } catch (e) {
+        hasStack = false;
+      }
 
-      if (!isOnRootTabs) {
-        // 子页面：交给 React Navigation 自动返回
+      if (hasStack) {
+        // 在子页面：交给 React Navigation 自动返回
         return false;
       }
 
-      // 在 RootTabs（首页）：双击退出
+      // 在顶层Tab页：2秒内连续按两次才退出
       if (appExitTimerRef.current) {
+        // 第二次按：立即退出
         clearTimeout(appExitTimerRef.current);
         appExitTimerRef.current = null;
-        BackHandler.exitApp();
+        try { BackHandler.exitApp(); } catch (err) {}
         return true;
       }
+      // 第一次按：显示提示，启动定时器
       showToast('再按一次退出');
       appExitTimerRef.current = setTimeout(() => {
         appExitTimerRef.current = null;
@@ -12617,7 +12629,10 @@ export default function App() {
     });
     return () => {
       backHandler.remove();
-      if (appExitTimerRef.current) { clearTimeout(appExitTimerRef.current); appExitTimerRef.current = null; }
+      if (appExitTimerRef.current) {
+        clearTimeout(appExitTimerRef.current);
+        appExitTimerRef.current = null;
+      }
     };
   }, [state.user]);
 
@@ -12801,10 +12816,12 @@ export default function App() {
             <NavigationContainer ref={navigationRef}>
               {state.user ? <AppStack /> : <AuthStack />}
             </NavigationContainer>
-            <CustomToast />
           </AppContext.Provider>
         </GlobalErrorBoundary>
       </SafeAreaProvider>
+      
+      {/* Toast：放在最外层View内，避免Modal拦截返回键 */}
+      <CustomToast />
       
       {/* 更新弹窗 */}
       {showUpdateModal && updateInfo && (
