@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3198,7 +3198,7 @@ const SettingDrawer = ({ visible, onClose }) => {
               </TouchableOpacity>
 
               <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.66.0</Text>
+                <Text style={{ color: TEXT_THIRD, fontSize: 11 }}>经营宝 v5.67.0</Text>
               </View>
             </View>
           </ScrollView>
@@ -3593,7 +3593,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.66.0';
+  const APP_VERSION = '5.67.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3693,7 +3693,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.66.0',
+        version: '5.67.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -9564,24 +9564,25 @@ const HomePage = () => {
   useFocusEffect(
     useCallback(() => {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // 1. 设置抽屉打开时，先关闭抽屉
         if (settingOpenRef.current) {
           setSettingOpen(false);
           return true;
         }
 
-        // 关闭抽屉、弹窗等导航器内的模态栈（如设置抽屉开启时被拦截上面的逻辑）
+        // 2. 获取根导航当前路由
         const rootNav = navigationRef.current;
         if (!rootNav) return false;
 
-        // 先让React Navigation自己处理Tab内栈，如果有栈直接返回
-        try {
-          if (rootNav.canGoBack()) {
-            rootNav.goBack();
-            return true;
-          }
-        } catch (e) {}
+        const rootState = rootNav.getRootState();
+        const currentRoute = rootState.routes[rootState.index];
 
-        // 走到这里说明是首页根状态，按"再按一次退出"
+        // 3. 如果不在 RootTabs（说明在子页面），交给 React Navigation 自动返回
+        if (currentRoute && currentRoute.name !== 'RootTabs') {
+          return false;
+        }
+
+        // 4. 在首页根状态 → 双击退出（类似抖音/快手）
         if (exitTimerRef.current) {
           BackHandler.exitApp();
           return true;
@@ -9592,8 +9593,7 @@ const HomePage = () => {
       });
       return () => {
         backHandler.remove();
-        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-        exitTimerRef.current = null;
+        if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
       };
     }, [])
   );
@@ -12524,7 +12524,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.66.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.67.0</Text>
       </Animated.View>
     </Animated.View>
   );
