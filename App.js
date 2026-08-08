@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -111,6 +111,51 @@ const CustomToast = () => {
   );
 };
 const toastRef = { current: null };
+
+// 扩展的行业分类列表
+const INDUSTRY_LIST = ['餐饮类', '服务类', '企业类', '零售类', '教育类', '医疗类', '休闲娱乐'];
+
+// 关键词映射表（用于从店名自动识别行业类型）
+const INDUSTRY_KEYWORDS = {
+  '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','披萨','牛排'],
+  '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','美发','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','娱乐','会所','宠物','诊所','药房','药店','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','维修','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家'],
+  '企业类': ['公司','企业','科技','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','电商','平台','传媒','文化','广告','策划','营销','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储'],
+  '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家电','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','数码','手机','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品'],
+  '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','培训','幼儿园','小学','中学','大学','辅导班','培训班','教育科技'],
+  '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','保健','医美','整形','牙科','眼科','体检中心','康复','理疗'],
+  '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','直播','自媒体','短视频']
+};
+
+// 统一的行业识别函数：从店名智能识别行业类型
+const detectIndustryFromName = (name) => {
+  if (!name) return '餐饮类';
+  const lowerName = String(name).toLowerCase();
+  
+  // 计算每个行业的关键词匹配数量
+  const scores = {};
+  for (const [industry, keywords] of Object.entries(INDUSTRY_KEYWORDS)) {
+    let score = 0;
+    for (const kw of keywords) {
+      if (lowerName.includes(kw.toLowerCase())) {
+        score += kw.length; // 长关键词权重更高
+      }
+    }
+    scores[industry] = score;
+  }
+  
+  // 选择得分最高的行业
+  let bestIndustry = '餐饮类';
+  let bestScore = 0;
+  for (const [industry, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndustry = industry;
+    }
+  }
+  
+  // 如果没有匹配到任何关键词，默认餐饮类
+  return bestScore > 0 ? bestIndustry : '餐饮类';
+};
 
 const { width, height } = Dimensions.get('window');
 const PRIMARY_COLOR = '#5B6DF0'; // 更高级的紫蓝色
@@ -1969,37 +2014,8 @@ const LoginScreen = () => {
 
       const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
       
-      // 根据店铺名称自动识别行业类型 - 大幅扩充关键词
-      let industry = '餐饮类';
-      // 服务类店铺关键词（包含常见服务型业务）
-      const serviceKeywords = [
-        '服务', '美容', '美发', '健身', '洗浴', '按摩', 'KTV', '娱乐',
-        '教育', '培训', '家政', '保洁', '手机', '数码', '维修', '汽修',
-        '汽配', '服装', '服饰', '鞋店', '箱包', '珠宝', '眼镜', '钟表',
-        '理发', '美甲', '纹绣', 'SPA', '足浴', '网咖', '网吧', '影院',
-        '快递', '物流', '搬家', '开锁', '干洗', '摄影', '婚庆', '鲜花',
-        '打印', '复印', '广告', '装饰', '装修', '房产', '中介', '旅游',
-        '酒店', '宾馆', '住宿', '民宿', '宠物', '诊所', '药房', '药店',
-        '书店', '文具', '礼品', '玩具', '母婴', '童装', '家电', '家具',
-        '建材', '五金', '灯具', '窗帘', '布艺', '眼镜', '验光', '配镜'
-      ];
-      // 企业类店铺关键词
-      const enterpriseKeywords = [
-        '公司', '企业', '科技', '咨询', '贸易', '批发', '制造', '工厂',
-        '集团', '有限', '责任', '股份', '投资', '金融', '保险', '证券',
-        '律所', '律师', '会计', '审计', '设计', '开发', '软件', '网络',
-        '电商', '平台', '传媒', '文化', '影视', '广告', '策划', '营销',
-        '医疗', '医院', '体检', '养老', '物业', '管理', '工程', '建筑',
-        '能源', '电力', '环保', '农业', '养殖', '种植', '物流', '仓储'
-      ];
-      
-      // 优先判断服务类
-      if (serviceKeywords.some(kw => shopName.includes(kw))) {
-        industry = '服务类';
-      } else if (enterpriseKeywords.some(kw => shopName.includes(kw))) {
-        industry = '企业类';
-      }
-      // 默认餐饮类（餐厅、饭店、小吃、饮品等）
+      // 根据店铺名称自动识别行业类型（使用统一的智能识别函数）
+      const industry = detectIndustryFromName(shopName);
       
       const shopInfo = { shopName, phone, industry };
       
@@ -2821,8 +2837,21 @@ const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => 
   const [editInput, setEditInput] = useState(shopName);
   const [selectedIndustry, setSelectedIndustry] = useState(industry || '餐饮类');
   const [showIndustryPicker, setShowIndustryPicker] = useState(false);
-  const industries = ['餐饮类', '服务类', '企业类'];
+  const [isAutoDetected, setIsAutoDetected] = useState(true);
   
+  // 当店名变化时自动识别行业类型
+  const prevInputRef = useRef(editInput);
+  useEffect(() => {
+    if (editInput !== prevInputRef.current) {
+      prevInputRef.current = editInput;
+      const detected = detectIndustryFromName(editInput);
+      if (detected !== selectedIndustry) {
+        setSelectedIndustry(detected);
+        setIsAutoDetected(true);
+      }
+    }
+  }, [editInput]);
+
   if (!visible) return null;
   return (
     <>
@@ -2837,6 +2866,11 @@ const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => 
               placeholder="请输入门店名称"
               autoFocus
             />
+            {isAutoDetected && (
+              <Text style={{ fontSize: 12, color: PRIMARY_COLOR, marginBottom: 8, paddingLeft: 4 }}>
+                ✓ AI已自动识别行业类型，点击下方可手动修改
+              </Text>
+            )}
             <TouchableOpacity 
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F5F7FA', borderRadius: 8, padding: 12, marginBottom: 20 }}
               onPress={() => setShowIndustryPicker(true)}
@@ -2868,7 +2902,7 @@ const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => 
         <TouchableOpacity activeOpacity={1} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowIndustryPicker(false)}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 }}>选择门店类型</Text>
-            {industries.map((item) => (
+            {INDUSTRY_LIST.map((item) => (
               <TouchableOpacity 
                 key={item} 
                 style={{ 
@@ -2878,6 +2912,7 @@ const EditShopNameModal = ({ visible, onClose, shopName, industry, onSave }) => 
                 }}
                 onPress={() => {
                   setSelectedIndustry(item);
+                  setIsAutoDetected(false);
                   setShowIndustryPicker(false);
                 }}
               >
@@ -2928,17 +2963,18 @@ const SettingDrawer = ({ visible, onClose }) => {
   }, [visible]);
 
   const detectIndustry = (name) => {
-    if (!name) return '餐饮类';
-    if (name.includes('服务') || name.includes('美容') || name.includes('美发') || name.includes('健身') || name.includes('洗浴') || name.includes('按摩') || name.includes('KTV') || name.includes('娱乐')) return '服务类';
-    if (name.includes('公司') || name.includes('企业') || name.includes('科技') || name.includes('咨询') || name.includes('贸易') || name.includes('物流')) return '企业类';
-    return '餐饮类';
+    return detectIndustryFromName(name);
   };
 
-  const saveShop = () => {
+  const saveShop = async () => {
     const industry = selectedIndustry;
     const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
+    // 保存到 AsyncStorage，确保 AI 助手等其他组件能读取最新数据
+    try {
+      await AsyncStorage.setItem('shopInfo', JSON.stringify(updatedShopInfo));
+    } catch (e) {}
     showToast(`门店信息已保存，类型：${industry}`);
   };
 
@@ -6493,42 +6529,80 @@ const CustomerService = () => {
   // 根据店铺类型动态生成快捷话术
   const industry = state.shopInfo?.industry || '餐饮类';
   const quickReplies = useMemo(() => {
-    if (industry === '餐饮类') {
-      return [
-        '您好，请问想了解我们的菜品吗？',
-        '请问需要堂食还是外卖？',
-        '我们的招牌菜是...',
-        '营业时间是...',
-        '请问有忌口或过敏的食材吗？',
-        '感谢您的光临，期待下次再见！',
-      ];
-    } else if (industry === '服务类') {
-      return [
-        '您好，请问想预约什么服务？',
-        '服务时间是...',
-        '我们的服务项目有...',
-        '请问方便告知您的联系方式吗？',
-        '感谢您的信任，我们会竭诚服务！',
-        '服务价格是...',
-      ];
-    } else if (industry === '企业类') {
-      return [
-        '您好，请问有什么可以帮到您？',
-        '我们的产品/服务介绍...',
-        '商务合作请联系...',
-        '工作时间是...',
-        '感谢您的咨询，期待与您合作！',
-        '批量采购有优惠哦！',
-      ];
+    switch (industry) {
+      case '餐饮类':
+        return [
+          '您好，请问想了解我们的菜品吗？',
+          '请问需要堂食还是外卖？',
+          '我们的招牌菜是...',
+          '营业时间是...',
+          '请问有忌口或过敏的食材吗？',
+          '感谢您的光临，期待下次再见！',
+        ];
+      case '服务类':
+        return [
+          '您好，请问想预约什么服务？',
+          '服务时间是...',
+          '我们的服务项目有...',
+          '请问方便告知您的联系方式吗？',
+          '感谢您的信任，我们会竭诚服务！',
+          '服务价格是...',
+        ];
+      case '企业类':
+        return [
+          '您好，请问有什么可以帮到您？',
+          '我们的产品/服务介绍...',
+          '商务合作请联系...',
+          '工作时间是...',
+          '感谢您的咨询，期待与您合作！',
+          '批量采购有优惠哦！',
+        ];
+      case '零售类':
+        return [
+          '您好，欢迎光临，请问需要什么？',
+          '我们的新款到了...',
+          '请问需要什么尺码/款式？',
+          '现在全场满减优惠...',
+          '会员可享受额外折扣哦！',
+          '感谢惠顾，欢迎下次光临！',
+        ];
+      case '教育类':
+        return [
+          '您好，想了解我们的课程吗？',
+          '请问孩子几年级了？',
+          '我们有一对一辅导和小班课...',
+          '可以预约免费试听哦！',
+          '师资介绍...',
+          '感谢您的关注，期待与您沟通！',
+        ];
+      case '医疗类':
+        return [
+          '您好，请问哪里不舒服？',
+          '建议您预约面诊...',
+          '我们的诊疗项目有...',
+          '请问之前有看过医生吗？',
+          '请详细描述一下症状...',
+          '感谢您的信任，祝您早日康复！',
+        ];
+      case '休闲娱乐':
+        return [
+          '您好，欢迎光临！',
+          '请问几位？需要预约吗？',
+          '我们的主打项目是...',
+          '现在有优惠活动...',
+          '营业时间到凌晨...',
+          '感谢光临，期待下次再见！',
+        ];
+      default:
+        return [
+          '您好，请问有什么可以帮助您？',
+          '稍等，我帮您查询一下',
+          '感谢您的反馈，我们会尽快处理',
+          '欢迎下次光临！',
+          '请问您需要什么帮助？',
+          '请问您贵姓，方便称呼吗？',
+        ];
     }
-    return [
-      '您好，请问有什么可以帮助您？',
-      '稍等，我帮您查询一下',
-      '感谢您的反馈，我们会尽快处理',
-      '欢迎下次光临！',
-      '请问您需要什么帮助？',
-      '请问您贵姓，方便称呼吗？',
-    ];
   }, [industry]);
 
   const addTag = () => {
@@ -8443,51 +8517,82 @@ const MerchantAssistant = () => {
     }
     
     // 根据大行业类型提供通用话术
-    if (industry === '餐饮类') {
-      return {
-        '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
-        '营销推广': ['招牌菜推荐文案', '开业活动方案', '美团运营', '节日促销海报'],
-        '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
-        '分类经营': ['套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略', '新品推广计划', '客户回访话术'],
-      };
-    } else if (industry === '服务类') {
-      return {
-        '经营数据': ['今日服务订单量', '客户复购率分析', '差评预警情况', '本月收入目标'],
-        '营销推广': ['服务推广话术', '会员储值活动', '引流方案设计', '朋友圈文案'],
-        '运营管理': ['客户满意度提升', '员工排班管理', '绩效考核方案', '服务流程优化'],
-        '分类经营': ['会员权益设计', '体验活动方案', '老客回访计划', '增值服务推荐', '合作渠道开发', '品牌故事撰写'],
-      };
-    } else if (industry === '企业类') {
-      return {
-        '经营数据': ['今日销售业绩', '本月营收完成度', '客户转化率分析', '库存周转率'],
-        '营销推广': ['促销活动策划', '企业宣传文案', '品牌升级方案', '短视频营销'],
-        '运营管理': ['团队效率提升', '绩效考核体系', '项目管理流程', '招聘计划'],
-        '分类经营': ['库存管理优化', '批发客户开发', '供应链管理', '成本控制方案', '产品迭代计划', '渠道拓展策略'],
-      };
+    switch (industry) {
+      case '餐饮类':
+        return {
+          '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
+          '营销推广': ['招牌菜推荐文案', '开业活动方案', '美团运营', '节日促销海报'],
+          '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
+          '分类经营': ['套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略', '新品推广计划', '客户回访话术'],
+        };
+      case '服务类':
+        return {
+          '经营数据': ['今日服务订单量', '客户复购率分析', '差评预警情况', '本月收入目标'],
+          '营销推广': ['服务推广话术', '会员储值活动', '引流方案设计', '朋友圈文案'],
+          '运营管理': ['客户满意度提升', '员工排班管理', '绩效考核方案', '服务流程优化'],
+          '分类经营': ['会员权益设计', '体验活动方案', '老客回访计划', '增值服务推荐', '合作渠道开发', '品牌故事撰写'],
+        };
+      case '企业类':
+        return {
+          '经营数据': ['今日销售业绩', '本月营收完成度', '客户转化率分析', '库存周转率'],
+          '营销推广': ['促销活动策划', '企业宣传文案', '品牌升级方案', '短视频营销'],
+          '运营管理': ['团队效率提升', '绩效考核体系', '项目管理流程', '招聘计划'],
+          '分类经营': ['库存管理优化', '批发客户开发', '供应链管理', '成本控制方案', '产品迭代计划', '渠道拓展策略'],
+        };
+      case '零售类':
+        return {
+          '经营数据': ['今日销售统计', '热销商品排行', '库存周转率分析', '本周客流趋势'],
+          '营销推广': ['新品上架文案', '换季促销方案', '直播间引流', '会员日海报'],
+          '运营管理': ['库存盘点优化', '滞销品清仓策略', '员工销售培训', '陈列布置建议'],
+          '分类经营': ['组合套餐设计', '积分兑换体系', '满减活动策划', '老客复购方案', '新品首发计划', '社群运营'],
+        };
+      case '教育类':
+        return {
+          '经营数据': ['今日报名统计', '学员续费率分析', '试听转化率', '本月招生进度'],
+          '营销推广': ['课程推广文案', '暑期班招生方案', '朋友圈引流', '家长讲座海报'],
+          '运营管理': ['教学质量管理', '教师排班优化', '学员档案管理', '家校沟通流程'],
+          '分类经营': ['一对一课程设计', '夏令营方案', '亲子活动策划', '续费率提升方案', '转介绍激励', '在线课程开发'],
+        };
+      case '医疗类':
+        return {
+          '经营数据': ['今日就诊统计', '复诊率分析', '好评预警', '本月营收目标'],
+          '营销推广': ['健康科普文案', '义诊活动方案', '朋友圈健康知识', '体检套餐设计'],
+          '运营管理': ['预约流程优化', '医护排班管理', '医疗质量监控', '患者满意度提升'],
+          '分类经营': ['体检套餐设计', '复诊回访计划', '健康管理方案', '医患沟通技巧', '会员服务体系', '转诊渠道开发'],
+        };
+      case '休闲娱乐':
+        return {
+          '经营数据': ['今日客流统计', '消费客群分析', '差评预警', '本月营收进度'],
+          '营销推广': ['派对主题方案', '开业活动策划', '朋友圈引流文案', '节日海报设计'],
+          '运营管理': ['包间预约管理', '员工排班优化', '酒水库存控制', '服务标准培训'],
+          '分类经营': ['会员权益设计', '主题活动策划', '包场方案设计', '老客回馈计划', '新品推广方案', '异业合作'],
+        };
+      default:
+        return {
+          '经营数据': ['今日营收统计', '客户到店分析', '本月业绩进度'],
+          '营销推广': ['帮我设计促销活动', '朋友圈文案生成', '爆款海报制作'],
+          '运营管理': ['员工排班安排', '库存优化建议', '服务流程改进'],
+          '分类经营': ['会员体系设计', '老客户维护', '新品推广方案'],
+        };
     }
-    
-    return {
-      '经营数据': ['今日营收统计', '客户到店分析', '本月业绩进度'],
-      '营销推广': ['帮我设计促销活动', '朋友圈文案生成', '爆款海报制作'],
-      '运营管理': ['员工排班安排', '库存优化建议', '服务流程改进'],
-      '分类经营': ['会员体系设计', '老客户维护', '新品推广方案'],
-    };
   };
 
   // 使用useMemo确保快捷短语响应行业变化
   const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
-  // 使用ref记录上一次的行业类型，只在类型实际变化时更新欢迎语
+  // 使用ref记录上一次的行业和店名，任一个变化都更新欢迎语
   const prevIndustry = useRef(industry);
+  const prevShopNameRef = useRef(shopName);
   
   useEffect(() => {
-    // 如果行业类型没有变化，且已经有消息，不重新生成欢迎语
-    if (prevIndustry.current === industry && messages.length > 0) {
+    // 只有当行业和店名都没变化时才跳过（防止重复生成）
+    if (prevIndustry.current === industry && prevShopNameRef.current === shopName && messages.length > 0) {
       return;
     }
     
-    // 更新记录的行业类型
+    // 更新记录
     prevIndustry.current = industry;
+    prevShopNameRef.current = shopName;
     
     if (industry !== '待识别') {
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
@@ -8499,6 +8604,7 @@ const MerchantAssistant = () => {
             const parsed = JSON.parse(storedShopInfo);
             if (parsed.industry && parsed.industry !== '待识别') {
               prevIndustry.current = parsed.industry;
+              prevShopNameRef.current = shopName;
               dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
               const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
               dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
@@ -8506,24 +8612,41 @@ const MerchantAssistant = () => {
             }
           } catch (e) {}
         }
-        // 首次登录时识别类型
-        const AbortController = new AbortController();
-        fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下三个类型中选择一个：餐饮类、服务类、企业类。只需返回类型名称，不要包含其他文字。`, AbortController.signal)
-          .then(async result => {
-            let detectedIndustry = '餐饮类';
-            if (result.includes('服务类')) detectedIndustry = '服务类';
-            else if (result.includes('企业类')) detectedIndustry = '企业类';
-            prevIndustry.current = detectedIndustry;
-            const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-            dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-            try { await AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-            const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-            dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-          })
-          .catch(() => {
-            const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-            dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-          });
+        // 首次识别时使用关键词检测 + AI辅助
+        let detectedIndustry = detectIndustryFromName(shopName);
+        // 如果关键词检测不明确，用AI辅助判断
+        if (detectedIndustry === '餐饮类') {
+          const AbortController = new AbortController();
+          fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下类型中选择一个：${INDUSTRY_LIST.join('、')}。只需返回类型名称，不要包含其他文字。`, AbortController.signal)
+            .then(result => {
+              for (const type of INDUSTRY_LIST) {
+                if (result && result.includes(type)) {
+                  detectedIndustry = type;
+                  break;
+                }
+              }
+              prevIndustry.current = detectedIndustry;
+              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+              try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+            })
+            .catch(() => {
+              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+              try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+            });
+        } else {
+          // 关键词已识别，直接保存
+          const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
+          dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
+          try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+          const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${detectedIndustry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+          dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+        }
       }).catch(() => {
         const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
         dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
