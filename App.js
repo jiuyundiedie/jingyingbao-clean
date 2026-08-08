@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3593,7 +3593,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.65.0';
+  const APP_VERSION = '5.66.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3693,7 +3693,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.65.0',
+        version: '5.66.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -4600,12 +4600,10 @@ const SwitchAccountPage = ({ navigation }) => {
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem('shopInfo');
       dispatch({ type: 'LOGOUT' });
-      navigation.goBack();
-      setTimeout(() => {
-        if (navigationRef.current) {
-          navigationRef.current.reset({ index: 0, routes: [{ name: 'Login' }] });
-        }
-      }, 100);
+      // 直接reset回到Login，避免goBack再跳转的两次闪烁
+      if (navigationRef.current) {
+        navigationRef.current.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
     } catch (error) {
       showToast('操作失败');
     }
@@ -9571,16 +9569,20 @@ const HomePage = () => {
           return true;
         }
 
+        // 关闭抽屉、弹窗等导航器内的模态栈（如设置抽屉开启时被拦截上面的逻辑）
         const rootNav = navigationRef.current;
         if (!rootNav) return false;
 
-        if (rootNav.canGoBack()) {
-          rootNav.goBack();
-          return true;
-        }
+        // 先让React Navigation自己处理Tab内栈，如果有栈直接返回
+        try {
+          if (rootNav.canGoBack()) {
+            rootNav.goBack();
+            return true;
+          }
+        } catch (e) {}
 
+        // 走到这里说明是首页根状态，按"再按一次退出"
         if (exitTimerRef.current) {
-          exitTimerRef.current = null;
           BackHandler.exitApp();
           return true;
         }
@@ -9591,6 +9593,7 @@ const HomePage = () => {
       return () => {
         backHandler.remove();
         if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
       };
     }, [])
   );
@@ -12521,7 +12524,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.65.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.66.0</Text>
       </Animated.View>
     </Animated.View>
   );
