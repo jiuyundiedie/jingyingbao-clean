@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -118,10 +118,27 @@ const BORDER_COLOR = '#E8ECF1';
 const EMOJI_LIST = ['😀','😃','😄','😁','😆','🥲','😊','😇','🙂','🙃','😉','😌','🥰','😍','🤩','😘'];
 const SHADOW = {
   shadowColor: '#1A2332',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.08,
-  shadowRadius: 12,
-  elevation: 6,
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.1,
+  shadowRadius: 16,
+  elevation: 8,
+};
+
+const SHADOW_SOFT = {
+  shadowColor: '#1A2332',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 8,
+  elevation: 3,
+};
+
+const CARD_PREMIUM = {
+  backgroundColor: BG_CARD,
+  borderRadius: 18,
+  padding: 18,
+  borderWidth: 1,
+  borderColor: 'rgba(91,109,240,0.08)',
+  ...SHADOW,
 };
 
 // ===== AI视觉模型配置 =====
@@ -3576,7 +3593,7 @@ const AccountDeleteScreen = ({ navigation }) => {
 
 // 关于页面
 const AboutScreen = ({ navigation }) => {
-  const APP_VERSION = '5.64.0';
+  const APP_VERSION = '5.65.0';
   return (
     <View style={{ flex: 1, backgroundColor: BG_PAGE }}>
       <CommonHeader title="关于我们" showBack onBack={() => navigation.goBack()} navigation={navigation} />
@@ -3676,7 +3693,7 @@ const FeedbackScreen = ({ navigation }) => {
         content: content.trim(),
         contact: contact.trim(),
         phone: state.user?.phone || '',
-        version: '5.64.0',
+        version: '5.65.0',
         time: new Date().toISOString(),
       };
       const existing = JSON.parse(await AsyncStorage.getItem('user_feedbacks') || '[]');
@@ -4777,8 +4794,28 @@ const ProductOverview = () => {
     try {
       if (!currentShelfGoods) { showToast('请先选择商品'); return; }
       setLoadingPlatform(platform);
-      const prompt = `请将以下商品信息转换为适合${platform}平台的上架格式，包含标题、价格、库存、描述和宣传语。名称：${currentShelfGoods.name}，库存：${currentShelfGoods.stock}。`;
-      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是一个电商上架助手。');
+      const priceRange = platform === '美团' ? '8-58元' : platform === '抖音来客' ? '9-68元' : '10-88元';
+      const prompt = `请为商品"${currentShelfGoods.name}"（库存${currentShelfGoods.stock}件）生成一份极具吸引力的${platform}团购上架文案，严格按以下格式输出：
+
+【标题】限30字内，必须包含：品牌词+核心产品+卖点词（如"爆款""热销""新品"），例："【热销爆款】招牌牛肉面 料多味足 吃一次就上瘾"
+
+【卖点】3-5条bullet points，每条8-12字，使用四字成语/流行词，例：
+- 传统手作 传承三代
+- 量大实惠 一口满足
+- 新鲜食材 每日现做
+
+【价格】¥XX/份（标注原价¥XX，立省¥XX）
+
+【商品描述】80-120字，使用场景化描述，包含：开头吸引句+产品故事/工艺+口感体验+结尾号召，例："在繁华街道藏着这家让无数老饕魂牵梦萦的小馆。传承三代的古法手艺，每一口都是时间的味道。精选当日食材，手工制作，入口劲道，汤鲜味美。现在团购立享超值价，限时优惠，错过再等一年！"
+
+【适用人群】3类目标客户画像
+
+【关键词优化】5个搜索关键词
+
+【宣传语】10字以内的slogan，例："一口入魂，回味无穷"
+
+请确保文案符合${platform}平台调性：${platform === '美团' ? '注重性价比、生活化、接地气' : platform === '抖音来客' ? '年轻化、有网感、带话题性' : '品质感、专业感、高端定位'}。语言要生动有感染力，多用短句和感叹号，让用户一眼就想下单。`;
+      const reply = await fetchZhipuChat([{ role: 'user', content: prompt }], '你是顶级电商运营专家，精通美团、抖音来客、大众点评三大平台的团购运营策略，深谙消费者心理和SEO优化。请输出最专业的上架内容。');
 
       Alert.alert(`上架到${platform}`, reply);
       showToast(`已成功生成${platform}上架内容`);
@@ -8662,39 +8699,46 @@ const MerchantAssistant = () => {
         try {
           // 根据行业类型生成针对性的高级图片prompt
           const industryStyleMap = {
-            '餐饮类': '美食餐饮行业，高端美食摄影风格，专业商业菜品拍摄，诱人的食物特写，精致摆盘，暖色调灯光，高级餐厅氛围，专业美食摄影师水准，色彩鲜艳饱满，让人垂涎欲滴',
-            '服务类': '服务行业，高端会所/SPA/美容风格，奢华优雅的视觉设计，精致的服务场景，柔和温暖的灯光，专业商业摄影，高品质服务环境展示，优雅大气的视觉效果',
-            '企业类': '企业商务风格，现代简约商务设计，专业企业宣传素材，简洁大气的视觉语言，商务办公场景，专业商业摄影，高端企业形象展示，科技感与专业感并重'
+            '餐饮类': '美食餐饮行业，国际美食摄影大师作品风格，专业商业菜品拍摄，米其林级别摆盘，精致餐具搭配，暖色调自然光，画面层次丰富，食物光泽诱人，色彩饱和度高，让人一眼就想下单。参考：米其林餐厅菜单、小红书爆款美食封面、美团首图最佳实践',
+            '服务类': '高端服务行业，奢华SPA/美容会所风格，精致优雅的视觉设计，柔和温暖的暖光氛围，精致的服务场景特写，专业商业摄影品质，高品质环境展示，优雅大气。参考：丽思卡尔顿酒店、SK-II广告、小红书高端美容',
+            '企业类': '企业商务风格，现代简约商务设计，苹果级别的企业宣传素材，简洁大气的视觉语言，深蓝+金色的专业配色，商务办公场景，专业商业摄影，科技感与专业感并重。参考：苹果官网、IBM企业宣传、华为品牌片',
+            '零售类': '时尚零售行业，潮流店铺视觉设计，年轻化视觉风格，大胆配色，潮流时尚商品陈列，ins风店面展示。参考：优衣库、ZARA、小红书潮流店铺',
+            '教育类': '教育培训行业，清新明亮的视觉风格，蓝白主色调，知识感、专业感、信赖感，现代教室场景，师生互动温馨画面。参考：新东方、学而思、Kumon',
+            '医疗类': '专业医疗健康行业，洁净、专业、信赖的视觉语言，蓝白绿色调，现代医疗设备，专业医护形象。参考：平安好医生、微医、公立医院宣传',
+            '休闲娱乐': '休闲娱乐行业，活力动感视觉，明亮多彩配色，欢乐氛围，年轻人社交场景，潮流时尚。参考：KTV、酒吧、密室逃脱的宣传物料',
           };
           
           const styleDesc = industryStyleMap[industry] || industryStyleMap['餐饮类'];
           
-          const fullPrompt = `基于以下需求生成高品质商业图片：${text}
+          const fullPrompt = `基于以下需求生成世界级商业图片：${text}
 
-【设计风格要求】
+【设计风格】
 ${styleDesc}
 
 【视觉质量标准】
-- 专业级商业摄影水准，高清画质，8K分辨率级别
-- 极致光影效果，专业布光，层次感分明
-- 高级色彩搭配，色彩心理学应用，视觉冲击力强
-- 精致细节处理，每个元素都经过精心设计
-- 符合当前主流社交媒体（小红书、抖音来客、微信朋友圈）的爆款视觉风格
-- 参考国际顶级广告公司（奥美、麦肯光明、智威汤逊）的创意水准
-- 融入2024-2025年度最流行的设计趋势（极简主义、新复古、有机形态、流体渐变）
-- 品牌调性统一，视觉语言专业
+- 顶级商业摄影水准，超清8K分辨率
+- 电影级光影效果，专业布光，层次分明
+- 高级色彩搭配，符合行业色彩心理学
+- 极致细节处理，每个像素都经过精雕细琢
+- 符合当前主流社交媒体爆款视觉风格（小红书/抖音/朋友圈）
+- 参考国际顶级广告公司创意水准（奥美/麦肯光明/FCB）
+- 融入2025年最流行设计趋势：极简主义、新复古、流体渐变、玻璃拟态
 
-【构图与布局】
-- 黄金比例构图或三分法构图，视觉焦点突出
-- 留白恰到好处，不拥挤不空洞
-- 文字与图形完美融合，信息层次清晰
+【海报/广告排版规范】
+- 主体元素占画面60%，视觉冲击力强
+- 标题大而醒目，使用粗体，不超过3行
+- 副标题补充信息，字号为标题的60%
+- 留白合理，信息层次分明
+- 配色方案：主色+辅助色+点缀色，不超过4种颜色
+- 品牌logo位置预留，二维码位置预留
 
 【适用场景】
-- 社交媒体推广（小红书、抖音来客、微信）
-- 线下宣传物料（海报、易拉宝、灯箱）
-- 电商平台主图（美团、大众点评、抖音来客商城）
+- 社交媒体推广（小红书封面/抖音封面/朋友圈海报）
+- 线下宣传物料（门店海报/易拉宝/灯箱/门头）
+- 电商平台主图（美团/大众点评/抖音来客商城首图）
+- 活动宣传（节日促销/新品发布/会员专享）
 
-请生成一张具有强烈视觉吸引力、专业级别的商业图片，让观众一眼就被吸引！`;
+请生成一张具有强烈视觉冲击力、让观众一眼就想点击下单的专业级商业图片！`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
@@ -8722,26 +8766,36 @@ ${styleDesc}
         }
       } else {
         // 文案/对话
-        const systemPrompt = `你是「${allData.shopName}」${industry}店铺的专属AI助手，服务对象是商家${userName}。
+        const systemPrompt = `你是「${allData.shopName}」${industry}店铺的顶级经营顾问AI，服务对象是商家${userName}。你同时是：电商运营专家、文案大师、视觉创意总监、数据分析师。
 
 【店铺全量实时数据】
 ${businessContext}
 
-【你的核心职责】
-1. 基于上述真实数据回答商家问题，绝对不能编造数据
-2. 经营分析：分析营收、订单、库存、利润等数据，提供可执行的提升方案
-3. 报告生成：日报/周报/月报都要用真实数据计算和总结
-4. 营销支持：根据${industry}行业特点生成爆款文案、海报描述、广告语
-5. 问题诊断：差评预警、库存预警、营收下滑等问题诊断
-6. 顾问建议：如何提高利润、翻台率、客单价、复购率等
+【你的核心能力】
+1. 数据洞察：基于真实数据做营收分析、库存预警、利润优化、客群画像
+2. 爆款文案：生成朋友圈/小红书/抖音/美团/大众点评的爆款推广文案，掌握各平台调性
+   - 美团：接地气、生活化、突出性价比，例："这家藏在巷子里的小店，凭一碗牛肉面火了3年！"
+   - 抖音来客：年轻化、有网感、带emoji和话题标签，例："🔥宝藏小店挖到宝！${industry}天花板来了"
+   - 大众点评：品质感、专业感、有故事性，例："传承三代的古法手艺，一口就是时间的味道"
+   - 朋友圈：亲切自然、像朋友推荐、带情感共鸣
+3. 海报创意：提供海报标题、副标题、主视觉描述、排版建议、配色方案
+4. 营销方案：节日活动、满减策略、会员体系、引流方案、复购提升
+5. 行业知识：${industry}行业最新趋势、竞品分析、成功案例
+6. 报告生成：日报/周报/月报，用真实数据+专业分析+行动建议
+
+【文案风格规范】
+- 标题：15字以内，含钩子词（必看/隐藏/宝藏/爆款/限时）
+- 正文：100-150字，场景化开头+产品亮点+情绪价值+行动号召
+- 结尾：必带行动指令（点击/收藏/预约）
+- 适当使用emoji增加情绪点，每段不超过3行
+- 数字比形容词更有说服力（"月售2000+" > "超级火爆"）
 
 【回答风格】
-- 直接、实用、可执行
-- 数据要准确引用上面提供的真实数据
-- 给出具体可操作的建议步骤
-- 用"您"称呼商家
-- 重点突出，分段清晰
-- 必要时用数字和百分比说话`;
+- 直接给可执行的方案，不说空话
+- 引用数据要准确使用上方真实数据
+- 涉及多平台时分别给出对应版本
+- 用"您"称呼商家，语气专业又亲切
+- 重点加粗、分点清晰、用数字和百分比说话`;
         reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
       }
       if (AbortControllerRef.current?.signal.aborted) {
@@ -10417,13 +10471,23 @@ const PrivateChat = ({ route, navigation }) => {
           const isBoss = phone === state.shopInfo?.phone;
           return (
             <View key={msg.id} style={[styles.chatRow, isSelf ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }]}>
-              {/* 对方头像 - 只有对方消息显示 */}
+              {/* 对方头像 - 长按可艾特 */}
               {!isSelf && (
-                <View style={{ flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}
+                  onPress={() => showToast(`${msg.fromName || name || '员工'}`)}
+                  onLongPress={() => {
+                    const targetName = msg.fromName || name;
+                    if (targetName) {
+                      setInputText(prev => prev + `@${targetName} `);
+                      showToast(`已艾特 ${targetName}`);
+                    }
+                  }}
+                >
                   <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isBoss ? PRIMARY_COLOR : '#FF9800', justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{(msg.fromName || name || (isBoss ? '老板' : '员工')).substring(0, 1)}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               )}
               <View style={[msg.image ? (isSelf ? styles.imageMsgRight : styles.imageMsgLeft) : (isSelf ? styles.bubbleRight : styles.bubbleLeft)]}>
                 {msg.image ? (
@@ -10510,11 +10574,8 @@ const PrivateChat = ({ route, navigation }) => {
             </View>
           )}
 
-          <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
+          <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 34 : 16) }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
-              <TouchableOpacity onPress={() => setShowMentionList(true)} style={{ paddingHorizontal: 4, paddingVertical: 6 }}>
-                <Ionicons name="at-outline" size={22} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
               <TextInput
                 style={{ flex: 1, minHeight: 36, maxHeight: 120, backgroundColor: '#F5F7FA', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, fontSize: 15, textAlignVertical: 'top' }}
                 placeholder="输入消息..."
@@ -12460,7 +12521,7 @@ const SplashScreenComponent = ({ onComplete }) => {
 
       {/* 底部版本号 */}
       <Animated.View style={{ position: 'absolute', bottom: 60, opacity: textOpacity }}>
-        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.64.0</Text>
+        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>v5.65.0</Text>
       </Animated.View>
     </Animated.View>
   );
