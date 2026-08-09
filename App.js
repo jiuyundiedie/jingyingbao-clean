@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -8404,6 +8404,8 @@ const MerchantAssistant = () => {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [showImageGen, setShowImageGen] = useState(false);
+  // 保存上次图片生成的prompt，用于对话式修改
+  const lastImagePromptRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -9025,15 +9027,16 @@ const MerchantAssistant = () => {
     try {
       let text = inputText.trim();
       let image = null;
-      if (type === 'image') {
-        if (!imageUri) return;
+      // 检查是否有预览图片（无论type是什么）
+      if (imageUri) {
         const compressed = await compressImage(imageUri);
         const base64 = await FileSystem.readAsStringAsync(compressed, { encoding: FileSystem.EncodingType.Base64 });
-        image = `data:image/jpeg;base64,${base64}`;
-      } else if (!text) return;
+        image = compressed; // 保存URI用于显示
+      }
+      if (!text && !image) return; // 文字和图片都没有才返回
       const userMsg = {
         id: Date.now().toString(),
-        text: type === 'text' ? text : '',
+        text: text || '（发送了一张参考图）',
         image: image || null,
         from: 'user',
         time: new Date().toISOString(),
@@ -9075,13 +9078,22 @@ const MerchantAssistant = () => {
 
       // 判断是否需要生成图片
       const shouldGenImage = showImageGen || isImageGenRequest(text);
+      // 判断是否是修改图片请求（上一张图的修改）
+      const isModifyImageRequest = async () => {
+        const modifyKeywords = ['不对','改','重新','不好','不满意','换','重做','调整','修改','优化','重来','再来','太差','不好看','不理想','不行','反了','错了','偏了','歪了','颠倒','翻转','镜像','背面'];
+        if (!lastImagePromptRef.current) return false;
+        const hasModifyIntent = modifyKeywords.some(k => text.includes(k));
+        return hasModifyIntent;
+      };
+      const isModifyReq = await isModifyImageRequest();
       // 判断是否是报告请求
       const isReport = isReportRequest(text);
       let reply = '';
 
-      if (shouldGenImage) {
+      if (shouldGenImage || isModifyReq) {
         try {
-          // 根据行业类型生成针对性的高级图片prompt
+          // 如果是修改请求，把用户反馈追加到上次prompt
+          let fullPrompt;
           const industryPromptMap = {
             '餐饮类': 'A professional food poster for a restaurant. Gourmet dish as the main subject, overhead or 45-degree angle shot, steam/smoke effects, warm lighting, red and orange color scheme, festive atmosphere, no text',
             '服务类': 'A professional beauty/spa service poster. Elegant beauty scene, soft pink and gold colors, graceful poses, flower petals, candlelight, luxurious atmosphere, no text',
@@ -9093,15 +9105,26 @@ const MerchantAssistant = () => {
             '休闲娱乐': 'A professional entertainment poster. Nightclub/bar scene, neon lights, purple and pink colors, energetic crowd, dance floor, vibrant party atmosphere, no text',
           };
           
-          const fullPrompt = `${industryPromptMap[industry] || industryPromptMap['数码电子类']}. Additional requirements: ${text}. No text, no words, no letters, no numbers in the image. Pure visual design only. Professional commercial photography, high quality.`;
+          if (isModifyReq && lastImagePromptRef.current) {
+            // 修改模式：在原prompt基础上加入修改指令
+            fullPrompt = `${lastImagePromptRef.current} Modify: ${text}. Fix the issues mentioned above. No text, no words, no letters, no numbers in the image. Pure visual design only.`;
+            showToast('正在根据您的反馈修改图片...');
+          } else {
+            fullPrompt = `${industryPromptMap[industry] || industryPromptMap['数码电子类']}. Additional requirements: ${text}. No text, no words, no letters, no numbers in the image. Pure visual design only. Professional commercial photography, high quality.`;
+          }
+          
+          // 保存prompt供后续修改
+          lastImagePromptRef.current = fullPrompt;
+          
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
               id: (Date.now()+1).toString(),
-              text: '🎨 已为您生成图片，结合了' + industry + '行业当前流行的爆款设计风格：',
+              text: isModifyReq ? '🎨 已根据您的反馈修改图片：' : '🎨 已为您生成图片，结合了' + industry + '行业当前流行的爆款设计风格：',
               image: imageResult,
               from: 'ai',
               time: new Date().toISOString(),
+              promptUsed: fullPrompt, // 保存使用的prompt
             };
             dispatch({ type: 'ADD_AI_MESSAGE', payload: aiMsg });
             setLoading(false);
@@ -9199,17 +9222,9 @@ ${businessContext}
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
           const compressedUri = await compressImage(asset.uri);
-          const msg = {
-            id: Date.now().toString(),
-            text: '',
-            image: compressedUri,
-            from: 'user',
-            time: new Date().toISOString(),
-          };
-          dispatch({ type: 'ADD_AI_MESSAGE', payload: msg });
-          setImageUri(null);
-          setShowMediaOptions(false);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+          // 只保存预览，不立即发送
+          setImageUri(compressedUri);
+          showToast('图片已选择，输入问题后点击发送');
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -9222,17 +9237,9 @@ ${businessContext}
         if (!result.canceled && result.assets && result.assets.length > 0) {
           const asset = result.assets[0];
           const compressedUri = await compressImage(asset.uri);
-          const msg = {
-            id: Date.now().toString(),
-            text: '',
-            image: compressedUri,
-            from: 'user',
-            time: new Date().toISOString(),
-          };
-          dispatch({ type: 'ADD_AI_MESSAGE', payload: msg });
-          setImageUri(null);
-          setShowMediaOptions(false);
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+          // 只保存预览，不立即发送
+          setImageUri(compressedUri);
+          showToast('图片已选择，输入问题后点击发送');
         }
       }
     } catch (error) {
@@ -9522,6 +9529,21 @@ ${businessContext}
                   <Text style={{ fontSize: 12, color: PRIMARY_COLOR }}>{kw}</Text>
                 </TouchableOpacity>
               ))}
+            </View>
+          )}
+          {/* 图片预览缩略图 - 选择图片后显示在输入框上方 */}
+          {imageUri && (
+            <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingTop: 8, alignItems: 'center' }}>
+              <View style={{ position: 'relative', marginRight: 8 }}>
+                <Image source={{ uri: imageUri }} style={{ width: 60, height: 60, borderRadius: 8 }} />
+                <TouchableOpacity 
+                  style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, backgroundColor: '#ff4444', borderRadius: 10, justifyContent: 'center', alignItems: 'center' }}
+                  onPress={() => setImageUri(null)}
+                >
+                  <Ionicons name="close" size={12} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 12, color: TEXT_THIRD, flex: 1 }}>参考图已选，输入问题后一起发送</Text>
             </View>
           )}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
