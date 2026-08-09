@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -23,6 +23,7 @@ import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Clipboard from 'expo-clipboard';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BACKEND_URL, API, apiUrl, apiFetch, getMode } from './config';
@@ -655,7 +656,7 @@ async function genImageWithSiliconFlow(prompt, signal) {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SILICONFLOW_API_KEY },
       body: JSON.stringify({
-        model: "deepseek-ai/DeepSeek-V3",
+        model: "black-forest-labs/FLUX.1-schnell",
         prompt: prompt,
         image_size: "1024x1024",
         num_images: 1
@@ -8202,11 +8203,20 @@ const VoiceAssistant = () => {
   // 语音识别（Web Speech API）
   const startVoice = async () => {
     try {
+      // 安全检查：确认ExpoSpeechRecognitionModule可用
+      if (!ExpoSpeechRecognitionModule || typeof ExpoSpeechRecognitionModule.requestPermissionsAsync !== 'function') {
+        showToast('语音识别不可用，请使用文字输入');
+        return;
+      }
+
       const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissionResult.granted) {
+      if (!permissionResult || !permissionResult.granted) {
         showToast('请授权麦克风权限');
         return;
       }
+      
+      // 等待权限对话框完全关闭，避免Activity重建导致的崩溃
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Remove any existing listeners
       try {
@@ -8244,7 +8254,16 @@ const VoiceAssistant = () => {
       setRecording(true);
       setRecognizing(true);
       showToast('正在聆听...请说话');
-      await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
+      // 用try-catch包裹start调用，防止native层崩溃导致app闪退
+      try {
+        await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
+      } catch (startErr) {
+        console.error('语音识别start失败:', startErr);
+        setRecording(false);
+        setRecognizing(false);
+        showToast('语音识别启动失败，请使用文字输入');
+        try { ExpoSpeechRecognitionModule.removeAllListeners(); } catch (e) {}
+      }
     } catch (error) {
       console.error('启动语音识别失败:', error);
       showToast('启动语音识别失败');
@@ -8463,6 +8482,8 @@ const MerchantAssistant = () => {
   const [downloading, setDownloading] = useState(false);
   const [streamingMsgId, setStreamingMsgId] = useState(null);
   const AbortControllerRef = useRef(null);
+  // 消息操作菜单（长按消息弹出的复制/撤回菜单）
+  const [msgActionMenu, setMsgActionMenu] = useState(null); // { msg, x, y } 或 null
   // 模板选择器
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [templateType, setTemplateType] = useState('海报');
@@ -8868,6 +8889,30 @@ const MerchantAssistant = () => {
       '月报': `【${shopName}本月经营月报】\n\n店铺类型：${industry}\n本月订单：${data.monthOrders}单\n本月营收：¥${data.monthRevenue}\n日均订单：${Number(data.monthOrders / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(1)}单\n日均营收：¥${Number(data.monthRevenue / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()).toFixed(2)}\n各平台销售：${platformData}\n采购成本：¥${data.purchaseCost}\n固定成本：¥${data.fixedCost}\n损耗金额：¥${data.loss}\n其他成本：¥${data.otherCost}\n总成本：¥${data.totalCost}\n总利润：¥${data.profit}\n利润率：${data.profitRate}%\n库存不足商品：${data.lowStockItems.join('、') || '无'}\n\n请基于以上真实数据，结合${industry}行业本月市场情况，为我生成一份专业的月报，包含：\n1. 本月经营数据全面汇总\n2. 各周数据趋势分析\n3. 成本结构分析\n4. 利润变化原因分析\n5. 库存周转分析\n6. 与上月对比总结\n7. 下月经营规划建议`,
     };
     setInputText(prompts[type] || '');
+  };
+
+  // 消息长按操作
+  const handleMsgLongPress = (msg) => {
+    setMsgActionMenu({ msg });
+  };
+  // 复制消息文本
+  const handleCopyMsg = async (msg) => {
+    try {
+      await Clipboard.setStringAsync(msg.text || '');
+      showToast('已复制到剪贴板');
+    } catch (e) { showToast('复制失败'); }
+    setMsgActionMenu(null);
+  };
+  // 撤回消息（仅限自己发送的、且在2分钟内）
+  const handleRecallMsg = (msg) => {
+    setMsgActionMenu(null);
+    if (msg.from !== 'user') { showToast('只能撤回自己发送的消息'); return; }
+    const sentTime = new Date(msg.time).getTime();
+    if (Date.now() - sentTime > 120000) { showToast('超过2分钟，无法撤回'); return; }
+    const updated = messagesRef.current.filter(m => m.id !== msg.id);
+    messagesRef.current = updated;
+    dispatch({ type: 'SET_AI_MESSAGES', payload: updated });
+    showToast('已撤回');
   };
 
   // 选择模板后：提取占位符，弹出表单供用户填写
@@ -9329,7 +9374,13 @@ ${businessContext}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {messages.map(msg => (
-              <View key={msg.id} style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}>
+              <TouchableOpacity
+                key={msg.id}
+                activeOpacity={1}
+                onLongPress={() => handleMsgLongPress(msg)}
+                delayLongPress={400}
+                style={msg.from === 'user' ? styles.bubbleRight : styles.bubbleLeft}
+              >
                 {msg.image ? (
                   <>
                     <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 4 }}>{msg.text}</Text>
@@ -9342,7 +9393,7 @@ ${businessContext}
                     </TouchableOpacity>
                   </>
                 ) : (
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }} selectable>
                     {msg.text}
                     {streamingMsgId === msg.id && (
                       <Text style={{ color: PRIMARY_COLOR, fontWeight: 'bold' }}>
@@ -9352,7 +9403,7 @@ ${businessContext}
                   </Text>
                 )}
                 <Text style={{ fontSize: 10, color: TEXT_THIRD, marginTop: 4 }}>{formatTime(msg.time)}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
             {loading && <View style={[styles.bubbleLeft, { padding: 12, flexDirection: 'row', alignItems: 'center' }]}>
               <ActivityIndicator size="small" color={PRIMARY_COLOR} />
@@ -9524,7 +9575,30 @@ ${businessContext}
             </TouchableOpacity>
           </Modal>
         )}
-        
+
+        {/* 消息长按操作菜单 */}
+        {msgActionMenu && (
+          <Modal visible={!!msgActionMenu} transparent animationType="fade" onRequestClose={() => setMsgActionMenu(null)}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }} onPress={() => setMsgActionMenu(null)} activeOpacity={1}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 14, width: '70%', overflow: 'hidden' }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: BORDER_COLOR }} onPress={() => handleCopyMsg(msgActionMenu.msg)}>
+                  <Ionicons name="copy-outline" size={20} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ fontSize: 15, color: TEXT_MAIN }}>复制</Text>
+                </TouchableOpacity>
+                {msgActionMenu.msg.from === 'user' && (
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 }} onPress={() => handleRecallMsg(msgActionMenu.msg)}>
+                    <Ionicons name="arrow-undo-outline" size={20} color={DANGER_COLOR} style={{ marginRight: 12 }} />
+                    <Text style={{ fontSize: 15, color: DANGER_COLOR }}>撤回</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 14, alignItems: 'center', width: '70%' }} onPress={() => setMsgActionMenu(null)}>
+                <Text style={{ fontSize: 15, color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
+        )}
+
         <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: BORDER_COLOR, paddingBottom: keyboardVisible ? 0 : insets.bottom + (Platform.OS === 'ios' ? 84 : 64) }}>
           {/* AI关键词实时推荐 */}
           {(aiSuggestions.length > 0 || suggestionLoading) && inputText.trim() && (
@@ -9646,11 +9720,21 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 
   const startVoice = async () => {
     try {
+      // 安全检查：确认ExpoSpeechRecognitionModule可用
+      if (!ExpoSpeechRecognitionModule || typeof ExpoSpeechRecognitionModule.requestPermissionsAsync !== 'function') {
+        showToast('语音识别不可用，请使用文字输入');
+        setVoiceMode(false);
+        return;
+      }
+
       const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissionResult.granted) {
+      if (!permissionResult || !permissionResult.granted) {
         showToast('请授权麦克风权限');
         return;
       }
+
+      // 等待权限对话框完全关闭，避免Activity重建导致的崩溃
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Remove existing listeners first
       try {
@@ -9685,7 +9769,17 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
 
       setRecording(true);
       showToast('正在聆听...请说话');
-      await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
+      // 用try-catch包裹start调用，防止native层崩溃导致app闪退
+      try {
+        await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
+      } catch (startErr) {
+        console.error('语音识别start失败:', startErr);
+        setRecording(false);
+        showToast('语音识别启动失败，请使用文字输入');
+        setVoiceMode(false);
+        // 清理listeners
+        try { ExpoSpeechRecognitionModule.removeAllListeners(); } catch (e) {}
+      }
     } catch (e) {
       console.error('启动语音失败:', e);
       showToast('启动语音失败');
@@ -9888,12 +9982,14 @@ const HomePage = () => {
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
 
-  // 登录后弹出使用帮助（首次登录时）
+  // 登录后弹出使用帮助（仅首次安装时弹出一次）
   useEffect(() => {
     const checkOnLogin = async () => {
       const helpShown = await AsyncStorage.getItem('help_guide_shown');
       if (!helpShown) {
         setShowHelpGuide(true);
+        // 立即标记为已展示，防止下次再弹
+        await AsyncStorage.setItem('help_guide_shown', 'true');
       }
     };
     checkOnLogin();
