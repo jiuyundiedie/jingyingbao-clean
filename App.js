@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -8200,14 +8200,17 @@ const VoiceAssistant = () => {
     };
   }, []);
 
-  // 语音识别 - expo-speech-recognition与SDK57不兼容，已禁用native调用
+  // 语音识别 - 使用Alert提示，expo-speech-recognition与SDK57不兼容已禁用
   const startVoice = async () => {
-    showToast('语音识别暂不可用，请使用文字输入');
+    Alert.alert(
+      '语音输入',
+      '语音识别功能正在升级维护中，请使用文字输入。\n\n您的问题描述越详细，AI回复越精准！',
+      [{ text: '知道了', style: 'default' }]
+    );
   };
 
   const stopVoice = async () => {
     setRecording(false);
-    setRecognizing(false);
   };
 
   // 语音播报回复
@@ -9008,7 +9011,9 @@ const MerchantAssistant = () => {
 
   // 检测是否是生成图片类
   const isImageGenRequest = (text) => {
-    return /海报|图片|设计|封面|宣传|画|生成图/.test(text);
+    // 广告语/文字类内容不触发图片生成
+    if (/广告语|文案|宣传语|标语|口号|广告词/.test(text)) return false;
+    return /海报|图片|设计|封面|宣传图|画一张|生成图|制作图|配图/.test(text);
   };
 
   // 检测是否是日报/周报/月报
@@ -9077,20 +9082,18 @@ const MerchantAssistant = () => {
       if (shouldGenImage) {
         try {
           // 根据行业类型生成针对性的高级图片prompt
-          const industryStyleMap = {
-            '餐饮类': 'Gourmet food photography, Michelin-style plating, warm natural light, appetizing',
-            '服务类': 'Luxury SPA beauty salon, elegant warm lighting, professional service scene',
-            '企业类': 'Modern corporate business, deep blue and gold, clean professional',
-            '数码电子类': 'Tech product photography, dark background, soft light, minimalist, Apple-style',
-            '零售类': 'Fashion retail store, trendy colorful, young vibrant ins-style',
-            '教育类': 'Education training, bright blue-white, modern classroom, warm',
-            '医疗类': 'Medical health, clean blue-white-green, professional, trustworthy',
-            '休闲娱乐': 'Entertainment venue, vibrant colorful, dynamic, young social',
+          const industryPromptMap = {
+            '餐饮类': 'A professional food poster for a restaurant. Gourmet dish as the main subject, overhead or 45-degree angle shot, steam/smoke effects, warm lighting, red and orange color scheme, festive atmosphere, no text',
+            '服务类': 'A professional beauty/spa service poster. Elegant beauty scene, soft pink and gold colors, graceful poses, flower petals, candlelight, luxurious atmosphere, no text',
+            '企业类': 'A professional business poster for a corporate company. Modern office building, blue and gold color scheme, professional business meeting, city skyline, sleek corporate style, no text',
+            '数码电子类': 'A professional smartphone product poster. A modern smartphone standing upright or held in hand, sleek dark background, dramatic product lighting, blue and silver accent colors, tech style, no text',
+            '零售类': 'A professional retail store poster. Fashion clothing/products on display, trendy store interior, bright colorful lighting, lifestyle photography, shopping atmosphere, no text',
+            '教育类': 'A professional education training poster. Modern classroom, students studying, bright blue and white colors, books and graduation cap, academic atmosphere, no text',
+            '医疗类': 'A professional medical/health poster. Clean medical environment, stethoscope and medical instruments, blue and green colors, professional healthcare atmosphere, no text',
+            '休闲娱乐': 'A professional entertainment poster. Nightclub/bar scene, neon lights, purple and pink colors, energetic crowd, dance floor, vibrant party atmosphere, no text',
           };
           
-          const styleDesc = industryStyleMap[industry] || industryStyleMap['餐饮类'];
-          
-          const fullPrompt = `NO text,NO words,NO letters,NO numbers in the image. Pure visual only. ${styleDesc}. ${text}. Commercial photography, 8K, cinematic lighting, professional composition, leave 20% blank space for text overlay.`;
+          const fullPrompt = `${industryPromptMap[industry] || industryPromptMap['数码电子类']}. Additional requirements: ${text}. No text, no words, no letters, no numbers in the image. Pure visual design only. Professional commercial photography, high quality.`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
@@ -9618,9 +9621,13 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     };
   }, []);
 
-  // 语音识别 - expo-speech-recognition与SDK57不兼容，已禁用native调用
+  // 语音识别 - 使用Alert提示，expo-speech-recognition与SDK57不兼容已禁用
   const startVoice = async () => {
-    showToast('语音识别暂不可用，请使用文字输入');
+    Alert.alert(
+      '语音输入',
+      '语音识别功能正在升级维护中，请使用文字输入。\n\n您的问题描述越详细，AI回复越精准！',
+      [{ text: '知道了', style: 'default' }]
+    );
     setVoiceMode(false);
   };
 
