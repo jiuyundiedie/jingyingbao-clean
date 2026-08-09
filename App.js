@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -608,10 +608,9 @@ async function genImageWithZhipu(prompt, signal) {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
       body: JSON.stringify({
-        model: "cogView-3-plus",
+        model: "cogview-3-flash",
         prompt: prompt,
-        image_size: "1024x1024",
-        num_images: 1
+        size: "1024x1024"
       }),
     });
     const timeoutPromise = new Promise((_, reject) => 
@@ -638,7 +637,7 @@ async function genImageWithZhipu(prompt, signal) {
       console.log('[ZhipuImg] 生成成功，返回base64');
       return 'data:image/png;base64,' + imageData.b64_json;
     }
-    console.error('[ZhipuImg] 无图片数据');
+    console.error('[ZhipuImg] 无图片数据:', JSON.stringify(json).substring(0, 200));
     return null;
   } catch (err) {
     if (signal && signal.aborted) return null;
@@ -659,7 +658,7 @@ async function genImageWithSiliconFlow(prompt, signal) {
         model: "black-forest-labs/FLUX.1-schnell",
         prompt: prompt,
         image_size: "1024x1024",
-        num_images: 1
+        num_inference_steps: 4
       }),
     });
     const timeoutPromise = new Promise((_, reject) => 
@@ -677,7 +676,8 @@ async function genImageWithSiliconFlow(prompt, signal) {
       console.error('[SiliconImg] API错误:', JSON.stringify(json.error).substring(0, 200)); 
       return null; 
     }
-    const imageData = json.data?.[0];
+    // 硅基流动返回格式: { images: [{ url: "..." }] }
+    const imageData = json.images?.[0] || json.data?.[0];
     if (imageData?.url) {
       console.log('[SiliconImg] 生成成功，返回URL');
       return imageData.url;
@@ -686,7 +686,7 @@ async function genImageWithSiliconFlow(prompt, signal) {
       console.log('[SiliconImg] 生成成功，返回base64');
       return 'data:image/png;base64,' + imageData.b64_json;
     }
-    console.error('[SiliconImg] 无图片数据');
+    console.error('[SiliconImg] 无图片数据:', JSON.stringify(json).substring(0, 200));
     return null;
   } catch (err) {
     if (signal && signal.aborted) return null;
@@ -8200,84 +8200,12 @@ const VoiceAssistant = () => {
     };
   }, []);
 
-  // 语音识别（Web Speech API）
+  // 语音识别 - expo-speech-recognition与SDK57不兼容，已禁用native调用
   const startVoice = async () => {
-    try {
-      // 安全检查：确认ExpoSpeechRecognitionModule可用
-      if (!ExpoSpeechRecognitionModule || typeof ExpoSpeechRecognitionModule.requestPermissionsAsync !== 'function') {
-        showToast('语音识别不可用，请使用文字输入');
-        return;
-      }
-
-      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissionResult || !permissionResult.granted) {
-        showToast('请授权麦克风权限');
-        return;
-      }
-      
-      // 等待权限对话框完全关闭，避免Activity重建导致的崩溃
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Remove any existing listeners
-      try {
-        ExpoSpeechRecognitionModule.removeAllListeners();
-      } catch (e) {}
-      
-      const subscription = ExpoSpeechRecognitionModule.addListener('result', (event) => {
-        const { segments } = event;
-        if (segments && segments.length > 0) {
-          const text = segments.map(s => s.transcript).join('');
-          if (text) {
-            setInputText(prev => (prev + ' ' + text).trim());
-          }
-        }
-      });
-      
-      ExpoSpeechRecognitionModule.addListener('error', (event) => {
-        const error = event.error;
-        setRecording(false);
-        setRecognizing(false);
-        if (error === 'not-allowed') {
-          showToast('请授权麦克风权限');
-        } else if (error === 'no-speech') {
-          showToast('未检测到语音，请重试');
-        } else {
-          console.warn('语音识别错误:', error);
-        }
-      });
-      
-      ExpoSpeechRecognitionModule.addListener('end', () => {
-        setRecording(false);
-        setRecognizing(false);
-      });
-      
-      setRecording(true);
-      setRecognizing(true);
-      showToast('正在聆听...请说话');
-      // 用try-catch包裹start调用，防止native层崩溃导致app闪退
-      try {
-        await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
-      } catch (startErr) {
-        console.error('语音识别start失败:', startErr);
-        setRecording(false);
-        setRecognizing(false);
-        showToast('语音识别启动失败，请使用文字输入');
-        try { ExpoSpeechRecognitionModule.removeAllListeners(); } catch (e) {}
-      }
-    } catch (error) {
-      console.error('启动语音识别失败:', error);
-      showToast('启动语音识别失败');
-      setRecording(false);
-      setRecognizing(false);
-    }
+    showToast('语音识别暂不可用，请使用文字输入');
   };
 
   const stopVoice = async () => {
-    try {
-      await ExpoSpeechRecognitionModule.stop();
-    } catch (e) {
-      console.warn('停止语音失败:', e);
-    }
     setRecording(false);
     setRecognizing(false);
   };
@@ -9150,47 +9078,19 @@ const MerchantAssistant = () => {
         try {
           // 根据行业类型生成针对性的高级图片prompt
           const industryStyleMap = {
-            '餐饮类': '美食餐饮行业，国际美食摄影大师作品风格，专业商业菜品拍摄，米其林级别摆盘，精致餐具搭配，暖色调自然光，画面层次丰富，食物光泽诱人，色彩饱和度高，让人一眼就想下单。参考：米其林餐厅菜单、小红书爆款美食封面、美团首图最佳实践',
-            '服务类': '高端服务行业，奢华SPA/美容会所风格，精致优雅的视觉设计，柔和温暖的暖光氛围，精致的服务场景特写，专业商业摄影品质，高品质环境展示，优雅大气。参考：丽思卡尔顿酒店、SK-II广告、小红书高端美容',
-            '企业类': '企业商务风格，现代简约商务设计，苹果级别的企业宣传素材，简洁大气的视觉语言，深蓝+金色的专业配色，商务办公场景，专业商业摄影，科技感与专业感并重。参考：苹果官网、IBM企业宣传、华为品牌片',
-            '数码电子类': '数码电子行业，苹果华为小米官网级别的商业产品摄影，极简科技风，深色/纯黑背景+柔光，产品360度无死角展示，金属/玻璃材质高光完美体现，棱角分明，冷峻高级，科技感爆棚。参考：iPhone官网广告图、华为发布会素材、小米商城首图、DJI大疆产品图',
-            '零售类': '时尚零售行业，潮流店铺视觉设计，年轻化视觉风格，大胆配色，潮流时尚商品陈列，ins风店面展示。参考：优衣库、ZARA、小红书潮流店铺',
-            '教育类': '教育培训行业，清新明亮的视觉风格，蓝白主色调，知识感、专业感、信赖感，现代教室场景，师生互动温馨画面。参考：新东方、学而思、Kumon',
-            '医疗类': '专业医疗健康行业，洁净、专业、信赖的视觉语言，蓝白绿色调，现代医疗设备，专业医护形象。参考：平安好医生、微医、公立医院宣传',
-            '休闲娱乐': '休闲娱乐行业，活力动感视觉，明亮多彩配色，欢乐氛围，年轻人社交场景，潮流时尚。参考：KTV、酒吧、密室逃脱的宣传物料',
+            '餐饮类': 'Gourmet food photography, Michelin-style plating, warm natural light, appetizing',
+            '服务类': 'Luxury SPA beauty salon, elegant warm lighting, professional service scene',
+            '企业类': 'Modern corporate business, deep blue and gold, clean professional',
+            '数码电子类': 'Tech product photography, dark background, soft light, minimalist, Apple-style',
+            '零售类': 'Fashion retail store, trendy colorful, young vibrant ins-style',
+            '教育类': 'Education training, bright blue-white, modern classroom, warm',
+            '医疗类': 'Medical health, clean blue-white-green, professional, trustworthy',
+            '休闲娱乐': 'Entertainment venue, vibrant colorful, dynamic, young social',
           };
           
           const styleDesc = industryStyleMap[industry] || industryStyleMap['餐饮类'];
           
-          const fullPrompt = `【重要-硬性要求】图中绝对不要包含任何文字、汉字、字母、数字、符号、logo、价格标签。所有文字信息留空，只生成纯视觉画面，文字由后期添加。
-
-基于以下需求生成世界级商业图片：${text}
-
-【设计风格】
-${styleDesc}
-
-【视觉质量标准】
-- 顶级商业摄影水准，超清8K分辨率
-- 电影级光影效果，专业布光，层次分明
-- 高级色彩搭配，符合行业色彩心理学
-- 极致细节处理，每个像素都经过精雕细琢
-- 符合当前主流社交媒体爆款视觉风格（小红书/抖音/朋友圈）
-- 参考国际顶级广告公司创意水准（奥美/麦肯光明/FCB）
-- 融入2025年最流行设计趋势：极简主义、新复古、流体渐变、玻璃拟态
-
-【排版规范-纯视觉】
-- 主体元素占画面60%，视觉冲击力强
-- 留白区域合理，用于后期叠加文字
-- 配色方案：主色+辅助色+点缀色，不超过4种颜色
-- 画面上方或下方预留20%空白区域用于后期放标题
-
-【适用场景】
-- 社交媒体推广（小红书封面/抖音封面/朋友圈海报）
-- 线下宣传物料（门店海报/易拉宝/灯箱/门头）
-- 电商平台主图（美团/大众点评/抖音来客商城首图）
-- 活动宣传（节日促销/新品发布/会员专享）
-
-【再次强调】任何形式的文字一律不要生成！只做纯视觉设计。`;
+          const fullPrompt = `NO text,NO words,NO letters,NO numbers in the image. Pure visual only. ${styleDesc}. ${text}. Commercial photography, 8K, cinematic lighting, professional composition, leave 20% blank space for text overlay.`;
           const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
@@ -9718,81 +9618,13 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     };
   }, []);
 
+  // 语音识别 - expo-speech-recognition与SDK57不兼容，已禁用native调用
   const startVoice = async () => {
-    try {
-      // 安全检查：确认ExpoSpeechRecognitionModule可用
-      if (!ExpoSpeechRecognitionModule || typeof ExpoSpeechRecognitionModule.requestPermissionsAsync !== 'function') {
-        showToast('语音识别不可用，请使用文字输入');
-        setVoiceMode(false);
-        return;
-      }
-
-      const permissionResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissionResult || !permissionResult.granted) {
-        showToast('请授权麦克风权限');
-        return;
-      }
-
-      // 等待权限对话框完全关闭，避免Activity重建导致的崩溃
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Remove existing listeners first
-      try {
-        ExpoSpeechRecognitionModule.removeAllListeners();
-      } catch (e) {}
-
-      ExpoSpeechRecognitionModule.addListener('result', (event) => {
-        const { segments } = event;
-        if (segments && segments.length > 0) {
-          const text = segments.map(s => s.transcript).join('');
-          if (text) {
-            setInputText(prev => (prev + ' ' + text).trim());
-          }
-        }
-      });
-
-      ExpoSpeechRecognitionModule.addListener('error', (event) => {
-        setRecording(false);
-        const error = event.error;
-        if (error === 'not-allowed') {
-          showToast('请授权麦克风权限');
-        } else if (error === 'no-speech') {
-          showToast('未检测到语音，请重试');
-        } else {
-          console.warn('语音识别错误:', error);
-        }
-      });
-
-      ExpoSpeechRecognitionModule.addListener('end', () => {
-        setRecording(false);
-      });
-
-      setRecording(true);
-      showToast('正在聆听...请说话');
-      // 用try-catch包裹start调用，防止native层崩溃导致app闪退
-      try {
-        await ExpoSpeechRecognitionModule.start({ lang: 'zh-CN', interimResults: true });
-      } catch (startErr) {
-        console.error('语音识别start失败:', startErr);
-        setRecording(false);
-        showToast('语音识别启动失败，请使用文字输入');
-        setVoiceMode(false);
-        // 清理listeners
-        try { ExpoSpeechRecognitionModule.removeAllListeners(); } catch (e) {}
-      }
-    } catch (e) {
-      console.error('启动语音失败:', e);
-      showToast('启动语音失败');
-      setRecording(false);
-    }
+    showToast('语音识别暂不可用，请使用文字输入');
+    setVoiceMode(false);
   };
 
   const stopVoice = async () => {
-    try {
-      await ExpoSpeechRecognitionModule.stop();
-    } catch (e) {
-      console.warn('停止语音失败:', e);
-    }
     setRecording(false);
   };
 
