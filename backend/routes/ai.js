@@ -73,29 +73,58 @@ router.post('/chat', authRequired, async (req, res) => {
 // ========== AI 图片生成代理 ==========
 router.post('/image', authRequired, async (req, res) => {
   try {
-    const { prompt, provider, size } = req.body;
+    const { prompt, provider, size, quality } = req.body;
     const providerKey = provider || 'siliconflow_img';
     const config = AI_PROVIDERS[providerKey];
+    const qualityLevel = quality || 'standard';
 
     if (!config || !config.key) {
       return res.status(500).json({ error: '图片服务密钥未配置' });
     }
 
-    const response = await axios.post(config.url, {
-      model: providerKey === 'bigmodel_img' ? 'ernie-vilg-v2' : 'stable-diffusion-xl',
+    // 根据画质选择模型和参数
+    let model, steps, imageSize;
+    if (providerKey === 'siliconflow_img') {
+      const modelMap = {
+        standard: 'black-forest-labs/FLUX.1-schnell',
+        hd: 'black-forest-labs/FLUX.1-dev',
+        ultra: 'black-forest-labs/FLUX.1-dev'
+      };
+      const stepsMap = { standard: 4, hd: 20, ultra: 28 };
+      const sizeMap = { standard: '1024x1024', hd: '1024x1024', ultra: '1440x1024' };
+      model = modelMap[qualityLevel] || modelMap.standard;
+      steps = stepsMap[qualityLevel] || 4;
+      imageSize = size || sizeMap[qualityLevel] || '1024x1024';
+    } else {
+      model = providerKey === 'bigmodel_img' ? 'ernie-vilg-v2' : 'stable-diffusion-xl';
+      imageSize = size || '1024x1024';
+    }
+
+    const reqBody = providerKey === 'siliconflow_img' ? {
+      model,
       prompt,
-      size: size || '1024x1024',
+      image_size: imageSize,
+      num_inference_steps: steps,
+    } : {
+      model,
+      prompt,
+      size: imageSize,
       n: 1,
       response_format: 'url',
-    }, {
+      quality: qualityLevel === 'ultra' ? 'hd' : 'standard',
+    };
+
+    const timeout = qualityLevel === 'ultra' ? 120000 : qualityLevel === 'hd' ? 60000 : 60000;
+
+    const response = await axios.post(config.url, reqBody, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + config.key,
       },
-      timeout: 60000,
+      timeout,
     });
 
-    const imageUrl = response.data?.data?.[0]?.url || '';
+    const imageUrl = response.data?.data?.[0]?.url || response.data?.images?.[0]?.url || '';
     res.json({ success: true, imageUrl });
   } catch (error) {
     console.error('[AI Image Error]', error.message);

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -345,12 +345,12 @@ async function aiChatViaBackend(messages, provider = 'zhipu', systemPrompt) {
   }
 }
 
-async function aiImageViaBackend(prompt, provider = 'siliconflow_img', size = '1024x1024') {
+async function aiImageViaBackend(prompt, provider = 'siliconflow_img', size = '1024x1024', quality = 'standard') {
   if (!USE_BACKEND) return null;
   try {
     const res = await apiFetch(API.aiImage, {
       method: 'POST',
-      body: JSON.stringify({ prompt, provider, size }),
+      body: JSON.stringify({ prompt, provider, size, quality }),
     });
     if (res.ok && res.data?.success) {
       return res.data.imageUrl;
@@ -598,23 +598,51 @@ function generateLocalResponse(userText) {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
-// ===== AI 图片生成（多API自动切换）=====
-async function genImageWithZhipu(prompt, signal) {
+// ===== AI 图片生成（多API自动切换 + 画质 + 惊艳Prompt增强）=====
+
+// 画质增强Prompt（通用高质量风格词）
+const QUALITY_ENHANCEMENT = {
+  standard: ', 8k resolution, professional quality, crisp details, natural lighting',
+  hd: ', 8k ultra HD, master quality, cinematic composition, studio lighting, ray tracing, hyper detailed, sharp focus',
+  ultra: ', 8k ultra HD, award winning photography, National Geographic quality, cinematic composition, dramatic lighting, ray tracing, volumetric lighting, hyper detailed, pixel perfect, professional retouching, shot on DSLR, f/1.4 aperture, shallow depth of field'
+};
+
+// 行业风格增强Prompt（更丰富的爆款风格词）
+const INDUSTRY_STYLE_BOOST = {
+  '餐饮类': ', Michelin star food photography, overhead flat lay, 45 degree hero shot, steam rising, bokeh background, rustic wooden table, garnish details, droplets of condensation, appetizing glow, commercial food styling',
+  '服务类': ', luxury lifestyle editorial, soft golden hour light, silk textures, flower petals, high end spa atmosphere, marble and gold accents, professional model photography, magazine cover quality',
+  '企业类': ', Fortune 500 corporate aesthetic, glass skyscraper reflections, boardroom professionalism, navy and gold executive style, leather and wood textures, city skyline backdrop, Bloomberg quality',
+  '数码电子类': ', flagship product photography, premium unboxing aesthetic, dark moody background, dramatic edge lighting, neon accent colors, metallic reflections, glass and aluminum textures, Apple-level product render',
+  '零售类': ', high fashion editorial, street style photography, trendy boutique interior, lifestyle scene, pastel neon lighting, influencer aesthetic, Instagram viral quality, minimalist composition',
+  '教育类': ', bright minimalist classroom, modern Scandinavian design, natural daylight from windows, vibrant yet clean color palette, back to school atmosphere, kids smiling, optimistic energy',
+  '医疗类': ', premium healthcare editorial, bright sterile environment, white and teal color scheme, soft diffused light, lab coat details, professional hospital photography, trustworthy atmosphere',
+  '休闲娱乐': ', vibrant nightlife photography, neon cyberpunk colors, motion blur effects, energetic crowd, smoke machine atmosphere, concert lighting, TikTok viral aesthetic'
+};
+
+async function genImageWithZhipu(prompt, signal, quality = 'standard') {
   if (!ZHIPU_API_KEY || ZHIPU_API_KEY.length < 10) return null;
   if (signal && signal.aborted) return null;
   try {
-    console.log('[ZhipuImg] 开始生成图片...');
+    console.log('[ZhipuImg] 开始生成图片, 画质:', quality);
+    // 画质映射：standard→flash，hd→cogview-4，ultra→cogview-4-250304
+    const modelMap = { standard: 'cogview-3-flash', hd: 'cogview-4', ultra: 'cogview-4-250304' };
+    const model = modelMap[quality] || 'cogview-3-flash';
+    const sizeMap = { standard: '1024x1024', hd: '1024x1024', ultra: '1920x1080' };
+    const size = sizeMap[quality] || '1024x1024';
+    const qualityParam = quality === 'ultra' ? 'hd' : 'standard';
+    
     const fetchPromise = fetch('https://open.bigmodel.cn/api/paas/v4/images/generations', {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + ZHIPU_API_KEY },
       body: JSON.stringify({
-        model: "cogview-3-flash",
+        model: model,
         prompt: prompt,
-        size: "1024x1024"
+        size: size,
+        quality: qualityParam
       }),
     });
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('图片生成超时')), 30000)
+      setTimeout(() => reject(new Error('图片生成超时')), quality === 'ultra' ? 90000 : 45000)
     );
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if (signal && signal.aborted) return null;
@@ -646,23 +674,35 @@ async function genImageWithZhipu(prompt, signal) {
   }
 }
 
-async function genImageWithSiliconFlow(prompt, signal) {
+async function genImageWithSiliconFlow(prompt, signal, quality = 'standard') {
   if (!SILICONFLOW_API_KEY || SILICONFLOW_API_KEY.length < 10) return null;
   if (signal && signal.aborted) return null;
   try {
-    console.log('[SiliconImg] 开始生成图片...');
+    console.log('[SiliconImg] 开始生成图片, 画质:', quality);
+    // 根据画质选择不同模型和参数
+    const modelMap = {
+      standard: 'black-forest-labs/FLUX.1-schnell',
+      hd: 'black-forest-labs/FLUX.1-dev',
+      ultra: 'black-forest-labs/FLUX.1-dev'
+    };
+    const stepsMap = { standard: 4, hd: 20, ultra: 28 };
+    const sizeMap = { standard: '1024x1024', hd: '1024x1024', ultra: '1440x1024' };
+    const model = modelMap[quality] || modelMap.standard;
+    const steps = stepsMap[quality] || 4;
+    const imageSize = sizeMap[quality] || '1024x1024';
+    
     const fetchPromise = fetch('https://api.siliconflow.cn/v1/images/generations', {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SILICONFLOW_API_KEY },
       body: JSON.stringify({
-        model: "black-forest-labs/FLUX.1-schnell",
+        model: model,
         prompt: prompt,
-        image_size: "1024x1024",
-        num_inference_steps: 4
+        image_size: imageSize,
+        num_inference_steps: steps
       }),
     });
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('图片生成超时')), 30000)
+      setTimeout(() => reject(new Error('图片生成超时')), quality === 'ultra' ? 120000 : quality === 'hd' ? 60000 : 30000)
     );
     const res = await Promise.race([fetchPromise, timeoutPromise]);
     if (signal && signal.aborted) return null;
@@ -696,11 +736,16 @@ async function genImageWithSiliconFlow(prompt, signal) {
 }
 
 // 统一图片生成入口：多API自动切换
-async function fetchZhipuImage(prompt, signal) {
+async function fetchZhipuImage(prompt, signal, quality = 'standard') {
   if (signal?.aborted) return null;
   const apis = [
-    { name: 'ZhipuAI(cogView)', fn: () => genImageWithZhipu(prompt, signal) },
-    { name: '硅基流动', fn: () => genImageWithSiliconFlow(prompt, signal) },
+    // 超清模式优先用硅基流动FLUX，效果更惊艳
+    quality === 'ultra' || quality === 'hd'
+      ? { name: '硅基流动(FLUX)', fn: () => genImageWithSiliconFlow(prompt, signal, quality) }
+      : { name: 'ZhipuAI(cogView)', fn: () => genImageWithZhipu(prompt, signal, quality) },
+    quality === 'ultra' || quality === 'hd'
+      ? { name: 'ZhipuAI(cogView)', fn: () => genImageWithZhipu(prompt, signal, quality) }
+      : { name: '硅基流动(FLUX)', fn: () => genImageWithSiliconFlow(prompt, signal, quality) },
   ];
   for (const api of apis) {
     if (signal?.aborted) return null;
@@ -1405,6 +1450,12 @@ const defaultState = {
   lastBusinessInput: { income: "", purchaseCost: "", loss: "", fixedCost: "", otherCost: "", lossOverdue: "", lossOperate: "", lossOther: "" },
   latestDailyReport: null,
   groupChatMessages: {},
+  // ===== 多群聊支持 =====
+  groupChatList: [
+    // { id: 'internal', name: '内部群聊', members: [phone1, phone2], owner: bossPhone, createdAt: '', avatar: '' }
+  ],
+  // ===== 员工入职申请（待处理列表）=====
+  staffApplications: [],
   pushConfig: { workHour: "9", workMinute: "0", offHour: "21", offMinute: "0" },
   menuVisibility: {
     VerifyOrder: true,
@@ -1651,6 +1702,8 @@ function appReducer(state, action) {
         customerTags: (r.customerTags && typeof r.customerTags === 'object') ? r.customerTags : {},
         businessHistory: Array.isArray(r.businessHistory) ? r.businessHistory : [],
         groupChatMessages: (r.groupChatMessages && typeof r.groupChatMessages === 'object') ? r.groupChatMessages : {},
+        groupChatList: Array.isArray(r.groupChatList) ? r.groupChatList : [],
+        staffApplications: Array.isArray(r.staffApplications) ? r.staffApplications : [],
         previousAccounts: Array.isArray(r.previousAccounts) ? r.previousAccounts : [],
         user: r.user || null,
         shopInfo: { ...{ shopName: '', phone: '', industry: '餐饮类' }, ...(r.shopInfo || {}) },
@@ -1747,6 +1800,124 @@ function appReducer(state, action) {
       delete alerts[action.payload];
       return { ...state, stockAlerts: alerts };
     }
+    // ===== 多群聊管理 =====
+    case 'CREATE_GROUP_CHAT': {
+      const { groupId, groupName, memberPhones, ownerPhone } = action.payload;
+      const newGroup = {
+        id: groupId || `group_${Date.now()}`,
+        name: groupName || '新建群聊',
+        members: memberPhones || [],
+        owner: ownerPhone || state.user?.phone || '',
+        createdAt: new Date().toISOString(),
+        avatar: '',
+      };
+      // 确保群聊消息容器也初始化
+      const newGroupMessages = { ...state.groupChatMessages, [newGroup.id]: [] };
+      // 如果是默认内部群，检查是否已存在
+      const existingGroups = state.groupChatList || [];
+      const groupExists = existingGroups.find(g => g.id === newGroup.id);
+      const finalGroupList = groupExists 
+        ? existingGroups.map(g => g.id === newGroup.id ? { ...g, ...newGroup } : g)
+        : [...existingGroups, newGroup];
+      return { 
+        ...state, 
+        groupChatList: finalGroupList, 
+        groupChatMessages: newGroupMessages 
+      };
+    }
+    case 'UPDATE_GROUP_NAME': {
+      const { groupId, groupName } = action.payload;
+      const list = state.groupChatList || [];
+      const updated = list.map(g => g.id === groupId ? { ...g, name: groupName } : g);
+      return { ...state, groupChatList: updated };
+    }
+    case 'DELETE_GROUP_CHAT': {
+      const { groupId } = action.payload;
+      const newChatList = (state.groupChatList || []).filter(g => g.id !== groupId);
+      const newMessages = { ...state.groupChatMessages };
+      delete newMessages[groupId];
+      return { ...state, groupChatList: newChatList, groupChatMessages: newMessages };
+    }
+    case 'ADD_GROUP_MEMBER': {
+      const { groupId, phone, name } = action.payload;
+      const list = state.groupChatList || [];
+      const updated = list.map(g => {
+        if (g.id !== groupId) return g;
+        if (g.members.includes(phone)) return g;
+        return { ...g, members: [...g.members, phone] };
+      });
+      return { ...state, groupChatList: updated };
+    }
+    case 'REMOVE_GROUP_MEMBER': {
+      const { groupId, phone } = action.payload;
+      const list = state.groupChatList || [];
+      const updated = list.map(g => {
+        if (g.id !== groupId) return g;
+        return { ...g, members: g.members.filter(p => p !== phone) };
+      });
+      return { ...state, groupChatList: updated };
+    }
+    case 'SET_GROUP_LIST': {
+      return { ...state, groupChatList: action.payload || [] };
+    }
+    // ===== 员工入职申请 =====
+    case 'SEND_STAFF_APPLICATION': {
+      // 商家端：通过搜索手机号发起入职邀请（发送给员工端）
+      const application = {
+        id: `app_${Date.now()}`,
+        applicantPhone: action.payload.phone,
+        applicantName: action.payload.name || '新员工',
+        shopName: state.shopInfo?.shopName || '门店',
+        shopPhone: state.user?.phone || '',
+        status: 'pending', // pending / approved / rejected
+        createdAt: new Date().toISOString(),
+        viewed: false,
+      };
+      const apps = state.staffApplications || [];
+      // 避免重复
+      if (apps.find(a => a.applicantPhone === application.applicantPhone && a.status === 'pending')) {
+        return state;
+      }
+      return { ...state, staffApplications: [...apps, application] };
+    }
+    case 'APPROVE_STAFF_APPLICATION_BY_APP_ID': {
+      // 员工端：同意商家的入职邀请
+      const apps = state.staffApplications || [];
+      const idx = apps.findIndex(a => a.id === action.payload.appId);
+      if (idx === -1) return state;
+      const app = apps[idx];
+      const newApps = [...apps];
+      newApps[idx] = { ...app, status: 'approved', viewed: true };
+      // 同时加入员工列表
+      const newStaff = {
+        id: `staff_${Date.now()}`,
+        phone: app.applicantPhone,
+        name: app.applicantName,
+        status: 'approved',
+        shopName: app.shopName,
+        joinedAt: new Date().toISOString(),
+      };
+      const staffList = state.staffMemberList || [];
+      const exists = staffList.find(s => s.phone === newStaff.phone);
+      const finalStaff = exists ? staffList : [...staffList, newStaff];
+      return { ...state, staffApplications: newApps, staffMemberList: finalStaff };
+    }
+    case 'REJECT_STAFF_APPLICATION_BY_APP_ID': {
+      const apps = state.staffApplications || [];
+      const idx = apps.findIndex(a => a.id === action.payload.appId);
+      if (idx === -1) return state;
+      const newApps = [...apps];
+      newApps[idx] = { ...newApps[idx], status: 'rejected', viewed: true };
+      return { ...state, staffApplications: newApps };
+    }
+    case 'MARK_APPLICATION_VIEWED': {
+      const apps = state.staffApplications || [];
+      const newApps = apps.map(a => a.id === action.payload.appId ? { ...a, viewed: true } : a);
+      return { ...state, staffApplications: newApps };
+    }
+    case 'SET_STAFF_APPLICATIONS': {
+      return { ...state, staffApplications: action.payload || [] };
+    }
     default:
       return state;
   }
@@ -1759,8 +1930,11 @@ const useApp = () => {
   return ctx;
 };
 
-// ===== 持久化 =====
-const saveAllData = async (state) => {
+// ===== 持久化（使用防抖优化，避免频繁IO阻塞消息发送）=====
+let saveTimerRef = null;
+let pendingStateRef = null;
+
+const saveAllDataImmediate = async (state) => {
   try {
     const dataToSave = {
       globalOrderRecord: state.globalOrderRecord || [],
@@ -1772,6 +1946,8 @@ const saveAllData = async (state) => {
       customerTags: state.customerTags || {},
       businessHistory: state.businessHistory || [],
       groupChatMessages: state.groupChatMessages || {},
+      groupChatList: state.groupChatList || [],
+      staffApplications: state.staffApplications || [],
       previousAccounts: state.previousAccounts || [],
       user: state.user,
       shopInfo: state.shopInfo,
@@ -1794,6 +1970,23 @@ const saveAllData = async (state) => {
   } catch (error) {
     console.warn('保存失败', error);
   }
+};
+
+// 防抖持久化：消息发送时先更新UI（即时响应），300ms后再批量写入存储
+const saveAllData = (state) => {
+  pendingStateRef = state;
+  if (saveTimerRef) {
+    clearTimeout(saveTimerRef);
+  }
+  saveTimerRef = setTimeout(() => {
+    if (pendingStateRef) {
+      const s = pendingStateRef;
+      pendingStateRef = null;
+      saveTimerRef = null;
+      // 不阻塞UI，异步写入
+      setImmediate ? setImmediate(() => saveAllDataImmediate(s)) : saveAllDataImmediate(s);
+    }
+  }, 300);
 };
 
 const loadAllData = async () => {
@@ -6987,7 +7180,7 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部沟通 ==================
+// ================== 内部沟通（支持多群聊切换）==================
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -7009,6 +7202,33 @@ const InternalChat = () => {
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [showMentionList, setShowMentionList] = useState(false);
 
+  // ===== 多群聊支持：当前选中的chatId =====
+  const groupList = state.groupChatList || [];
+  const [currentChatId, setCurrentChatId] = useState(groupList.length > 0 ? groupList[0].id : 'internal');
+  // 如果有群聊列表且当前chatId不在列表中，重置为第一个
+  useEffect(() => {
+    if (groupList.length > 0 && !groupList.find(g => g.id === currentChatId)) {
+      setCurrentChatId(groupList[0].id);
+    }
+    // 兼容老数据：若没有任何群聊记录且有默认消息，创建默认'internal'记录
+    if (groupList.length === 0 && state.groupChatMessages['internal']) {
+      const approvedStaffPhones = (state.staffMemberList || []).filter(s => s.status === 'approved').map(s => s.phone);
+      dispatch({
+        type: 'CREATE_GROUP_CHAT',
+        payload: {
+          groupId: 'internal',
+          groupName: '内部群聊',
+          memberPhones: [state.user?.phone, ...approvedStaffPhones],
+          ownerPhone: state.user?.phone,
+        }
+      });
+    }
+  }, [groupList]);
+  const chatId = currentChatId;
+  // 当前群聊的信息
+  const currentGroupInfo = groupList.find(g => g.id === chatId);
+  const currentGroupName = currentGroupInfo?.name || '内部群聊';
+
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
@@ -7022,12 +7242,16 @@ const InternalChat = () => {
     if (state.shopInfo?.phone && state.shopInfo.phone !== state.user?.phone) {
       members.push({ name: state.shopInfo?.name || '老板', phone: state.shopInfo?.phone });
     }
-    // 已批准的员工（排除自己）
-    (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== state.user?.phone).forEach(s => {
-      members.push({ name: s.name, phone: s.phone });
-    });
+    // 基于当前群聊的成员筛选（若群聊有成员列表则以它为准）
+    const groupMembers = currentGroupInfo?.members || null;
+    (state.staffMemberList || [])
+      .filter(s => s.status === 'approved' && s.phone !== state.user?.phone)
+      .filter(s => !groupMembers || groupMembers.includes(s.phone))
+      .forEach(s => {
+        members.push({ name: s.name, phone: s.phone });
+      });
     return members;
-  }, [state.staffMemberList, state.shopInfo, state.user]);
+  }, [state.staffMemberList, state.shopInfo, state.user, currentGroupInfo]);
 
   const handleMention = (member) => {
     setInputText(prev => prev + `@${member.name} `);
@@ -7271,14 +7495,63 @@ const InternalChat = () => {
     navigation.navigate('ChatSetting', { chatId });
   };
 
+  // 切换群聊时滚动到底部
+  useEffect(() => {
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 50);
+  }, [chatId]);
+
   return (
     <View style={styles.container}>
       <CommonHeader 
-        title="内部沟通" 
+        title={currentGroupName}
         showBack={true}
         navigation={navigation}
         rightComponent={<TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>}
       />
+      {/* ===== 多群聊切换 Tab栏 ===== */}
+      {groupList.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: '#fff', borderBottomWidth: 0.5, borderColor: '#F0F0F5' }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 12, gap: 8 }}>
+          {groupList.map(g => {
+            const isActive = g.id === currentChatId;
+            // 群聊未读消息数
+            const gMessages = state.groupChatMessages[g.id] || [];
+            const unread = gMessages.filter(m => m.fromPhone !== state.user?.phone && !m.read).length;
+            return (
+              <TouchableOpacity 
+                key={g.id} 
+                onPress={() => setCurrentChatId(g.id)}
+                style={{ 
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                  paddingHorizontal: 14, paddingVertical: 8, 
+                  borderRadius: 18,
+                  backgroundColor: isActive ? PRIMARY_COLOR : LIGHT_PRIMARY,
+                  shadowColor: isActive ? PRIMARY_COLOR : 'transparent',
+                  shadowOffset: { width: 0, height: 3 }, shadowOpacity: isActive ? 0.3 : 0, shadowRadius: 6,
+                  elevation: isActive ? 3 : 0,
+                }}>
+                <Ionicons name="chatbubbles-outline" size={14} color={isActive ? '#fff' : PRIMARY_COLOR} />
+                <Text style={{ 
+                  fontSize: 13, fontWeight: isActive ? '700' : '500', 
+                  color: isActive ? '#fff' : PRIMARY_COLOR,
+                  maxWidth: 120,
+                }} numberOfLines={1}>{g.name}</Text>
+                {unread > 0 && (
+                  <View style={{ 
+                    minWidth: 18, height: 18, borderRadius: 9, 
+                    backgroundColor: isActive ? '#fff' : DANGER_COLOR,
+                    paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center'
+                  }}>
+                    <Text style={{ 
+                      fontSize: 10, fontWeight: 'bold', 
+                      color: isActive ? DANGER_COLOR : '#fff' 
+                    }}>{unread > 99 ? '99+' : unread}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
           {chatBgImage && (
@@ -7290,7 +7563,7 @@ const InternalChat = () => {
             contentContainerStyle={{ padding: 12 }}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            {groupMessages.length === 0 && <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无消息</Text>}
+            {groupMessages.length === 0 && <Text style={{ textAlign: 'center', color: TEXT_THIRD, marginTop: 30 }}>暂无消息，发送第一条打招呼吧👋</Text>}
             {groupMessages.map(msg => {
               const isMe = msg.fromPhone === state.user?.phone;
               return (
@@ -7641,10 +7914,17 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [previewEnabled, setPreviewEnabled] = useState(true);
   const [bgColor, setBgColor] = useState('#F2F3F5');
   const [bgImage, setBgImage] = useState(null);
-  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [showGroupMembers, setShowGroupMembers] = useState(true); // 默认展开群成员
   const [searchResults, setSearchResults] = useState([]);
   const [bgTab, setBgTab] = useState('color'); // color / image
   const [showImagePickerForBg, setShowImagePickerForBg] = useState(false);
+  // ===== 新增：修改群聊名称 =====
+  const groupList = state.groupChatList || [];
+  const currentGroupInfo = groupList.find(g => g.id === chatId);
+  // 群聊显示名：优先用groupChatList中的名字，兼容旧版本
+  const currentGroupName = currentGroupInfo?.name || '内部群聊';
+  const [editGroupName, setEditGroupName] = useState(currentGroupName);
+  const [isEditingName, setIsEditingName] = useState(false);
 
   const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
   const bgMaterials = [
@@ -7660,10 +7940,49 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const staffMembers = state.staffMemberList || [];
   const groupMessages = state.groupChatMessages[chatId] || [];
 
-  // 群成员：老板在首位，员工在后面
+  // ===== 修改群聊名称保存 =====
+  const handleSaveGroupName = () => {
+    const trimmed = editGroupName.trim();
+    if (!trimmed) { showToast('群聊名称不能为空'); return; }
+    // 如果还没有创建群聊记录，先创建兼容默认群
+    if (!currentGroupInfo) {
+      // 创建默认internal群的记录
+      const approvedStaffPhones = staffMembers.filter(s => s.status === 'approved').map(s => s.phone);
+      dispatch({
+        type: 'CREATE_GROUP_CHAT',
+        payload: {
+          groupId: 'internal',
+          groupName: trimmed,
+          memberPhones: [state.user?.phone, ...approvedStaffPhones],
+          ownerPhone: state.user?.phone,
+        }
+      });
+    } else {
+      dispatch({ type: 'UPDATE_GROUP_NAME', payload: { groupId: chatId, groupName: trimmed } });
+    }
+    setIsEditingName(false);
+    showToast('群聊名称已更新');
+  };
+
+  // 群成员：老板在首位，员工在后面（支持currentGroupInfo.members，兼容旧版本）
+  const getApprovedStaff = () => {
+    const approved = staffMembers.filter(s => s.status === 'approved');
+    if (currentGroupInfo?.members && currentGroupInfo.members.length > 0) {
+      // 从群成员中匹配
+      return approved.filter(s => currentGroupInfo.members.includes(s.phone));
+    }
+    return approved;
+  };
+  const approvedStaff = getApprovedStaff();
   const allMembers = [
-    { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true },
-    ...staffMembers.filter(s => s.status === 'approved').map(s => ({ phone: s.phone, name: s.name, role: '员工', isOwner: false }))
+    { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true, joinedAt: '创建者' },
+    ...approvedStaff.map(s => ({ 
+      phone: s.phone, 
+      name: s.name, 
+      role: '员工', 
+      isOwner: false, 
+      joinedAt: s.joinedAt ? new Date(s.joinedAt).toLocaleDateString('zh-CN').replace(/\//g, '-') : '未记录'
+    }))
   ];
 
   const toggleMute = () => {
@@ -7787,46 +8106,200 @@ const ChatSettingScreen = ({ route, navigation }) => {
         showBack={true}
         navigation={navigation}
       />
-      <ScrollView style={{ paddingHorizontal: 16 }}>
-        <View style={{ marginTop: 16 }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowGroupMembers(!showGroupMembers)}>
-            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-              <Ionicons name="people" size={22} color="#fff" />
+      <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* ===== 群聊名称修改（精美卡片式）===== */}
+        <View style={{ marginTop: 16, backgroundColor: '#fff', borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, fontWeight: '600' }}>群聊名称</Text>
+            {!isEditingName && (
+              <TouchableOpacity onPress={() => { setEditGroupName(currentGroupName); setIsEditingName(true); }}>
+                <Ionicons name="create-outline" size={18} color={PRIMARY_COLOR} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {isEditingName ? (
+            <View style={{ marginTop: 10 }}>
+              <TextInput 
+                value={editGroupName}
+                onChangeText={setEditGroupName}
+                maxLength={30}
+                placeholder="请输入群聊名称"
+                placeholderTextColor={TEXT_THIRD}
+                autoFocus
+                style={{ height: 44, backgroundColor: BG_WHITE, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, color: TEXT_MAIN, borderWidth: 1.5, borderColor: PRIMARY_COLOR }}
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <TouchableOpacity 
+                  onPress={() => { setIsEditingName(false); setEditGroupName(currentGroupName); }}
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: BG_WHITE, borderWidth: 1, borderColor: BG_BORDER, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '600' }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={handleSaveGroupName}
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>保存</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.pageTitle}>内部群聊</Text>
-              <Text style={[styles.chatSettingDesc, { color: TEXT_THIRD }]}>群成员: {allMembers.length}人{showGroupMembers ? ' ▼' : ' ▶'}</Text>
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: PRIMARY_COLOR + '15', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                <Ionicons name="people-circle-outline" size={22} color={PRIMARY_COLOR} />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN, flex: 1 }}>{currentGroupName}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ===== 群成员展示（微信风格：顶栏头像网格 + 详情列表）===== */}
+        <View style={{ marginTop: 16 }}>
+          {/* 头部成员+按钮栏 */}
+          <TouchableOpacity 
+            style={[styles.chatSettingItem, { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 0 }]} 
+            onPress={() => setShowGroupMembers(!showGroupMembers)}
+            activeOpacity={0.85}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="people" size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_MAIN }}>群成员</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{allMembers.length} 位成员 {showGroupMembers ? '▲ 收起' : '▼ 展开详情'}</Text>
+              </View>
+            </View>
+            {/* 小头像网格（始终展示）*/}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingTop: 2 }}>
+              {allMembers.slice(0, 9).map((m, idx) => (
+                <View key={`avatar_${idx}`} style={{ alignItems: 'center', width: 52 }}>
+                  <View style={{ 
+                    width: 48, height: 48, borderRadius: 10, 
+                    backgroundColor: m.isOwner ? 'linear-gradient(135deg,#5B6DF0,#7B8DF0)' : '#7B8DF0',
+                    justifyContent: 'center', alignItems: 'center', position: 'relative',
+                    shadowColor: m.isOwner ? '#5B6DF0' : '#7B8DF0',
+                    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 4,
+                    ...(m.isOwner ? { borderWidth: 2, borderColor: '#FFD93D' } : {})
+                  }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>
+                      {(m.name || '?').substring(0, 1)}
+                    </Text>
+                    {/* 角色小徽章 */}
+                    <View style={{ 
+                      position: 'absolute', bottom: -4, right: -4, 
+                      backgroundColor: m.isOwner ? '#FFD93D' : LIGHT_PRIMARY, 
+                      borderRadius: 10, paddingHorizontal: 4, paddingVertical: 1, 
+                      borderWidth: 1.5, borderColor: '#fff',
+                      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2,
+                    }}>
+                      <Text style={{ color: m.isOwner ? '#5B6DF0' : PRIMARY_COLOR, fontSize: 8, fontWeight: 'bold' }}>
+                        {m.isOwner ? '老板' : '员工'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 11, color: TEXT_MAIN, marginTop: 8, textAlign: 'center' }} numberOfLines={1}>{m.name}</Text>
+                </View>
+              ))}
+              {/* 添加成员按钮 */}
+              <View style={{ alignItems: 'center', width: 52 }}>
+                <TouchableOpacity 
+                  onPress={() => setShowCreateGroupModal(true)}
+                  style={{ 
+                    width: 48, height: 48, borderRadius: 10, 
+                    backgroundColor: LIGHT_PRIMARY,
+                    justifyContent: 'center', alignItems: 'center',
+                    borderWidth: 1.5, borderStyle: 'dashed', borderColor: PRIMARY_COLOR
+                  }}>
+                  <Ionicons name="add-outline" size={28} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 11, color: PRIMARY_COLOR, marginTop: 8, fontWeight: '600' }}>添加</Text>
+              </View>
+              {allMembers.length > 9 && (
+                <View style={{ alignItems: 'center', width: 52 }}>
+                  <View style={{ 
+                    width: 48, height: 48, borderRadius: 10, 
+                    backgroundColor: BG_WHITE,
+                    justifyContent: 'center', alignItems: 'center',
+                    borderWidth: 1, borderColor: BG_BORDER
+                  }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT_SECOND }}>+{allMembers.length - 9}</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: TEXT_THIRD, marginTop: 8 }}>更多</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
+
+          {/* 展开后的成员详细列表 */}
           {showGroupMembers && (
-            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 14, marginTop: 8 }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-                {allMembers.map((m, idx) => (
-                  <TouchableOpacity key={idx} style={{ width: 72, alignItems: 'center' }}>
-                    <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-                      {m.avatar && (m.avatar.startsWith('http') || m.avatar.startsWith('file') || m.avatar.startsWith('data')) ? (
-                        <Image source={{ uri: m.avatar }} style={{ width: '100%', height: '100%', borderRadius: 8 }} />
-                      ) : (
-                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>{(m.name || '?').substring(0, 1)}</Text>
-                      )}
-                      {m.isOwner && (
-                        <View style={{ position: 'absolute', bottom: -2, right: -2, backgroundColor: '#FFD93D', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderColor: '#fff' }}>
-                          <Text style={{ color: '#5B6DF0', fontSize: 8, fontWeight: 'bold' }}>老板</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ fontSize: 11, color: TEXT_MAIN, marginTop: 6, textAlign: 'center' }} numberOfLines={1}>{m.name}</Text>
-                    <Text style={{ fontSize: 9, color: TEXT_THIRD, textAlign: 'center' }}>{m.isOwner ? '老板' : '员工'}</Text>
-                  </TouchableOpacity>
-                ))}
+            <View style={{ backgroundColor: '#fff', borderRadius: 14, marginTop: 10, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+              <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: LIGHT_PRIMARY, borderBottomWidth: 0.5, borderColor: BG_BORDER }}>
+                <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '700' }}>📋 成员详细列表 · 共 {allMembers.length} 人</Text>
               </View>
+              {allMembers.map((m, idx) => (
+                <View key={`m_${idx}`} style={{ 
+                  flexDirection: 'row', alignItems: 'center', padding: 14, 
+                  borderBottomWidth: idx < allMembers.length - 1 ? 0.5 : 0, 
+                  borderColor: '#F0F0F5' 
+                }}>
+                  {/* 头像 */}
+                  <View style={{ 
+                    width: 48, height: 48, borderRadius: 14, 
+                    backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', 
+                    justifyContent: 'center', alignItems: 'center', position: 'relative',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+                  }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>
+                      {(m.name || '?').substring(0, 1)}
+                    </Text>
+                    {m.isOwner && (
+                      <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FFD93D', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 1, borderWidth: 1.5, borderColor: '#fff' }}>
+                        <Ionicons name="star" size={10} color="#5B6DF0" />
+                      </View>
+                    )}
+                  </View>
+                  {/* 信息 */}
+                  <View style={{ marginLeft: 14, flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_MAIN }}>{m.name}</Text>
+                      <View style={{ 
+                        paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
+                        backgroundColor: m.isOwner ? '#FFD93D22' : LIGHT_PRIMARY,
+                      }}>
+                        <Text style={{ 
+                          fontSize: 10, fontWeight: '700',
+                          color: m.isOwner ? '#B8860B' : PRIMARY_COLOR
+                        }}>{m.role}</Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 4, lineHeight: 18 }}>
+                      📱 {m.phone || '未绑定'}  {m.joinedAt ? `  ·  📅 ${m.joinedAt}` : ''}
+                    </Text>
+                  </View>
+                  {/* 右侧：发消息按钮 */}
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (m.isOwner) {
+                        navigation.goBack();
+                        // 跳转到与老板的私聊（员工端）或员工私聊
+                      }
+                      navigation.navigate('PrivateChat', { phone: m.phone, name: m.name });
+                    }}
+                    style={{ 
+                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, 
+                      backgroundColor: LIGHT_PRIMARY,
+                      flexDirection: 'row', alignItems: 'center', gap: 4
+                    }}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={14} color={PRIMARY_COLOR} />
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600' }}>私聊</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
           )}
         </View>
         <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
           <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowCreateGroupModal(true)}>
             <Ionicons name="person-add-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>发起群聊</Text>
+            <Text style={styles.chatSettingText}>邀请成员入群</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.chatSettingItem} onPress={() => navigation.navigate('SearchChatRecord', { chatId })}>
             <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
@@ -8406,6 +8879,8 @@ const MerchantAssistant = () => {
   const [showImageGen, setShowImageGen] = useState(false);
   // 保存上次图片生成的prompt，用于对话式修改
   const lastImagePromptRef = useRef(null);
+  // 图片画质选择
+  const [imageQuality, setImageQuality] = useState('standard'); // standard | hd | ultra
   const scrollViewRef = useRef(null);
   const [imageUri, setImageUri] = useState(null);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -9106,17 +9581,21 @@ const MerchantAssistant = () => {
           };
           
           if (isModifyReq && lastImagePromptRef.current) {
-            // 修改模式：在原prompt基础上加入修改指令
-            fullPrompt = `${lastImagePromptRef.current} Modify: ${text}. Fix the issues mentioned above. No text, no words, no letters, no numbers in the image. Pure visual design only.`;
+            // 修改模式：在原prompt基础上加入修改指令 + 画质增强
+            fullPrompt = `${lastImagePromptRef.current} Modify: ${text}. Fix the issues mentioned above.${QUALITY_ENHANCEMENT[imageQuality] || QUALITY_ENHANCEMENT.standard} No text, no words, no letters, no numbers in the image. Pure visual design only.`;
             showToast('正在根据您的反馈修改图片...');
           } else {
-            fullPrompt = `${industryPromptMap[industry] || industryPromptMap['数码电子类']}. Additional requirements: ${text}. No text, no words, no letters, no numbers in the image. Pure visual design only. Professional commercial photography, high quality.`;
+            // 全新生成：基础行业prompt + 用户需求 + 行业风格增强 + 画质增强
+            const basePrompt = industryPromptMap[industry] || industryPromptMap['数码电子类'];
+            const styleBoost = INDUSTRY_STYLE_BOOST[industry] || '';
+            const qualityBoost = QUALITY_ENHANCEMENT[imageQuality] || QUALITY_ENHANCEMENT.standard;
+            fullPrompt = `${basePrompt}${styleBoost}${qualityBoost}. Additional requirements: ${text}. No text, no words, no letters, no numbers in the image. Pure visual design only. Professional commercial photography, premium magazine quality, eye-catching viral design.`;
           }
           
           // 保存prompt供后续修改
           lastImagePromptRef.current = fullPrompt;
           
-          const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal);
+          const imageResult = await fetchZhipuImage(fullPrompt, AbortControllerRef.current.signal, imageQuality);
           if (!AbortControllerRef.current.signal.aborted && imageResult && imageResult !== 'aborted') {
             const aiMsg = {
               id: (Date.now()+1).toString(),
@@ -9275,6 +9754,42 @@ ${businessContext}
             </TouchableOpacity>
           </View>}
       />
+      {/* 图片模式下显示画质选择条 - 放在Header下方 */}
+      {showImageGen && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, backgroundColor: '#FFF8F0', borderBottomWidth: 1, borderColor: BORDER_COLOR }}>
+          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginRight: 10, fontWeight: '500' }}>🎯 画质选择：</Text>
+          {[
+            { key: 'standard', label: '标准', desc: '快速生成', time: '~5s', color: '#8E9DB0' },
+            { key: 'hd', label: '高清', desc: '效果更佳', time: '~20s', color: '#5B6DF0' },
+            { key: 'ultra', label: '超清', desc: '极致惊艳', time: '~40s', color: '#FF6B35' },
+          ].map(q => (
+            <TouchableOpacity
+              key={q.key}
+              style={{ 
+                paddingHorizontal: 12, 
+                paddingVertical: 6, 
+                marginHorizontal: 5,
+                borderRadius: 14,
+                backgroundColor: imageQuality === q.key ? q.color : '#FFFFFF',
+                borderWidth: 1.5,
+                borderColor: imageQuality === q.key ? q.color : BORDER_COLOR,
+                ...SHADOW_SOFT
+              }}
+              onPress={() => {
+                setImageQuality(q.key);
+                showToast(`已切换到${q.label}画质`);
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: imageQuality === q.key ? '#fff' : q.color }}>
+                {q.label}
+              </Text>
+              <Text style={{ fontSize: 10, color: imageQuality === q.key ? 'rgba(255,255,255,0.85)' : TEXT_THIRD, marginTop: 2 }}>
+                {q.desc}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column' }}>
           <ScrollView
@@ -10036,6 +10551,99 @@ const HomePage = () => {
     } catch (error) { showToast('操作失败'); }
   };
 
+  // ====== 首页添加员工/创建群聊弹窗 ======
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [addStaffTab, setAddStaffTab] = useState('add'); // add / group
+  // 添加员工相关
+  const [searchPhone, setSearchPhone] = useState('');
+  const [searchResult, setSearchResult] = useState(null); // {phone, name} or null
+  const [searching, setSearching] = useState(false);
+  // 创建群聊相关
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMembers, setNewGroupMembers] = useState([]);
+
+  // 模拟注册用户数据库（用于搜索手机号）
+  const MOCK_REGISTERED_USERS = [
+    { phone: '13800138000', name: '张三' },
+    { phone: '13800138001', name: '李四' },
+    { phone: '13800138002', name: '王五' },
+    { phone: '13900139000', name: '赵六' },
+    { phone: '13612345678', name: '陈小明' },
+    { phone: '13788889999', name: '刘小红' },
+  ];
+
+  const doSearchPhone = async () => {
+    if (!searchPhone.trim()) { showToast('请输入手机号'); return; }
+    if (!/^1[3-9]\d{9}$/.test(searchPhone.trim())) { showToast('请输入正确的11位手机号'); return; }
+    setSearching(true);
+    // 模拟延迟1秒查询
+    await new Promise(r => setTimeout(r, 800));
+    // 查询Mock注册用户
+    const found = MOCK_REGISTERED_USERS.find(u => u.phone === searchPhone.trim());
+    setSearchResult(found || null);
+    setSearching(false);
+    if (!found) showToast('该手机号未注册经营宝');
+  };
+
+  // 商家发起员工入职邀请（SEND_STAFF_APPLICATION）
+  const handleSendStaffInvite = () => {
+    if (!searchResult) return;
+    // 先检查员工是否已在当前员工列表
+    const exists = (state.staffMemberList || []).find(s => s.phone === searchResult.phone);
+    if (exists) {
+      if (exists.status === 'pending') showToast('已发送邀请，等待对方同意');
+      else if (exists.status === 'approved') showToast('该员工已加入店铺');
+      else showToast('该员工已被您拒绝过，可先移除再申请');
+      return;
+    }
+    // 1. 加到员工列表，状态pending（显示入职申请）
+    dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone: searchResult.phone, name: searchResult.name } });
+    // 2. 记录该员工申请，用于员工端审核
+    dispatch({ type: 'SEND_STAFF_APPLICATION', payload: { phone: searchResult.phone, name: searchResult.name } });
+    showToast(`已向 ${searchResult.name}(${searchResult.phone}) 发送入职邀请`);
+    setSearchPhone('');
+    setSearchResult(null);
+  };
+
+  // 创建群聊时选择成员
+  const toggleNewGroupMember = (staff) => {
+    const exists = newGroupMembers.find(m => m.phone === staff.phone);
+    if (exists) setNewGroupMembers(newGroupMembers.filter(m => m.phone !== staff.phone));
+    else setNewGroupMembers([...newGroupMembers, staff]);
+  };
+
+  // 创建群聊
+  const handleCreateGroupChat = () => {
+    if (!newGroupName.trim()) { showToast('请输入群聊名称'); return; }
+    if (newGroupMembers.length === 0) { showToast('请至少选择一位群成员'); return; }
+    const groupId = `group_${Date.now()}`;
+    const members = [
+      state.user?.phone,
+      ...newGroupMembers.map(m => m.phone)
+    ];
+    dispatch({
+      type: 'CREATE_GROUP_CHAT',
+      payload: {
+        groupId,
+        groupName: newGroupName.trim(),
+        memberPhones: members,
+        ownerPhone: state.user?.phone,
+      }
+    });
+    // 发送群消息欢迎
+    const welcome = {
+      id: `g_${Date.now()}`,
+      text: `👋 欢迎来到「${newGroupName.trim()}」群聊，群成员 ${members.length} 人`,
+      from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text'
+    };
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: groupId, message: welcome } });
+    showToast(`群聊「${newGroupName.trim()}」已创建`);
+    // 重置表单
+    setNewGroupName('');
+    setNewGroupMembers([]);
+    setShowAddStaffModal(false);
+  };
+
   const getReportData = () => {
     try {
       if (reportType === 'daily') {
@@ -10168,22 +10776,100 @@ const HomePage = () => {
             </View>
           </ScrollView>
 
-          {chatStaffList.length > 0 && (
+          {!isEmployee && (
             <View style={{ marginTop: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 {isEmployee ? '联系老板' : '员工私聊'}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 员工私聊</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
+                  <TouchableOpacity 
+                    onPress={() => { setAddStaffTab('add'); setShowAddStaffModal(true); setSearchPhone(''); setSearchResult(null); }}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add-outline" size={22} color={PRIMARY_COLOR} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
+                {chatStaffList.length === 0 ? (
+                  <View style={{ padding: 32, alignItems: 'center' }}>
+                    <Ionicons name="people-outline" size={40} color={TEXT_THIRD} />
+                    <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 10 }}>暂无员工，点击右上角+添加</Text>
+                  </View>
+                ) : (
+                  chatStaffList.map(staff => {
+                    const staffMessages = state.privateChatMessages[staff.phone] || [];
+                    const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
+                    const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
+                    const formatMsgTime = (timeStr) => {
+                      if (!timeStr) return '';
+                      const date = new Date(timeStr);
+                      const now = new Date();
+                      const diff = now.getTime() - date.getTime();
+                      const hours = Math.floor(diff / (1000 * 60 * 60));
+                      const days = Math.floor(hours / 24);
+                      if (hours < 1) return '刚刚';
+                      if (hours < 24) return `${hours}小时前`;
+                      if (days < 7) return `${days}天前`;
+                      return `${date.getMonth() + 1}/${date.getDate()}`;
+                    };
+                    const previewText = lastMessage ? (
+                      lastMessage.image ? '[图片]' : (lastMessage.text || '').substring(0, 30) + (lastMessage.text && lastMessage.text.length > 30 ? '...' : '')
+                    ) : '暂无消息';
+                    return (
+                      <TouchableOpacity
+                        key={staff.id}
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
+                        onPress={() => goToPrivateChat(staff)}
+                      >
+                        <View style={{ position: 'relative' }}>
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                            <Ionicons name="person-outline" size={24} color={PRIMARY_COLOR} />
+                          </View>
+                          {unreadCount > 0 && (
+                            <View style={{ 
+                              position: 'absolute', 
+                              top: -2, 
+                              right: -2, 
+                              backgroundColor: DANGER_COLOR, 
+                              borderRadius: 10, 
+                              minWidth: 18, 
+                              height: 18, 
+                              justifyContent: 'center', 
+                              alignItems: 'center',
+                              paddingHorizontal: 4
+                            }}>
+                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ marginLeft: 14, flex: 1 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
+                            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatMsgTime(lastMessage?.time)}</Text>
+                          </View>
+                          <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{previewText}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          )}
+
+          {isEmployee && chatStaffList.length > 0 && (
+            <View style={{ marginTop: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 联系老板</Text>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
               </View>
               <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
                 {chatStaffList.map(staff => {
-                  // 获取与该员工的私聊消息
                   const staffMessages = state.privateChatMessages[staff.phone] || [];
-                  // 获取最后一条消息
                   const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
-                  // 获取未读消息数量
                   const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
-                  
-                  // 格式化时间
                   const formatMsgTime = (timeStr) => {
                     if (!timeStr) return '';
                     const date = new Date(timeStr);
@@ -10196,12 +10882,9 @@ const HomePage = () => {
                     if (days < 7) return `${days}天前`;
                     return `${date.getMonth() + 1}/${date.getDate()}`;
                   };
-                  
-                  // 消息预览文本
                   const previewText = lastMessage ? (
                     lastMessage.image ? '[图片]' : (lastMessage.text || '').substring(0, 30) + (lastMessage.text && lastMessage.text.length > 30 ? '...' : '')
                   ) : '暂无消息';
-                  
                   return (
                     <TouchableOpacity
                       key={staff.id}
@@ -10212,7 +10895,6 @@ const HomePage = () => {
                         <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
                           <Ionicons name="person-outline" size={24} color={PRIMARY_COLOR} />
                         </View>
-                        {/* 未读消息红点 */}
                         {unreadCount > 0 && (
                           <View style={{ 
                             position: 'absolute', 
@@ -10263,6 +10945,182 @@ const HomePage = () => {
       {!isEmployee && (
         <DraggableFloatingButton onPress={() => setShowVoiceAssistant(true)} />
       )}
+
+      {/* ===== 添加员工 / 创建群聊 弹窗 ===== */}
+      <Modal visible={showAddStaffModal} transparent animationType="slide" onRequestClose={() => setShowAddStaffModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: height * 0.6, maxHeight: height * 0.85 }}>
+            {/* 顶部把手 */}
+            <View style={{ alignItems: 'center', paddingTop: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0' }} />
+            </View>
+            {/* 标题+关闭 */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>员工与群聊</Text>
+              <TouchableOpacity onPress={() => setShowAddStaffModal(false)}>
+                <Ionicons name="close-outline" size={26} color={TEXT_SECOND} />
+              </TouchableOpacity>
+            </View>
+            {/* Tab 切换 */}
+            <View style={{ flexDirection: 'row', marginHorizontal: 16, backgroundColor: BG_WHITE, borderRadius: 12, padding: 4 }}>
+              {[{ key: 'add', label: '添加员工', icon: 'person-add-outline' }, { key: 'group', label: '创建群聊', icon: 'people-outline' }].map(tab => (
+                <TouchableOpacity key={tab.key} 
+                  onPress={() => setAddStaffTab(tab.key)}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: addStaffTab === tab.key ? PRIMARY_COLOR : 'transparent', gap: 6 }}>
+                  <Ionicons name={tab.icon} size={18} color={addStaffTab === tab.key ? '#fff' : TEXT_MAIN} />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: addStaffTab === tab.key ? '#fff' : TEXT_MAIN }}>{tab.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              {addStaffTab === 'add' ? (
+                <View>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 4, marginBottom: 12 }}>通过手机号搜索已注册经营宝的员工发送入职邀请</Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                    <TextInput 
+                      value={searchPhone}
+                      onChangeText={setSearchPhone}
+                      placeholder="请输入员工手机号（11位）"
+                      placeholderTextColor={TEXT_THIRD}
+                      keyboardType="phone-pad"
+                      maxLength={11}
+                      style={{ flex: 1, height: 46, backgroundColor: BG_WHITE, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: TEXT_MAIN, borderWidth: 1, borderColor: BG_BORDER }}
+                      onSubmitEditing={doSearchPhone}
+                    />
+                    <TouchableOpacity 
+                      onPress={doSearchPhone}
+                      disabled={searching}
+                      style={{ width: 92, height: 46, backgroundColor: PRIMARY_COLOR, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
+                      {searching ? (
+                        <Text style={{ color: '#fff', fontSize: 14 }}>查询中</Text>
+                      ) : (
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>搜索</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Mock提示 */}
+                  <View style={{ backgroundColor: LIGHT_PRIMARY, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600', marginBottom: 4 }}>💡 测试手机号（已注册）</Text>
+                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, lineHeight: 20 }}>
+                      13800138000(张三)  13800138001(李四)  13800138002(王五){"\n"}13900139000(赵六)  13612345678(陈小明)  13788889999(刘小红)
+                    </Text>
+                  </View>
+
+                  {/* 搜索结果 */}
+                  {searchResult ? (
+                    <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 16, ...SHADOW }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+                          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold' }}>{searchResult.name.substring(0, 1)}</Text>
+                        </View>
+                        <View style={{ marginLeft: 14, flex: 1 }}>
+                          <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT_MAIN }}>{searchResult.name}</Text>
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 3 }}>{searchResult.phone}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                            <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: SUCCESS_COLOR + '22' }}>
+                              <Text style={{ fontSize: 10, color: SUCCESS_COLOR, fontWeight: '600' }}>✓ 已注册</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                      <TouchableOpacity 
+                        onPress={handleSendStaffInvite}
+                        style={{ marginTop: 16, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>发起入职邀请</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : searching ? null : (
+                    searchPhone ? (
+                      <View style={{ padding: 40, alignItems: 'center' }}>
+                        <Ionicons name="person-remove-outline" size={56} color={TEXT_THIRD} />
+                        <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 14 }}>未找到该用户，需先注册经营宝</Text>
+                      </View>
+                    ) : (
+                      <View style={{ padding: 40, alignItems: 'center' }}>
+                        <Ionicons name="search-outline" size={56} color={TEXT_THIRD} />
+                        <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 14 }}>输入手机号查询员工</Text>
+                      </View>
+                    )
+                  )}
+                </View>
+              ) : (
+                <View>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 4, marginBottom: 14 }}>创建群聊并选择成员</Text>
+                  
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>群聊名称</Text>
+                    <TextInput 
+                      value={newGroupName}
+                      onChangeText={setNewGroupName}
+                      placeholder="如：厨房工作群、前台收银群"
+                      placeholderTextColor={TEXT_THIRD}
+                      style={{ height: 46, backgroundColor: BG_WHITE, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: TEXT_MAIN, borderWidth: 1, borderColor: BG_BORDER }}
+                    />
+                  </View>
+
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 8 }}>
+                      选择成员（已选 {newGroupMembers.length} 人，自动包含您）
+                    </Text>
+                    <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 6, ...SHADOW }}>
+                      {chatStaffList.length === 0 ? (
+                        <View style={{ padding: 30, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 13, color: TEXT_THIRD }}>暂无员工，请先在「添加员工」邀请员工</Text>
+                        </View>
+                      ) : (
+                        chatStaffList.map(staff => {
+                          const isSelected = !!newGroupMembers.find(m => m.phone === staff.phone);
+                          return (
+                            <TouchableOpacity 
+                              key={staff.id}
+                              onPress={() => toggleNewGroupMember(staff)}
+                              style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10 }}>
+                              <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: isSelected ? PRIMARY_COLOR : '#ccc', justifyContent: 'center', alignItems: 'center', backgroundColor: isSelected ? PRIMARY_COLOR : '#fff' }}>
+                                {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+                              </View>
+                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginLeft: 12 }}>
+                                <Ionicons name="person-outline" size={20} color={PRIMARY_COLOR} />
+                              </View>
+                              <View style={{ marginLeft: 12, flex: 1 }}>
+                                <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
+                                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{staff.phone}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })
+                      )}
+                    </View>
+                  </View>
+
+                  {/* 已有群聊预览提示 */}
+                  {(state.groupChatList || []).length > 0 && (
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 8 }}>
+                        已创建的群聊（{(state.groupChatList || []).length}个）
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                        {(state.groupChatList || []).map(g => (
+                          <View key={g.id} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }}>
+                            <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>{g.name} · {g.members.length}人</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <TouchableOpacity 
+                    onPress={handleCreateGroupChat}
+                    style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>立即创建群聊</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <HomeVoiceAssistant visible={showVoiceAssistant} onClose={() => setShowVoiceAssistant(false)} />
     </View>
