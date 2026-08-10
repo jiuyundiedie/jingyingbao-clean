@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -2003,26 +2003,28 @@ const loadAllData = async () => {
 };
 
 // ===== 统一头部组件 =====
-const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = BG_CARD, showBack = false, onBack, navigation }) => {
+const CommonHeader = ({ title, leftComponent, rightComponent, backgroundColor = BG_CARD, showBack = false, onBack, navigation, headerColor, titleColor }) => {
   const handleBack = () => {
     if (onBack) onBack();
     else if (navigation) navigation.goBack();
   };
+  const actualHeaderColor = headerColor || backgroundColor;
+  const actualTitleColor = titleColor || TEXT_MAIN;
   
   return (
-    <View style={{ backgroundColor }}>
+    <View style={{ backgroundColor: actualHeaderColor }}>
       <View style={styles.safeTop} />
-      <View style={[styles.headerBar, { backgroundColor }]}>
+      <View style={[styles.headerBar, { backgroundColor: actualHeaderColor }]}>
         {leftComponent ? leftComponent : (
           showBack ? (
             <TouchableOpacity onPress={handleBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
-              <Ionicons name="chevron-back" size={24} color={TEXT_MAIN} />
+              <Ionicons name="chevron-back" size={24} color={actualTitleColor} />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 40 }} />
           )
         )}
-        <Text style={[styles.pageTitle, { flex: 1, textAlign: 'center', marginHorizontal: 40 }]}>{title}</Text>
+        <Text style={[styles.pageTitle, { flex: 1, textAlign: 'center', marginHorizontal: 40, color: actualTitleColor }]}>{title}</Text>
         {rightComponent || <View style={{ width: 40 }} />}
       </View>
     </View>
@@ -7507,7 +7509,7 @@ const InternalChat = () => {
         title={currentGroupName}
         showBack={true}
         navigation={navigation}
-        rightComponent={<TouchableOpacity onPress={goToChatSettings}><Text style={{ fontSize: 20, color: TEXT_MAIN }}>⋯</Text></TouchableOpacity>}
+        rightComponent={<TouchableOpacity onPress={goToChatSettings}><Ionicons name="ellipsis-horizontal" size={24} color="#000" /></TouchableOpacity>}
       />
       {/* ===== 多群聊切换 Tab栏 ===== */}
       {groupList.length > 1 && (
@@ -8101,239 +8103,212 @@ const ChatSettingScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: '#EDEDED' }}>
       <CommonHeader 
-        title="聊天设置" 
+        title={`聊天信息(${allMembers.length})`} 
         showBack={true}
         navigation={navigation}
+        rightComponent={<TouchableOpacity><Ionicons name="search-outline" size={22} color="#000" /></TouchableOpacity>}
+        headerColor="#EDEDED"
+        titleColor="#000"
       />
-      <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* ===== 群聊名称修改（精美卡片式）===== */}
-        <View style={{ marginTop: 16, backgroundColor: '#fff', borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, fontWeight: '600' }}>群聊名称</Text>
-            {!isEditingName && (
-              <TouchableOpacity onPress={() => { setEditGroupName(currentGroupName); setIsEditingName(true); }}>
-                <Ionicons name="create-outline" size={18} color={PRIMARY_COLOR} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        
+        {/* ===== 群成员网格（微信风格：紧凑4列）===== */}
+        <View style={{ backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 16 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {allMembers.slice(0, 19).map((m, idx) => (
+              <TouchableOpacity 
+                key={`m_${idx}`} 
+                style={{ width: '25%', alignItems: 'center', paddingVertical: 10 }}
+                onPress={() => {
+                  if (m.isOwner) {
+                    showToast('群主');
+                  } else {
+                    navigation.navigate('PrivateChat', { phone: m.phone, name: m.name });
+                  }
+                }}
+              >
+                <View style={{ width: 50, height: 50, borderRadius: 6, backgroundColor: m.isOwner ? '#4A90E2' : '#5B6DF0', justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>{(m.name || '?').substring(0, 1)}</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#333', marginTop: 5, maxWidth: 60, textAlign: 'center' }} numberOfLines={1}>{m.name || '?'}</Text>
               </TouchableOpacity>
+            ))}
+            {/* 添加按钮 */}
+            <TouchableOpacity 
+              style={{ width: '25%', alignItems: 'center', paddingVertical: 10 }}
+              onPress={() => setShowCreateGroupModal(true)}
+            >
+              <View style={{ width: 50, height: 50, borderRadius: 6, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+                <Ionicons name="add-outline" size={28} color="#999" />
+              </View>
+              <Text style={{ fontSize: 11, color: '#333', marginTop: 5 }}>添加</Text>
+            </TouchableOpacity>
+            {allMembers.length > 19 && (
+              <View style={{ width: '25%', alignItems: 'center', paddingVertical: 10 }}>
+                <View style={{ width: 50, height: 50, borderRadius: 6, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, color: '#999' }}>+{allMembers.length - 19}</Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#333', marginTop: 5 }}>更多</Text>
+              </View>
             )}
           </View>
-          {isEditingName ? (
-            <View style={{ marginTop: 10 }}>
-              <TextInput 
-                value={editGroupName}
-                onChangeText={setEditGroupName}
-                maxLength={30}
-                placeholder="请输入群聊名称"
-                placeholderTextColor={TEXT_THIRD}
-                autoFocus
-                style={{ height: 44, backgroundColor: BG_WHITE, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, color: TEXT_MAIN, borderWidth: 1.5, borderColor: PRIMARY_COLOR }}
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <TouchableOpacity 
-                  onPress={() => { setIsEditingName(false); setEditGroupName(currentGroupName); }}
-                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: BG_WHITE, borderWidth: 1, borderColor: BG_BORDER, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 14, color: TEXT_MAIN, fontWeight: '600' }}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={handleSaveGroupName}
-                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 14, color: '#fff', fontWeight: '700' }}>保存</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: PRIMARY_COLOR + '15', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-                <Ionicons name="people-circle-outline" size={22} color={PRIMARY_COLOR} />
-              </View>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN, flex: 1 }}>{currentGroupName}</Text>
-            </View>
+          {allMembers.length > 19 && (
+            <TouchableOpacity style={{ marginTop: 8, paddingVertical: 8, alignItems: 'center' }} onPress={() => setShowGroupMembers(!showGroupMembers)}>
+              <Text style={{ fontSize: 14, color: '#576B95' }}>{showGroupMembers ? '收起群成员' : '更多群成员'} ▼</Text>
+            </TouchableOpacity>
           )}
         </View>
 
-        {/* ===== 群成员展示（微信风格：顶栏头像网格 + 详情列表）===== */}
-        <View style={{ marginTop: 16 }}>
-          {/* 头部成员+按钮栏 */}
+        {/* ===== 群聊信息列表（微信风格）===== */}
+        <View style={{ marginTop: 12, backgroundColor: '#fff' }}>
+          {/* 群聊名称 */}
           <TouchableOpacity 
-            style={[styles.chatSettingItem, { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 0 }]} 
-            onPress={() => setShowGroupMembers(!showGroupMembers)}
-            activeOpacity={0.85}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                <Ionicons name="people" size={18} color="#fff" />
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={() => { setEditGroupName(currentGroupName); setIsEditingName(true); }}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>群聊名称</Text>
+            {!isEditingName ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+                <Text style={{ fontSize: 16, color: '#000', marginRight: 8 }}>{currentGroupName}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_MAIN }}>群成员</Text>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{allMembers.length} 位成员 {showGroupMembers ? '▲ 收起' : '▼ 展开详情'}</Text>
-              </View>
-            </View>
-            {/* 小头像网格（始终展示）*/}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingTop: 2 }}>
-              {allMembers.slice(0, 9).map((m, idx) => (
-                <View key={`avatar_${idx}`} style={{ alignItems: 'center', width: 52 }}>
-                  <View style={{ 
-                    width: 48, height: 48, borderRadius: 10, 
-                    backgroundColor: m.isOwner ? '#5B6DF0' : '#7B8DF0',
-                    justifyContent: 'center', alignItems: 'center', position: 'relative',
-                    shadowColor: m.isOwner ? '#5B6DF0' : '#7B8DF0',
-                    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 4,
-                    ...(m.isOwner ? { borderWidth: 2, borderColor: '#FFD93D' } : {})
-                  }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>
-                      {(m.name || '?').substring(0, 1)}
-                    </Text>
-                    {/* 角色小徽章 */}
-                    <View style={{ 
-                      position: 'absolute', bottom: -4, right: -4, 
-                      backgroundColor: m.isOwner ? '#FFD93D' : LIGHT_PRIMARY, 
-                      borderRadius: 10, paddingHorizontal: 4, paddingVertical: 1, 
-                      borderWidth: 1.5, borderColor: '#fff',
-                      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2,
-                    }}>
-                      <Text style={{ color: m.isOwner ? '#5B6DF0' : PRIMARY_COLOR, fontSize: 8, fontWeight: 'bold' }}>
-                        {m.isOwner ? '老板' : '员工'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={{ fontSize: 11, color: TEXT_MAIN, marginTop: 8, textAlign: 'center' }} numberOfLines={1}>{m.name}</Text>
-                </View>
-              ))}
-              {/* 添加成员按钮 */}
-              <View style={{ alignItems: 'center', width: 52 }}>
-                <TouchableOpacity 
-                  onPress={() => setShowCreateGroupModal(true)}
-                  style={{ 
-                    width: 48, height: 48, borderRadius: 10, 
-                    backgroundColor: LIGHT_PRIMARY,
-                    justifyContent: 'center', alignItems: 'center',
-                    borderWidth: 1.5, borderStyle: 'dashed', borderColor: PRIMARY_COLOR
-                  }}>
-                  <Ionicons name="add-outline" size={28} color={PRIMARY_COLOR} />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput 
+                  value={editGroupName}
+                  onChangeText={setEditGroupName}
+                  maxLength={30}
+                  autoFocus
+                  style={{ height: 34, minWidth: 150, backgroundColor: '#F5F5F5', borderRadius: 6, paddingHorizontal: 10, fontSize: 15, color: '#000' }}
+                />
+                <TouchableOpacity onPress={handleSaveGroupName} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#576B95', borderRadius: 6 }}>
+                  <Text style={{ color: '#fff', fontSize: 14 }}>保存</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize: 11, color: PRIMARY_COLOR, marginTop: 8, fontWeight: '600' }}>添加</Text>
               </View>
-              {allMembers.length > 9 && (
-                <View style={{ alignItems: 'center', width: 52 }}>
-                  <View style={{ 
-                    width: 48, height: 48, borderRadius: 10, 
-                    backgroundColor: BG_WHITE,
-                    justifyContent: 'center', alignItems: 'center',
-                    borderWidth: 1, borderColor: BG_BORDER
-                  }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT_SECOND }}>+{allMembers.length - 9}</Text>
-                  </View>
-                  <Text style={{ fontSize: 11, color: TEXT_THIRD, marginTop: 8 }}>更多</Text>
-                </View>
-              )}
-            </View>
+            )}
           </TouchableOpacity>
 
-          {/* 展开后的成员详细列表 */}
-          {showGroupMembers && (
-            <View style={{ backgroundColor: '#fff', borderRadius: 14, marginTop: 10, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-              <View style={{ paddingHorizontal: 16, paddingVertical: 12, backgroundColor: LIGHT_PRIMARY, borderBottomWidth: 0.5, borderColor: BG_BORDER }}>
-                <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '700' }}>📋 成员详细列表 · 共 {allMembers.length} 人</Text>
-              </View>
-              {allMembers.map((m, idx) => (
-                <View key={`m_${idx}`} style={{ 
-                  flexDirection: 'row', alignItems: 'center', padding: 14, 
-                  borderBottomWidth: idx < allMembers.length - 1 ? 0.5 : 0, 
-                  borderColor: '#F0F0F5' 
-                }}>
-                  {/* 头像 */}
-                  <View style={{ 
-                    width: 48, height: 48, borderRadius: 14, 
-                    backgroundColor: m.isOwner ? PRIMARY_COLOR : '#7B8DF0', 
-                    justifyContent: 'center', alignItems: 'center', position: 'relative',
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
-                  }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>
-                      {(m.name || '?').substring(0, 1)}
-                    </Text>
-                    {m.isOwner && (
-                      <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#FFD93D', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 1, borderWidth: 1.5, borderColor: '#fff' }}>
-                        <Ionicons name="star" size={10} color="#5B6DF0" />
-                      </View>
-                    )}
-                  </View>
-                  {/* 信息 */}
-                  <View style={{ marginLeft: 14, flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT_MAIN }}>{m.name}</Text>
-                      <View style={{ 
-                        paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
-                        backgroundColor: m.isOwner ? '#FFD93D22' : LIGHT_PRIMARY,
-                      }}>
-                        <Text style={{ 
-                          fontSize: 10, fontWeight: '700',
-                          color: m.isOwner ? '#B8860B' : PRIMARY_COLOR
-                        }}>{m.role}</Text>
-                      </View>
-                    </View>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginTop: 4, lineHeight: 18 }}>
-                      📱 {m.phone || '未绑定'}  {m.joinedAt ? `  ·  📅 ${m.joinedAt}` : ''}
-                    </Text>
-                  </View>
-                  {/* 右侧：发消息按钮 */}
-                  <TouchableOpacity 
-                    onPress={() => {
-                      if (m.isOwner) {
-                        navigation.goBack();
-                        // 跳转到与老板的私聊（员工端）或员工私聊
-                      }
-                      navigation.navigate('PrivateChat', { phone: m.phone, name: m.name });
-                    }}
-                    style={{ 
-                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, 
-                      backgroundColor: LIGHT_PRIMARY,
-                      flexDirection: 'row', alignItems: 'center', gap: 4
-                    }}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={14} color={PRIMARY_COLOR} />
-                    <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '600' }}>私聊</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+          {/* 群二维码 */}
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={() => showToast('群二维码')}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>群二维码</Text>
+            <Ionicons name="qr-code-outline" size={24} color="#576B95" style={{ marginRight: 8 }} />
+            <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+          </TouchableOpacity>
+
+          {/* 群公告 */}
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={() => showToast('群公告')}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>群公告</Text>
+            <Text style={{ fontSize: 15, color: '#888', marginRight: 8 }}>进群改"姓名+电话"</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+          </TouchableOpacity>
+
+          {/* 备注 */}
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
+            onPress={() => showToast('备注')}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>备注</Text>
+            <Text style={{ fontSize: 15, color: '#888', marginRight: 8 }}>未设置</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ===== 成员详细列表（展开时显示）===== */}
+        {showGroupMembers && allMembers.length > 19 && (
+          <View style={{ marginTop: 12, backgroundColor: '#fff' }}>
+            <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}>
+              <Text style={{ fontSize: 13, color: '#888' }}>全部成员 · 共 {allMembers.length} 人</Text>
             </View>
-          )}
+            {allMembers.map((m, idx) => (
+              <TouchableOpacity 
+                key={`detail_${idx}`}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: idx < allMembers.length - 1 ? 0.5 : 0, borderBottomColor: '#E5E5E5' }}
+                onPress={() => navigation.navigate('PrivateChat', { phone: m.phone, name: m.name })}
+              >
+                <View style={{ width: 44, height: 44, borderRadius: 6, backgroundColor: m.isOwner ? '#4A90E2' : '#5B6DF0', justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{(m.name || '?').substring(0, 1)}</Text>
+                </View>
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: '#000', fontWeight: '500' }}>{m.name || '?'}</Text>
+                  <Text style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{m.phone || ''} · {m.role}</Text>
+                </View>
+                <Ionicons name="chatbubble-outline" size={20} color="#576B95" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* ===== 功能列表2 ===== */}
+        <View style={{ marginTop: 12, backgroundColor: '#fff' }}>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={() => setShowCreateGroupModal(true)}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>邀请成员入群</Text>
+            <Ionicons name="person-add-outline" size={20} color="#576B95" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
+            onPress={() => navigation.navigate('SearchChatRecord', { chatId })}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>查找聊天记录</Text>
+            <Ionicons name="search-outline" size={20} color="#576B95" />
+          </TouchableOpacity>
         </View>
-        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowCreateGroupModal(true)}>
-            <Ionicons name="person-add-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>邀请成员入群</Text>
+
+        {/* ===== 功能列表3 ===== */}
+        <View style={{ marginTop: 12, backgroundColor: '#fff' }}>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={toggleTop}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>{isTop ? '取消置顶' : '设为置顶'}</Text>
+            <Ionicons name={isTop ? 'star' : 'star-outline'} size={20} color={isTop ? '#576B95' : '#999'} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => navigation.navigate('SearchChatRecord', { chatId })}>
-            <Ionicons name="search-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>查找聊天记录</Text>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={toggleSpecialCare}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>特别关心</Text>
+            <Ionicons name={isSpecialCare ? 'heart' : 'heart-outline'} size={20} color={isSpecialCare ? '#F53F3F' : '#999'} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
+            onPress={() => setShowNotifyModal(true)}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>消息通知设置</Text>
+            <Ionicons name="notifications-outline" size={20} color="#576B95" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
+            onPress={() => setShowMediaModal(true)}
+          >
+            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>设置当前聊天背景</Text>
+            <Ionicons name="image-outline" size={20} color="#576B95" />
           </TouchableOpacity>
         </View>
-        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={toggleTop}>
-            <Ionicons name="pin-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>{isTop ? '取消置顶' : '设为置顶'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={toggleSpecialCare}>
-            <Ionicons name="heart-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>特别关心</Text>
-            {isSpecialCare && <Text style={[styles.chatSettingDesc, { color: SUCCESS_COLOR }]}>已开启</Text>}
-          </TouchableOpacity>
-        </View>
-        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={styles.chatSettingItem} onPress={() => setShowNotifyModal(true)}>
-            <Ionicons name="notifications-circle-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>消息通知设置</Text>
-            <Text style={styles.chatSettingDesc}>通知预览、提示音等></Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={() => setShowMediaModal(true)}>
-            <Ionicons name="color-palette-outline" size={22} color={PRIMARY_COLOR} />
-            <Text style={styles.chatSettingText}>设置当前聊天背景</Text>
+
+        {/* ===== 功能列表4 ===== */}
+        <View style={{ marginTop: 12, backgroundColor: '#fff' }}>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
+            onPress={clearMessages}
+          >
+            <Text style={{ fontSize: 16, color: '#F53F3F', flex: 1 }}>清空聊天记录</Text>
+            <Ionicons name="trash-outline" size={20} color="#F53F3F" />
           </TouchableOpacity>
         </View>
-        <View style={{ marginTop: 16, backgroundColor: BG_CARD, borderRadius: 14, overflow: 'hidden', ...SHADOW }}>
-          <TouchableOpacity style={[styles.chatSettingItem, { borderBottomWidth: 0 }]} onPress={clearMessages}>
-            <Ionicons name="trash-outline" size={22} color={DANGER_COLOR} />
-            <Text style={{ ...styles.chatSettingText, color: DANGER_COLOR }}>删除聊天记录</Text>
-          </TouchableOpacity>
+
+        <View style={{ marginTop: 20, alignItems: 'center' }}>
+          <Text style={{ fontSize: 12, color: '#999' }}>群聊创建于 {new Date().toLocaleDateString()}</Text>
         </View>
       </ScrollView>
 
