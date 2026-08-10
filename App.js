@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -7211,7 +7211,7 @@ const InternalChat = () => {
       setCurrentChatId(groupList[0].id);
     }
     // 兼容老数据：若没有任何群聊记录且有默认消息，创建默认'internal'记录
-    if (groupList.length === 0 && state.groupChatMessages['internal']) {
+    if (groupList.length === 0 && state.groupChatMessages && state.groupChatMessages['internal']) {
       const approvedStaffPhones = (state.staffMemberList || []).filter(s => s.status === 'approved').map(s => s.phone);
       dispatch({
         type: 'CREATE_GROUP_CHAT',
@@ -10947,6 +10947,7 @@ const HomePage = () => {
 
       {/* ===== 添加员工 / 创建群聊 弹窗 ===== */}
       <Modal visible={showAddStaffModal} transparent animationType="slide" onRequestClose={() => setShowAddStaffModal(false)}>
+        {showAddStaffModal && (
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: height * 0.6, maxHeight: height * 0.85 }}>
             {/* 顶部把手 */}
@@ -11012,11 +11013,11 @@ const HomePage = () => {
                     <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 16, ...SHADOW }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold' }}>{searchResult.name.substring(0, 1)}</Text>
+                          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold' }}>{searchResult.name?.substring(0, 1) || '?'}</Text>
                         </View>
                         <View style={{ marginLeft: 14, flex: 1 }}>
-                          <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT_MAIN }}>{searchResult.name}</Text>
-                          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 3 }}>{searchResult.phone}</Text>
+                          <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT_MAIN }}>{searchResult.name || '未知用户'}</Text>
+                          <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 3 }}>{searchResult.phone || ''}</Text>
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
                             <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: SUCCESS_COLOR + '22' }}>
                               <Text style={{ fontSize: 10, color: SUCCESS_COLOR, fontWeight: '600' }}>✓ 已注册</Text>
@@ -11083,8 +11084,8 @@ const HomePage = () => {
                                 <Ionicons name="person-outline" size={20} color={PRIMARY_COLOR} />
                               </View>
                               <View style={{ marginLeft: 12, flex: 1 }}>
-                                <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
-                                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{staff.phone}</Text>
+                                <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{staff.name || '员工'}</Text>
+                                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{staff.phone || ''}</Text>
                               </View>
                             </TouchableOpacity>
                           );
@@ -11102,7 +11103,7 @@ const HomePage = () => {
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                         {(state.groupChatList || []).map(g => (
                           <View key={g.id} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: LIGHT_PRIMARY, borderRadius: 16 }}>
-                            <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>{g.name} · {g.members.length}人</Text>
+                            <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>{g.name || '群聊'} · {g.members?.length || 0}人</Text>
                           </View>
                         ))}
                       </View>
@@ -11119,6 +11120,7 @@ const HomePage = () => {
             </ScrollView>
           </View>
         </View>
+        )}
       </Modal>
 
       <HomeVoiceAssistant visible={showVoiceAssistant} onClose={() => setShowVoiceAssistant(false)} />
