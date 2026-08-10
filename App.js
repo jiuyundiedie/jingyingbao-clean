@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -7980,7 +7980,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
       name: s.name, 
       role: '员工', 
       isOwner: false, 
-      joinedAt: s.joinedAt ? new Date(s.joinedAt).toLocaleDateString('zh-CN').replace(/\//g, '-') : '未记录'
+      joinedAt: s.joinedAt ? (() => { try { const d = new Date(s.joinedAt); return isNaN(d.getTime()) ? '未记录' : d.toLocaleDateString('zh-CN').replace(/\//g, '-'); } catch(e) { return '未记录'; } })() : '未记录'
     }))
   ];
 
@@ -8172,7 +8172,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
                 <View key={`avatar_${idx}`} style={{ alignItems: 'center', width: 52 }}>
                   <View style={{ 
                     width: 48, height: 48, borderRadius: 10, 
-                    backgroundColor: m.isOwner ? 'linear-gradient(135deg,#5B6DF0,#7B8DF0)' : '#7B8DF0',
+                    backgroundColor: m.isOwner ? '#5B6DF0' : '#7B8DF0',
                     justifyContent: 'center', alignItems: 'center', position: 'relative',
                     shadowColor: m.isOwner ? '#5B6DF0' : '#7B8DF0',
                     shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 4,
@@ -12727,7 +12727,7 @@ const MerchantMembershipScreen = ({ navigation }) => {
                   <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginLeft: 8 }}>{currentPlan.name}</Text>
                 </View>
                 <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.9)' }}>
-                  有效期至 {new Date(currentPlan.expiresAt).toLocaleDateString()}
+                  有效期至 {(() => { try { const d = new Date(currentPlan.expiresAt); return isNaN(d.getTime()) ? '未知' : d.toLocaleDateString(); } catch(e) { return '未知'; } })()}
                 </Text>
                 <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
                   <View style={{ height: '100%', width: '70%', backgroundColor: '#FFD700' }} />
@@ -13291,7 +13291,7 @@ const CouponManageScreen = ({ navigation }) => {
               </View>
               <View style={{ height: 1, backgroundColor: BORDER_COLOR, marginHorizontal: 12 }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8 }}>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>创建于 {new Date(coupon.createdAt).toLocaleDateString()}</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>创建于 {(() => { try { const d = new Date(coupon.createdAt); return isNaN(d.getTime()) ? '未知' : d.toLocaleDateString(); } catch(e) { return '未知'; } })()}</Text>
                 <TouchableOpacity onPress={() => { dispatch({ type: 'USE_COUPON', payload: coupon.id }); showToast('核销成功'); }}>
                   <Text style={{ fontSize: 13, color: PRIMARY_COLOR, fontWeight: '500' }}>核销使用</Text>
                 </TouchableOpacity>
