@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1387,27 +1387,44 @@ const calcDailyReport = (state) => {
 
 const generateWeekReport = (state) => {
   try {
-    const today = new Date();
     const weekStart = getWeekStart();
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
-    const businessHistory = state.businessHistory || [];
-    const weekList = businessHistory.filter(item => {
-      const d = new Date(item.date);
+    // 直接从 globalOrderRecord 计算本周线上团购订单
+    const globalOrderRecord = state.globalOrderRecord || [];
+    const weekOrders = globalOrderRecord.filter(item => {
+      if (!item.time) return false;
+      const d = new Date(item.time);
       return d >= weekStart && d <= weekEnd;
     });
-    if(weekList.length === 0) return null;
-    const totalIncome = weekList.reduce((s,r)=>s + (r.income || 0), 0);
-    const totalProfit = weekList.reduce((s,r)=>s + (r.profit || 0), 0);
-    const totalOrder = weekList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
-    const avgDailyIncome = Number((totalIncome/weekList.length).toFixed(2));
+    if (weekOrders.length === 0) return null;
+    let totalIncome = 0;
+    let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+    weekOrders.forEach(order => {
+      const price = order.couponPrice || 0;
+      totalIncome += price;
+      switch(order.platform) {
+        case "美团": meituanIncome += price; break;
+        case "抖音来客": douyinIncome += price; break;
+        case "大众点评": dianpingIncome += price; break;
+      }
+    });
+    const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+    const purchaseCost = Number(costCache.purchaseCost) || 0;
+    const fixedCost = Number(costCache.fixedCost) || 0;
+    const totalCost = (purchaseCost + fixedCost) * 7; // 本周成本估算
+    const totalProfit = totalIncome - totalCost;
+    const avgDailyIncome = Number((totalIncome / 7).toFixed(2));
     return {
       startDate: formatDate(weekStart.toISOString()),
       endDate: formatDate(weekEnd.toISOString()),
       totalIncome,
       totalProfit,
-      totalOrder,
-      avgDailyIncome
+      totalOrder: weekOrders.length,
+      avgDailyIncome,
+      meituanIncome,
+      douyinIncome,
+      dianpingIncome
     };
   } catch (e) { return null; }
 };
@@ -1416,18 +1433,41 @@ const generateMonthReport = (state) => {
   try {
     const today = new Date();
     const monthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-    const businessHistory = state.businessHistory || [];
-    const monthList = businessHistory.filter(item => item.date && item.date.startsWith(monthStr));
-    if(monthList.length === 0) return null;
-    const totalIncome = monthList.reduce((s,r)=>s + (r.income || 0), 0);
-    const totalProfit = monthList.reduce((s,r)=>s + (r.profit || 0), 0);
-    const totalOrder = monthList.reduce((s,r)=>s + (r.totalOrder || 0), 0);
+    // 直接从 globalOrderRecord 计算本月线上团购订单
+    const globalOrderRecord = state.globalOrderRecord || [];
+    const monthOrders = globalOrderRecord.filter(item => {
+      if (!item.time) return false;
+      const d = new Date(item.time);
+      const itemMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      return itemMonth === monthStr;
+    });
+    if (monthOrders.length === 0) return null;
+    let totalIncome = 0;
+    let meituanIncome = 0, douyinIncome = 0, dianpingIncome = 0;
+    monthOrders.forEach(order => {
+      const price = order.couponPrice || 0;
+      totalIncome += price;
+      switch(order.platform) {
+        case "美团": meituanIncome += price; break;
+        case "抖音来客": douyinIncome += price; break;
+        case "大众点评": dianpingIncome += price; break;
+      }
+    });
+    const costCache = state.costCache || { purchaseCost: "", fixedCost: "" };
+    const purchaseCost = Number(costCache.purchaseCost) || 0;
+    const fixedCost = Number(costCache.fixedCost) || 0;
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const totalCost = (purchaseCost + fixedCost) * daysInMonth;
+    const totalProfit = totalIncome - totalCost;
     return {
       yearMonth: monthStr,
       totalIncome,
       totalProfit,
-      totalOrder,
-      dayCount: monthList.length
+      totalOrder: monthOrders.length,
+      dayCount: new Set(monthOrders.map(o => formatDate(o.time))).size,
+      meituanIncome,
+      douyinIncome,
+      dianpingIncome
     };
   } catch (e) { return null; }
 };
@@ -1831,6 +1871,12 @@ function appReducer(state, action) {
       const { groupId, groupName } = action.payload;
       const list = state.groupChatList || [];
       const updated = list.map(g => g.id === groupId ? { ...g, name: groupName } : g);
+      return { ...state, groupChatList: updated };
+    }
+    case 'UPDATE_GROUP_ANNOUNCEMENT': {
+      const { groupId, announcement, announcer, announceTime } = action.payload;
+      const list = state.groupChatList || [];
+      const updated = list.map(g => g.id === groupId ? { ...g, announcement: announcement || '', announcer: announcer || '', announceTime: announceTime || '' } : g);
       return { ...state, groupChatList: updated };
     }
     case 'DELETE_GROUP_CHAT': {
@@ -3423,6 +3469,13 @@ const SettingDrawer = ({ visible, onClose }) => {
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={goToProfile}>
                   <Ionicons name="person-circle-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>个人资料</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                </TouchableOpacity>
+                {/* 我的二维码 */}
+                <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }} onPress={() => { onClose(); navigation.navigate('MyQRCode'); }}>
+                  <Ionicons name="qr-code-outline" size={22} color={PRIMARY_COLOR} style={{ marginRight: 12 }} />
+                  <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>我的二维码</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
                 {/* 商家端显示门店信息 */}
@@ -7265,7 +7318,8 @@ const InternalChat = () => {
   // Load saved background - use useFocusEffect so it reloads every time page is focused
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('internalChatBg').then(saved => {
+      const bgKey = `internalChatBg_${state.user?.phone || 'default'}`;
+      AsyncStorage.getItem(bgKey).then(saved => {
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
@@ -7928,6 +7982,15 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const currentGroupName = currentGroupInfo?.name || '内部群聊';
   const [editGroupName, setEditGroupName] = useState(currentGroupName);
   const [isEditingName, setIsEditingName] = useState(false);
+  // ===== 群公告 =====
+  const currentAnnouncement = currentGroupInfo?.announcement || '';
+  const currentAnnouncer = currentGroupInfo?.announcer || '';
+  const currentAnnounceTime = currentGroupInfo?.announceTime || '';
+  const [editAnnouncement, setEditAnnouncement] = useState(currentAnnouncement);
+  const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
+  const isGroupOwner = state.user?.phone === (currentGroupInfo?.ownerPhone || state.user?.phone);
+  // 当前用户是否为群主（老板）
+  const isBoss = !state.isEmployee;
 
   const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
   const bgMaterials = [
@@ -7965,6 +8028,25 @@ const ChatSettingScreen = ({ route, navigation }) => {
     }
     setIsEditingName(false);
     showToast('群聊名称已更新');
+  };
+
+  // ===== 保存群公告 =====
+  const handleSaveAnnouncement = () => {
+    const trimmed = editAnnouncement.trim();
+    if (!trimmed) { showToast('群公告不能为空'); return; }
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    dispatch({
+      type: 'UPDATE_GROUP_ANNOUNCEMENT',
+      payload: {
+        groupId: chatId,
+        announcement: trimmed,
+        announcer: state.user?.name || '群主',
+        announceTime: timeStr,
+      }
+    });
+    setIsEditingAnnouncement(false);
+    showToast('群公告已发布');
   };
 
   // 群成员：老板在首位，员工在后面（支持currentGroupInfo.members，兼容旧版本）
@@ -8059,7 +8141,8 @@ const ChatSettingScreen = ({ route, navigation }) => {
     setBgColor(color);
     setBgImage(null);
     try {
-      await AsyncStorage.setItem('internalChatBg', JSON.stringify({ type: 'color', value: color }));
+      const bgKey = `internalChatBg_${state.user?.phone || 'default'}`;
+      await AsyncStorage.setItem(bgKey, JSON.stringify({ type: 'color', value: color }));
       showToast('聊天背景已更换');
     } catch (e) {
       showToast('保存失败');
@@ -8081,7 +8164,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
         setBgImage(compressedUri);
         setBgColor(null);
         try {
-          await AsyncStorage.setItem('internalChatBg', JSON.stringify({ type: 'image', value: compressedUri }));
+          await AsyncStorage.setItem(`internalChatBg_${state.user?.phone || 'default'}`, JSON.stringify({ type: 'image', value: compressedUri }));
           showToast('背景已设置');
         } catch (e) {
           showToast('保存失败');
@@ -8097,7 +8180,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
     setBgColor('#F2F3F5');
     setBgImage(null);
     try {
-      await AsyncStorage.removeItem('internalChatBg');
+      await AsyncStorage.removeItem(`internalChatBg_${state.user?.phone || 'default'}`);
       showToast('已恢复默认背景');
     } catch (e) {}
   };
@@ -8201,14 +8284,48 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </TouchableOpacity>
 
           {/* 群公告 */}
-          <TouchableOpacity 
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}
-            onPress={() => showToast('群公告')}
-          >
-            <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>群公告</Text>
-            <Text style={{ fontSize: 15, color: '#888', marginRight: 8 }}>进群改"姓名+电话"</Text>
-            <Ionicons name="chevron-forward" size={18} color="#C0C0C0" />
-          </TouchableOpacity>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: '#E5E5E5' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, color: '#000', flex: 1 }}>群公告</Text>
+              {isBoss && !isEditingAnnouncement && (
+                <TouchableOpacity onPress={() => { setEditAnnouncement(currentAnnouncement); setIsEditingAnnouncement(true); }}>
+                  <Text style={{ fontSize: 14, color: '#576B95' }}>{currentAnnouncement ? '修改' : '设置'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {isEditingAnnouncement ? (
+              <View style={{ marginTop: 10 }}>
+                <TextInput
+                  value={editAnnouncement}
+                  onChangeText={setEditAnnouncement}
+                  maxLength={200}
+                  multiline
+                  placeholder="请输入群公告内容..."
+                  autoFocus
+                  style={{ minHeight: 80, backgroundColor: '#F5F5F5', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: '#000', textAlignVertical: 'top' }}
+                />
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <TouchableOpacity onPress={() => { setIsEditingAnnouncement(false); setEditAnnouncement(currentAnnouncement); }} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#F0F0F0' }}>
+                    <Text style={{ fontSize: 14, color: '#666' }}>取消</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSaveAnnouncement} style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#576B95' }}>
+                    <Text style={{ fontSize: 14, color: '#fff' }}>发布</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={{ marginTop: 6 }}>
+                {currentAnnouncement ? (
+                  <>
+                    <Text style={{ fontSize: 14, color: '#333', lineHeight: 22 }}>{currentAnnouncement}</Text>
+                    <Text style={{ fontSize: 12, color: '#999', marginTop: 6 }}>{currentAnnouncer} · {currentAnnounceTime}</Text>
+                  </>
+                ) : (
+                  <Text style={{ fontSize: 14, color: '#999' }}>{isBoss ? '暂未设置群公告' : '群主暂未发布群公告'}</Text>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* 备注 */}
           <TouchableOpacity 
@@ -8453,6 +8570,70 @@ const ChatSettingScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+    </View>
+  );
+};
+
+// ================== 我的二维码页面 ==================
+const MyQRCodeScreen = ({ navigation }) => {
+  const { state } = useApp();
+  const user = state.user || {};
+  const shopName = state.shopInfo?.shopName || '未设置';
+  const isEmployee = state.isEmployee;
+
+  // 生成二维码数据（JSON格式）
+  const qrData = JSON.stringify({
+    type: isEmployee ? 'employee' : 'merchant',
+    phone: user.phone || '',
+    name: user.name || '',
+    shopName: shopName,
+    timestamp: Date.now(),
+  });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#EDEDED' }}>
+      <CommonHeader 
+        title="我的二维码" 
+        showBack={true}
+        navigation={navigation}
+        headerColor="#EDEDED"
+        titleColor="#000"
+      />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 40 }}>
+        {/* 二维码卡片 */}
+        <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 30, width: width - 64, alignItems: 'center', ...SHADOW }}>
+          {/* 头像 */}
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: isEmployee ? '#5B6DF0' : '#4A90E2', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={{ color: '#fff', fontSize: 28, fontWeight: '600' }}>{(user.name || '?').substring(0, 1)}</Text>
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#000' }}>{user.name || '用户'}</Text>
+          <Text style={{ fontSize: 14, color: '#888', marginTop: 4 }}>{isEmployee ? '员工' : '商家'} · {shopName}</Text>
+          
+          {/* 二维码占位（用图标代替） */}
+          <View style={{ marginTop: 24, width: 200, height: 200, backgroundColor: '#F5F5F5', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+            <Ionicons name="qr-code-outline" size={120} color="#333" />
+          </View>
+          
+          <Text style={{ fontSize: 13, color: '#999', marginTop: 16, textAlign: 'center' }}>
+            {isEmployee ? '让商家扫描此二维码可快速加入店铺' : '让员工扫描此二维码可快速邀请入职'}
+          </Text>
+          
+          {/* 手机号 */}
+          <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="call-outline" size={16} color="#576B95" />
+            <Text style={{ fontSize: 15, color: '#576B95' }}>{user.phone || '未绑定'}</Text>
+          </View>
+        </View>
+
+        {/* 说明 */}
+        <View style={{ marginTop: 24, paddingHorizontal: 32 }}>
+          <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', lineHeight: 22 }}>
+            {isEmployee 
+              ? '将此二维码展示给商家扫描，商家确认后即可加入店铺，自动进入内部群聊。'
+              : '将此二维码展示给员工扫描，员工确认后即可加入店铺，自动出现在员工列表和首页私聊中。'}
+          </Text>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -10340,12 +10521,62 @@ const HomePage = () => {
       const helpShown = await AsyncStorage.getItem('help_guide_shown');
       if (!helpShown) {
         setShowHelpGuide(true);
-        // 立即标记为已展示，防止下次再弹
         await AsyncStorage.setItem('help_guide_shown', 'true');
       }
     };
     checkOnLogin();
   }, []);
+
+  // ===== 经营报告自动推送：日报/周报/月报 =====
+  useEffect(() => {
+    if (!state.user || state.isEmployee) return;
+    const checkAutoReport = async () => {
+      const now = new Date();
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const config = state.dailyReportConfig || { enable: true, workTimeStart: '09:00', workTimeEnd: '18:00' };
+      if (!config.enable) return;
+      const [endH, endM] = (config.workTimeEnd || '18:00').split(':').map(Number);
+      const currentHourMin = now.getHours() * 60 + now.getMinutes();
+      const endHourMin = endH * 60 + endM;
+      // 日报：下班后自动计算当天报告
+      const dailyKey = `report_daily_${todayKey}`;
+      const dailyDone = await AsyncStorage.getItem(dailyKey);
+      if (!dailyDone && currentHourMin >= endHourMin) {
+        const report = calcDailyReport(state);
+        if (report) {
+          dispatch({ type: 'SET_LATEST_DAILY_REPORT', payload: report });
+          await AsyncStorage.setItem(dailyKey, 'done');
+        }
+      }
+      // 周报：周一早上自动推送
+      if (now.getDay() === 1 && currentHourMin >= 8 * 60 && currentHourMin <= 10 * 60) {
+        const weekKey = `report_weekly_${todayKey}`;
+        const weekDone = await AsyncStorage.getItem(weekKey);
+        if (!weekDone) {
+          const weekReport = generateWeekReport(state);
+          if (weekReport) {
+            await AsyncStorage.setItem(weekKey, 'done');
+          }
+        }
+      }
+      // 月报：每月最后一天下班后自动推送
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      if (now.getDate() === lastDay && currentHourMin >= endHourMin) {
+        const monthKey = `report_monthly_${todayKey}`;
+        const monthDone = await AsyncStorage.getItem(monthKey);
+        if (!monthDone) {
+          const monthReport = generateMonthReport(state);
+          if (monthReport) {
+            await AsyncStorage.setItem(monthKey, 'done');
+          }
+        }
+      }
+    };
+    checkAutoReport();
+    // 每10分钟检查一次
+    const interval = setInterval(checkAutoReport, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [state.user, state.isEmployee, state.dailyReportConfig, state.globalOrderRecord]);
 
   if (!user) {
     return (
@@ -10380,14 +10611,8 @@ const HomePage = () => {
   }, [state]);
 
   const exportData = async () => {
-    try {
-      const businessHistory = state.businessHistory || [];
-      const csv = "日期,订单数,总营收,净利润,利润率\n" + businessHistory.map(r => `${r.date},${r.totalOrder},${r.income},${r.profit},${r.profitRate}%`).join('\n');
-      const uri = FileSystem.documentDirectory + 'business_report.csv';
-      await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
-      else showToast('分享不可用');
-    } catch (e) { showToast('导出失败'); }
+    // 已取消CSV导出，经营报告改为自动计算展示
+    showToast('经营报告已自动计算，无需导出');
   };
 
   const isEmployee = user?.role === '员工';
@@ -10705,6 +10930,9 @@ const HomePage = () => {
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income || 0}</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit || 0}</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate || 0}%</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
                     </>
                   )}
                   {reportType === 'weekly' && reportData && (
@@ -10714,6 +10942,9 @@ const HomePage = () => {
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
                     </>
                   )}
                   {reportType === 'monthly' && reportData && (
@@ -10723,6 +10954,9 @@ const HomePage = () => {
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
                       <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
                     </>
                   )}
                 </>
@@ -10731,7 +10965,7 @@ const HomePage = () => {
                   {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据'}
                 </Text>
               )}
-              <TouchableOpacity style={styles.exportBtn} onPress={exportData}><Text style={styles.exportBtnText}>📤 导出CSV</Text></TouchableOpacity>
+              {/* 经营报告自动计算展示，无需手动导出 */}
             </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
@@ -10940,7 +11174,7 @@ const HomePage = () => {
             </View>
             {/* Tab 切换 */}
             <View style={{ flexDirection: 'row', marginHorizontal: 16, backgroundColor: BG_WHITE, borderRadius: 12, padding: 4 }}>
-              {[{ key: 'add', label: '添加员工', icon: 'person-add-outline' }, { key: 'group', label: '创建群聊', icon: 'people-outline' }].map(tab => (
+              {[{ key: 'add', label: '添加员工', icon: 'person-add-outline' }, { key: 'group', label: '创建群聊', icon: 'people-outline' }, { key: 'scan', label: '扫一扫', icon: 'scan-outline' }].map(tab => (
                 <TouchableOpacity key={tab.key} 
                   onPress={() => setAddStaffTab(tab.key)}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 9, backgroundColor: addStaffTab === tab.key ? PRIMARY_COLOR : 'transparent', gap: 6 }}>
@@ -11093,7 +11327,47 @@ const HomePage = () => {
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>立即创建群聊</Text>
                   </TouchableOpacity>
                 </View>
-              )}
+              ) : addStaffTab === 'scan' ? (
+                <View>
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 4, marginBottom: 14 }}>扫描商家二维码加入店铺或群聊</Text>
+                  {/* 扫一扫功能区域 */}
+                  <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 30, alignItems: 'center', ...SHADOW }}>
+                    <Ionicons name="scan-outline" size={64} color={PRIMARY_COLOR} />
+                    <Text style={{ fontSize: 15, color: TEXT_MAIN, fontWeight: '600', marginTop: 14 }}>扫一扫</Text>
+                    <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 6, textAlign: 'center' }}>扫描商家二维码可快速加入店铺{'\n'}扫描群聊二维码可快速加入群聊</Text>
+                    <TouchableOpacity 
+                      onPress={() => {
+                        setShowAddStaffModal(false);
+                        setTimeout(() => {
+                          showToast('扫码功能需要相机权限');
+                          // TODO: 调用相机扫码
+                        }, 300);
+                      }}
+                      style={{ marginTop: 20, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="camera-outline" size={20} color="#fff" />
+                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>开启扫码</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {/* 我的二维码入口 */}
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setShowAddStaffModal(false);
+                      setTimeout(() => {
+                        navigation.navigate('MyQRCode');
+                      }, 300);
+                    }}
+                    style={{ marginTop: 14, backgroundColor: BG_CARD, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', ...SHADOW }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="qr-code-outline" size={24} color={PRIMARY_COLOR} />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT_MAIN }}>我的二维码</Text>
+                      <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>展示给他人扫码添加</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -13729,6 +14003,7 @@ function AppStack() {
       <Stack.Screen name="PrivateChat" component={PrivateChat} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
+      <Stack.Screen name="MyQRCode" component={MyQRCodeScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
       <Stack.Screen name="UserAgreement" component={UserAgreementScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ gestureEnabled: true }} />
