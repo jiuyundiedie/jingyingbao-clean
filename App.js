@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1581,7 +1581,7 @@ function appReducer(state, action) {
     }
     case 'ADD_PRIVATE_MESSAGE': {
       const { phone, message } = action.payload;
-      const existing = state.privateChatMessages[phone] || [];
+      const existing = (state.privateChatMessages || {})[phone] || [];
       // 使用fromPhone判断是否是对方发送的消息
       const isOtherMessage = message.fromPhone !== state.user?.phone;
       const newDots = { ...state.newMessageRedDots };
@@ -1602,7 +1602,7 @@ function appReducer(state, action) {
       if (!isOtherMessage && message.platform === 'private') {
         // 当前用户发送了私聊消息给phone（员工/老板）
         // 标记对方账号的消息为未读状态
-        const otherMessages = state.privateChatMessages[phone] || [];
+        const otherMessages = (state.privateChatMessages || {})[phone] || [];
         // 查找刚才发送的消息，确保它是未读状态
         // 实际上消息已经是read: false，但我们需要确保红点标记会被触发
         // 这里我们预设置对方账号登录时能检测到的未读状态
@@ -1617,12 +1617,12 @@ function appReducer(state, action) {
     }
     case 'SET_CUSTOMER_TAG': {
       const { phone, tag } = action.payload;
-      const existing = state.customerTags[phone] || [];
+      const existing = (state.customerTags || {})[phone] || [];
       return { ...state, customerTags: { ...state.customerTags, [phone]: existing.includes(tag) ? existing : [...existing, tag] } };
     }
     case 'ADD_GROUP_MESSAGE': {
       const { chatId, message } = action.payload;
-      const existing = state.groupChatMessages[chatId] || [];
+      const existing = (state.groupChatMessages || {})[chatId] || [];
       const isInternal = chatId === 'internal';
       const isOtherMessage = message.from !== state.user?.name && message.from !== 'staff' && message.from !== state.user?.phone;
       const shouldShowRedDot = isInternal && isOtherMessage && !state.newMessageRedDots?.['内部'];
@@ -1644,13 +1644,13 @@ function appReducer(state, action) {
     }
     case 'MARK_GROUP_MESSAGES_READ': {
       const { chatId } = action.payload;
-      const existing = state.groupChatMessages[chatId] || [];
+      const existing = (state.groupChatMessages || {})[chatId] || [];
       const updated = existing.map(m => ({ ...m, read: true }));
       return { ...state, groupChatMessages: { ...state.groupChatMessages, [chatId]: updated } };
     }
     case 'MARK_PRIVATE_MESSAGES_READ': {
       const { phone } = action.payload;
-      const existing = state.privateChatMessages[phone] || [];
+      const existing = (state.privateChatMessages || {})[phone] || [];
       const updated = existing.map(m => ({ ...m, read: true }));
       return { ...state, privateChatMessages: { ...state.privateChatMessages, [phone]: updated } };
     }
@@ -6634,7 +6634,7 @@ const CustomerService = () => {
   const customerByPlatform = (platform) => {
     const result = [];
     allCustomers.forEach(phone => {
-      const msgs = state.privateChatMessages[phone] || [];
+      const msgs = (state.privateChatMessages || {})[phone] || [];
       const lastMsg = msgs[msgs.length - 1];
       if (!lastMsg) return;
       // 筛选当前平台的消息
@@ -6657,7 +6657,7 @@ const CustomerService = () => {
   // 同步消息
   useEffect(() => {
     if (selectedPhone) {
-      const msgs = (state.privateChatMessages[selectedPhone] || []).filter(m => (m.platform || '其他') === currentPlatform);
+      const msgs = ((state.privateChatMessages || {})[selectedPhone] || []).filter(m => (m.platform || '其他') === currentPlatform);
       setMessages(msgs);
     }
   }, [selectedPhone, currentPlatform, state.privateChatMessages]);
@@ -6709,7 +6709,7 @@ const CustomerService = () => {
           read: true,
         };
         // 保存到全局消息
-        const allMsgs = (state.privateChatMessages[selectedPhone] || []).concat([msg]);
+        const allMsgs = ((state.privateChatMessages || {})[selectedPhone] || []).concat([msg]);
         dispatch({ type: 'SET_PRIVATE_CHAT_MESSAGES', payload: { phone: selectedPhone, messages: allMsgs } });
         setMessages(prev => [...prev, msg]);
         setSelectedImages([]);
@@ -7287,7 +7287,7 @@ const InternalChat = () => {
     };
   }, []);
 
-  const groupMessages = state.groupChatMessages[chatId] || [];
+  const groupMessages = (state.groupChatMessages || {})[chatId] || [];
   
   // 进入页面时标记所有消息为已读，消除红点
   useEffect(() => {
@@ -7513,7 +7513,7 @@ const InternalChat = () => {
           {groupList.map(g => {
             const isActive = g.id === currentChatId;
             // 群聊未读消息数
-            const gMessages = state.groupChatMessages[g.id] || [];
+            const gMessages = (state.groupChatMessages || {})[g.id] || [];
             const unread = gMessages.filter(m => m.fromPhone !== state.user?.phone && !m.read).length;
             return (
               <TouchableOpacity 
@@ -7937,7 +7937,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
     { id: 'bg8', name: '夜幕蓝', color: '#37474F' },
   ];
   const staffMembers = state.staffMemberList || [];
-  const groupMessages = state.groupChatMessages[chatId] || [];
+  const groupMessages = (state.groupChatMessages || {})[chatId] || [];
 
   // ===== 修改群聊名称保存 =====
   const handleSaveGroupName = () => {
@@ -8489,7 +8489,7 @@ const SearchChatRecordScreen = ({ route, navigation }) => {
   const [searchResults, setSearchResults] = useState([]);
 
   const staffMembers = state.staffMemberList || [];
-  const groupMessages = state.groupChatMessages[chatId] || [];
+  const groupMessages = (state.groupChatMessages || {})[chatId] || [];
 
   const allMembers = [
     { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true },
@@ -10798,7 +10798,7 @@ const HomePage = () => {
                   </View>
                 ) : (
                   chatStaffList.map(staff => {
-                    const staffMessages = state.privateChatMessages[staff.phone] || [];
+                    const staffMessages = (state.privateChatMessages || {})[staff.phone] || [];
                     const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
                     const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
                     const formatMsgTime = (timeStr) => {
@@ -10866,7 +10866,7 @@ const HomePage = () => {
               </View>
               <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
                 {chatStaffList.map(staff => {
-                  const staffMessages = state.privateChatMessages[staff.phone] || [];
+                  const staffMessages = (state.privateChatMessages || {})[staff.phone] || [];
                   const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
                   const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
                   const formatMsgTime = (timeStr) => {
@@ -11469,7 +11469,7 @@ const PrivateChat = ({ route, navigation }) => {
   };
 
   useEffect(() => {
-    const savedMessages = state.privateChatMessages[phone] || [];
+    const savedMessages = (state.privateChatMessages || {})[phone] || [];
     setMessages(savedMessages);
   }, [phone]);
 
