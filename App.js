@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1534,8 +1534,43 @@ const initialState = JSON.parse(JSON.stringify(defaultState));
 
 function appReducer(state, action) {
   switch (action.type) {
-    case 'LOGIN':
-      return { ...state, user: action.payload.user, shopInfo: { ...state.shopInfo, ...action.payload.shopInfo } };
+    case 'LOGIN': {
+      const newState = { ...state, user: action.payload.user, shopInfo: { ...state.shopInfo, ...action.payload.shopInfo }, frozenExited: false };
+      // 初始化 internal 群聊（如果不存在）
+      const userRole = action.payload.user?.role;
+      const userPhone = action.payload.user?.phone;
+      if (userRole && userPhone) {
+        const existingGroups = newState.groupChatList || [];
+        const internalGroup = existingGroups.find(g => g.id === 'internal');
+        if (!internalGroup) {
+          // 商家端：创建包含所有已批准员工的 internal 群聊
+          // 员工端：创建包含老板的 internal 群聊
+          const approvedStaff = (newState.staffMemberList || []).filter(s => s.status === 'approved');
+          const bossPhone = userRole === '员工' ? (newState.shopInfo?.phone || '') : userPhone;
+          const members = [bossPhone, ...approvedStaff.map(s => s.phone)].filter(Boolean);
+          const newInternalGroup = {
+            id: 'internal',
+            name: '内部群聊',
+            members: [...new Set(members)],
+            owner: bossPhone,
+            createdAt: new Date().toISOString(),
+            avatar: '',
+            announcement: '',
+            announcer: '',
+            announceTime: '',
+          };
+          newState.groupChatList = [...existingGroups, newInternalGroup];
+          newState.groupChatMessages = { ...newState.groupChatMessages, internal: newState.groupChatMessages?.internal || [] };
+        } else {
+          // 确保当前用户在群成员中
+          if (!internalGroup.members.includes(userPhone)) {
+            internalGroup.members = [...internalGroup.members, userPhone];
+          }
+          newState.groupChatList = existingGroups.map(g => g.id === 'internal' ? internalGroup : g);
+        }
+      }
+      return newState;
+    }
     case 'LOGOUT':
       return { ...state, user: null, shopInfo: { shopName: '', phone: '', industry: '餐饮类' } };
     case 'UPDATE_SHOP_INFO':
@@ -1571,7 +1606,13 @@ function appReducer(state, action) {
           industry: merchantShopInfo.industry || '餐饮类',
           ownerName: state.user?.name || '老板',
         };
-        return { ...state, staffMemberList: newList, shopInfo: updatedShopInfo };
+        // 异步持久化 shopInfo
+        setTimeout(async () => {
+          try {
+            await AsyncStorage.setItem('shopInfo', JSON.stringify(updatedShopInfo));
+          } catch (e) {}
+        }, 0);
+        return { ...state, staffMemberList: newList, shopInfo: updatedShopInfo, frozenExited: false };
       }
       return { ...state, staffMemberList: newList };
     }
@@ -1781,6 +1822,8 @@ function appReducer(state, action) {
         suppliers: Array.isArray(r.suppliers) ? r.suppliers : [],
         stockAlerts: (r.stockAlerts && typeof r.stockAlerts === 'object') ? r.stockAlerts : {},
         platformAccounts: { meituan: { phone: '', bound: false }, douyin: { phone: '', bound: false }, dianping: { phone: '', bound: false }, ...(r.platformAccounts || {}) },
+        frozenExited: typeof r.frozenExited === 'boolean' ? r.frozenExited : false,
+        resignationApplications: Array.isArray(r.resignationApplications) ? r.resignationApplications : [],
       };
     }
     case 'ADD_AI_MESSAGE': {
@@ -1965,7 +2008,20 @@ function appReducer(state, action) {
       const staffList = state.staffMemberList || [];
       const exists = staffList.find(s => s.phone === newStaff.phone);
       const finalStaff = exists ? staffList : [...staffList, newStaff];
-      return { ...state, staffApplications: newApps, staffMemberList: finalStaff };
+      // 更新 shopInfo 为商家的店铺信息
+      const updatedShopInfo = {
+        shopName: app.shopName || '',
+        phone: app.merchantPhone || state.shopInfo?.phone || '',
+        industry: state.shopInfo?.industry || '餐饮类',
+        ownerName: app.merchantName || '老板',
+      };
+      // 异步持久化 shopInfo
+      setTimeout(async () => {
+        try {
+          await AsyncStorage.setItem('shopInfo', JSON.stringify(updatedShopInfo));
+        } catch (e) {}
+      }, 0);
+      return { ...state, staffApplications: newApps, staffMemberList: finalStaff, shopInfo: updatedShopInfo };
     }
     case 'REJECT_STAFF_APPLICATION_BY_APP_ID': {
       const apps = state.staffApplications || [];
@@ -2034,14 +2090,22 @@ function appReducer(state, action) {
     }
     // 员工端：商家已同意离职后的退出动作（清理员工自己端的店铺）
     case 'EMPLOYEE_PERFORM_EXIT_SHOP': {
+      // 只移除当前离职员工，保留其他员工
+      const currentPhone = state.user?.phone;
+      const remainingStaff = (state.staffMemberList || []).filter(s => s.phone !== currentPhone);
+      const remainingApplications = (state.staffApplications || []).filter(a => a.applicantPhone !== currentPhone);
+      // 从所有群聊中移除该员工
+      const updatedGroupList = (state.groupChatList || []).map(g => ({
+        ...g,
+        members: (g.members || []).filter(p => p !== currentPhone)
+      }));
       return {
         ...state,
         frozenExited: true,
         shopInfo: { shopName: '', phone: '', industry: '餐饮类' },
-        staffMemberList: [],
-        groupChatList: [],
-        groupChatMessages: {},
-        staffApplications: [],
+        staffMemberList: remainingStaff,
+        groupChatList: updatedGroupList,
+        staffApplications: remainingApplications,
       };
     }
     default:
@@ -2751,7 +2815,7 @@ const LoginScreen = () => {
                       <Text style={{ fontSize: 13, fontWeight: '600', color: PRIMARY_COLOR }}>{(account.name || '老')[0]}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, color: TEXT_MAIN }}>{account.shopName} · {account.name || '老板'}</Text>
+                      <Text style={{ fontSize: 14, color: TEXT_MAIN }}>{account.shopName ? `${account.shopName} · ` : ''}{account.name || '老板'}</Text>
                       <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{maskedPhone(account.phone)} · {account.role}</Text>
                     </View>
                     <Ionicons name="chevron-forward" size={16} color={TEXT_THIRD} />
@@ -5489,29 +5553,6 @@ const StockManage = () => {
   const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
   const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
 
-  // 员工未加入店铺时显示提示
-  if (isEmployee && !hasJoinedShop) {
-    return (
-      <View style={styles.container}>
-        <CommonHeader title="出入库" showBack />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
-          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
-          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
-            请先加入店铺后才能使用出入库功能{'\n'}点击下方按钮扫一扫加入店铺
-          </Text>
-          <TouchableOpacity 
-            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
-          >
-            <Ionicons name="scan-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   const [modalVisible, setModalVisible] = useState(false);
   const [type, setType] = useState('入库');
   const [quantity, setQuantity] = useState('');
@@ -7399,29 +7440,6 @@ const InternalChat = () => {
   const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
   const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
 
-  // 员工未加入店铺时显示提示
-  if (isEmployee && !hasJoinedShop) {
-    return (
-      <View style={styles.container}>
-        <CommonHeader title="内部沟通" showBack />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
-          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
-          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
-            请先加入店铺后才能使用内部沟通功能{'\n'}点击下方按钮扫一扫加入店铺
-          </Text>
-          <TouchableOpacity 
-            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
-          >
-            <Ionicons name="scan-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -8171,7 +8189,7 @@ const ChatSettingScreen = ({ route, navigation }) => {
   const [isEditingAnnouncement, setIsEditingAnnouncement] = useState(false);
   const isGroupOwner = state.user?.phone === (currentGroupInfo?.ownerPhone || state.user?.phone);
   // 当前用户是否为群主（老板）
-  const isBoss = !state.isEmployee;
+  const isBoss = state.user?.role !== '员工';
 
   const bgColors = ['#F2F3F5', '#E8F5E9', '#E3F2FD', '#FFF3E0', '#FCE4EC', '#EDE7F6', '#FFFFFF', '#37474F'];
   const bgMaterials = [
@@ -8789,7 +8807,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const facingRef = useRef('back');
 
   const user = state.user || {};
-  const isEmployee = state.isEmployee;
+  const isEmployee = state.user?.role === '员工';
 
   // 处理扫码结果
   const handleBarcodeScanned = ({ type, data }) => {
@@ -9057,7 +9075,7 @@ const MyQRCodeScreen = ({ navigation }) => {
   const { state } = useApp();
   const user = state.user || {};
   const shopName = state.shopInfo?.shopName || '未设置';
-  const isEmployee = state.isEmployee;
+  const isEmployee = state.user?.role === '员工';
 
   // 生成二维码数据（JSON格式）
   const qrData = JSON.stringify({
@@ -11008,7 +11026,7 @@ const HomePage = () => {
 
   // ===== 经营报告自动推送：日报/周报/月报 =====
   useEffect(() => {
-    if (!state.user || state.isEmployee) return;
+    if (!state.user || state.user?.role === '员工') return;
     const checkAutoReport = async () => {
       const now = new Date();
       const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -11055,7 +11073,7 @@ const HomePage = () => {
     // 每10分钟检查一次
     const interval = setInterval(checkAutoReport, 10 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [state.user, state.isEmployee, state.dailyReportConfig, state.globalOrderRecord]);
+  }, [state.user, state.user?.role, state.dailyReportConfig, state.globalOrderRecord]);
 
   if (!user) {
     return (
@@ -11211,6 +11229,8 @@ const HomePage = () => {
       dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
       const staff = (state.staffMemberList || []).find(s => s.phone === phone);
       if (staff) {
+        // 将员工添加到 internal 群聊
+        dispatch({ type: 'ADD_GROUP_MEMBER', payload: { groupId: 'internal', phone: staff.phone, name: staff.name } });
         // 发送系统群消息
         const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
         dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
@@ -12091,29 +12111,6 @@ const VerifyOrder = () => {
   const [scanning, setScanning] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-
-  // 员工未加入店铺时显示提示
-  if (isEmployee && !hasJoinedShop) {
-    return (
-      <View style={styles.container}>
-        <CommonHeader title="订单核销" showBack />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
-          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
-          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
-            请先加入店铺后才能使用核销功能{'\n'}点击下方按钮扫一扫加入店铺
-          </Text>
-          <TouchableOpacity 
-            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
-          >
-            <Ionicons name="scan-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
   const handleVerify = () => {
     try {
@@ -13256,6 +13253,8 @@ const StaffManage = () => {
 
   const handleApprove = (staff) => {
     dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone: staff.phone } });
+    // 将员工添加到 internal 群聊
+    dispatch({ type: 'ADD_GROUP_MEMBER', payload: { groupId: 'internal', phone: staff.phone, name: staff.name } });
     const welcome = { id: Date.now().toString(), text: `🎉 ${staff.name} 已入职，欢迎加入！`, from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text' };
     dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: 'internal', message: welcome } });
     
