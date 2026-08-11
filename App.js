@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1524,6 +1524,10 @@ const defaultState = {
   coupons: [],
   suppliers: [],
   stockAlerts: {},
+  // ===== 员工退出店铺冻结状态 =====
+  frozenExited: false,
+  // ===== 离职申请列表（员工端发起→商家端审批）=====
+  resignationApplications: [],
 };
 
 const initialState = JSON.parse(JSON.stringify(defaultState));
@@ -1966,6 +1970,67 @@ function appReducer(state, action) {
     case 'SET_STAFF_APPLICATIONS': {
       return { ...state, staffApplications: action.payload || [] };
     }
+    // ===== 员工冻结退出状态 =====
+    case 'SET_FROZEN_EXITED': {
+      return { ...state, frozenExited: !!action.payload };
+    }
+    // ===== 离职申请流程 =====
+    case 'SEND_RESIGNATION_APPLICATION': {
+      // 员工端发起离职申请
+      const app = {
+        id: `res_${Date.now()}`,
+        employeePhone: action.payload.phone || state.user?.phone,
+        employeeName: action.payload.name || state.user?.name || '员工',
+        shopName: state.shopInfo?.shopName || '门店',
+        shopPhone: action.payload.shopPhone || '',
+        status: 'pending', // pending / approved
+        createdAt: new Date().toISOString(),
+        viewed: false,
+      };
+      const list = state.resignationApplications || [];
+      // 避免重复pending
+      if (list.find(a => a.employeePhone === app.employeePhone && a.status === 'pending')) {
+        return state;
+      }
+      return { ...state, resignationApplications: [...list, app] };
+    }
+    case 'APPROVE_RESIGNATION': {
+      // 商家端同意离职
+      const list = state.resignationApplications || [];
+      const idx = list.findIndex(a => a.id === action.payload.id);
+      if (idx === -1) return state;
+      const newList = [...list];
+      newList[idx] = { ...newList[idx], status: 'approved', viewed: true };
+      // 同时从员工列表移除
+      const phone = newList[idx].employeePhone;
+      const newStaffList = (state.staffMemberList || []).filter(s => s.phone !== phone);
+      // 从所有群聊成员中移除
+      const newGroupList = (state.groupChatList || []).map(g => ({
+        ...g,
+        members: (g.members || []).filter(p => p !== phone),
+      }));
+      return { ...state, resignationApplications: newList, staffMemberList: newStaffList, groupChatList: newGroupList };
+    }
+    case 'MARK_RESIGNATION_VIEWED': {
+      const list = state.resignationApplications || [];
+      const newList = list.map(a => a.id === action.payload.id ? { ...a, viewed: true } : a);
+      return { ...state, resignationApplications: newList };
+    }
+    case 'SET_RESIGNATION_APPLICATIONS': {
+      return { ...state, resignationApplications: action.payload || [] };
+    }
+    // 员工端：商家已同意离职后的退出动作（清理员工自己端的店铺）
+    case 'EMPLOYEE_PERFORM_EXIT_SHOP': {
+      return {
+        ...state,
+        frozenExited: true,
+        shopInfo: { shopName: '', phone: '', industry: '餐饮类' },
+        staffMemberList: [],
+        groupChatList: [],
+        groupChatMessages: {},
+        staffApplications: [],
+      };
+    }
     default:
       return state;
   }
@@ -2013,6 +2078,8 @@ const saveAllDataImmediate = async (state) => {
       coupons: state.coupons || [],
       suppliers: state.suppliers || [],
       stockAlerts: state.stockAlerts || {},
+      frozenExited: state.frozenExited || false,
+      resignationApplications: state.resignationApplications || [],
     };
     await AsyncStorage.setItem('appData', JSON.stringify(dataToSave));
   } catch (error) {
@@ -3517,6 +3584,40 @@ const SettingDrawer = ({ visible, onClose }) => {
                   <Text style={{ flex: 1, fontSize: 15, color: TEXT_MAIN }}>切换账号</Text>
                   <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                 </TouchableOpacity>
+                {/* 员工端：退出店铺 */}
+                {isEmployee && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: BORDER_COLOR }} />
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}
+                      onPress={() => {
+                        Alert.alert(
+                          '退出店铺',
+                          '确定要退出当前店铺吗？退出后需要等待商家同意离职申请，期间其他功能将暂时无法使用。',
+                          [
+                            { text: '取消', style: 'cancel' },
+                            {
+                              text: '确认退出',
+                              style: 'destructive',
+                              onPress: () => {
+                                // 先冻结状态
+                                dispatch({ type: 'SET_FROZEN_EXITED', payload: true });
+                                // 发送离职申请到商家端
+                                dispatch({ type: 'SEND_RESIGNATION_APPLICATION', payload: {} });
+                                onClose();
+                                showToast('离职申请已发送，等待商家同意');
+                              },
+                            },
+                          ],
+                          { cancelable: true },
+                        );
+                      }}>
+                      <Ionicons name="exit-outline" size={22} color={DANGER_COLOR} style={{ marginRight: 12 }} />
+                      <Text style={{ flex: 1, fontSize: 15, color: DANGER_COLOR }}>退出店铺</Text>
+                      <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
+                    </TouchableOpacity>
+                  </>
+                )}
                 </View>
 
               <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 12 }}>
@@ -8574,6 +8675,280 @@ const ChatSettingScreen = ({ route, navigation }) => {
   );
 };
 
+// ================== 扫码页面 ==================
+const ScanQRCodeScreen = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const facingRef = useRef('back');
+
+  const user = state.user || {};
+  const isEmployee = state.isEmployee;
+
+  // 处理扫码结果
+  const handleBarcodeScanned = ({ type, data }) => {
+    if (scanned) return;
+    setScanned(true);
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
+        setScanResult(parsed);
+        setShowConfirm(true);
+        return;
+      }
+    } catch (e) {}
+    // 非二维码格式
+    showToast('无效的二维码，请扫描经营宝用户二维码');
+    setTimeout(() => setScanned(false), 1500);
+  };
+
+  // 确认处理扫码结果
+  const confirmScanResult = () => {
+    if (!scanResult) return;
+    const { type, phone, name, shopName } = scanResult;
+
+    if (isEmployee) {
+      // ===== 员工端扫码 =====
+      if (type === 'merchant') {
+        // 员工扫商家码 → 发起入职申请（加入店铺）
+        // 先检查是否已在店铺
+        const exists = (state.staffMemberList || []).find(s => s.phone === phone);
+        if (exists && exists.status === 'approved') {
+          showToast('您已加入该店铺');
+        } else {
+          // 添加到员工端的入职申请列表（等待商家同意）
+          dispatch({
+            type: 'SEND_STAFF_APPLICATION',
+            payload: { phone: user?.phone, name: user?.name || '员工' }
+          });
+          // 同时模拟商家端收到申请（Mock环境，双方为同一设备时）
+          dispatch({
+            type: 'ADD_STAFF_APPLICATION',
+            payload: { phone: user?.phone, name: user?.name || '新员工', shopName: shopName || '门店' }
+          });
+          showToast(`已向「${shopName || '门店'}」发起入职申请`);
+        }
+      } else if (type === 'employee') {
+        showToast('请扫描商家二维码以加入店铺');
+      }
+    } else {
+      // ===== 商家端扫码 =====
+      if (type === 'employee') {
+        // 商家扫员工码 → 发送入职邀请
+        const exists = (state.staffMemberList || []).find(s => s.phone === phone);
+        if (exists) {
+          if (exists.status === 'pending') showToast('已发送邀请，等待对方同意');
+          else if (exists.status === 'approved') showToast('该员工已加入店铺');
+          else showToast('该员工已被您拒绝过，可先移除再申请');
+        } else {
+          dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone, name: name || '新员工' } });
+          dispatch({ type: 'SEND_STAFF_APPLICATION', payload: { phone, name: name || '新员工' } });
+          showToast(`已向 ${name || '员工'}(${phone}) 发送入职邀请`);
+        }
+      } else if (type === 'merchant') {
+        showToast('请扫描员工二维码以邀请入职');
+      }
+    }
+
+    setShowConfirm(false);
+    setScanResult(null);
+    setTimeout(() => {
+      navigation.goBack();
+    }, 600);
+  };
+
+  // 权限未加载
+  if (!permission) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color="#fff" size="large" />
+      </View>
+    );
+  }
+
+  // 权限未授予
+  if (!permission.granted) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <CommonHeader
+          title="扫一扫"
+          showBack={true}
+          navigation={navigation}
+          headerColor="#000"
+          titleColor="#fff"
+          leftComponent={<TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>}
+        />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
+          <Ionicons name="camera-outline" size={80} color="#666" />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 24 }}>需要相机权限</Text>
+          <Text style={{ color: '#999', fontSize: 14, textAlign: 'center', marginTop: 10, lineHeight: 22 }}>
+            经营宝需要访问相机以扫描二维码{'\n'}加入店铺或邀请员工入职
+          </Text>
+          <TouchableOpacity
+            onPress={requestPermission}
+            style={{ marginTop: 36, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 48 }}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>允许使用相机</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={{ marginTop: 16, paddingVertical: 12, paddingHorizontal: 32 }}>
+            <Text style={{ color: '#888', fontSize: 14 }}>暂不开启</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // 相机预览 + 扫码框
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      {/* 顶部导航 */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <SafeAreaView>
+          <View style={{ flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 8 }}>
+            <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ padding: 8 }}>
+              <Ionicons name="chevron-back" size={26} color="#fff" />
+            </TouchableOpacity>
+            <Text style={{ flex: 1, textAlign: 'center', color: '#fff', fontSize: 17, fontWeight: '600', marginRight: 42 }}>扫一扫</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      {/* 相机预览 */}
+      <CameraView
+        style={{ flex: 1 }}
+        facing="back"
+        enableTorch={torchOn}
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39'],
+        }}
+      />
+
+      {/* 扫描遮罩层 */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {/* 顶部暗色区 */}
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+        {/* 中间扫描区 */}
+        <View style={{ flexDirection: 'row', height: width * 0.62 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+          <View style={{ width: width * 0.62, position: 'relative' }}>
+            {/* 四角 */}
+            <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+            {/* 扫描线动画（简化版） */}
+            <View style={{ position: 'absolute', left: 4, right: 4, top: 0, height: 2, backgroundColor: PRIMARY_COLOR, opacity: 0.9 }} />
+          </View>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+        </View>
+        {/* 底部暗色区 */}
+        <View style={{ flex: 1.3, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', paddingTop: 24 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>
+            {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 }}>将二维码放入框内，自动识别</Text>
+        </View>
+      </View>
+
+      {/* 底部操作按钮 */}
+      <SafeAreaView style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} pointerEvents="box-none">
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 24, paddingHorizontal: 40 }}>
+          {/* 相册（暂未启用，防止复杂度） */}
+          <View style={{ width: 56, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => {
+                setTorchOn(v => !v);
+              }}
+              style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
+            </TouchableOpacity>
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>{torchOn ? '关灯' : '开灯'}</Text>
+          </View>
+
+          {/* 中心扫码图标 */}
+          <View style={{ width: 72, height: 72 }} />
+
+          {/* 我的二维码 */}
+          <TouchableOpacity
+            onPress={() => {
+              navigation.navigate('MyQRCode');
+            }}
+            style={{ width: 56, alignItems: 'center' }}>
+            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="qr-code-outline" size={24} color="#fff" />
+            </View>
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>我的码</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+
+      {/* 结果确认弹窗 */}
+      {showConfirm && scanResult && (
+        <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => {
+          setShowConfirm(false); setScanResult(null); setScanned(false);
+        }}>
+          <TouchableWithoutFeedback onPress={() => {
+            setShowConfirm(false); setScanResult(null); setScanned(false);
+          }}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+              <TouchableWithoutFeedback>
+                <View style={{ backgroundColor: '#fff', borderRadius: 18, width: '100%', overflow: 'hidden' }}>
+                  <View style={{ padding: 22, alignItems: 'center' }}>
+                    <View style={{
+                      width: 60, height: 60, borderRadius: 30,
+                      backgroundColor: scanResult.type === 'merchant' ? '#4A90E2' : '#5B6DF0',
+                      justifyContent: 'center', alignItems: 'center', marginBottom: 14
+                    }}>
+                      <Ionicons name={scanResult.type === 'merchant' ? 'business-outline' : 'person-outline'} size={30} color="#fff" />
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>
+                      {scanResult.type === 'merchant' ? scanResult.shopName || '商家' : scanResult.name || '用户'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 6 }}>
+                      {scanResult.type === 'merchant' ? '商家店铺二维码' : '员工二维码'} · {scanResult.phone || ''}
+                    </Text>
+                    <View style={{
+                      marginTop: 18, backgroundColor: LIGHT_PRIMARY, borderRadius: 10, padding: 14, width: '100%'
+                    }}>
+                      <Text style={{ fontSize: 13, color: PRIMARY_COLOR, textAlign: 'center', lineHeight: 20 }}>
+                        {isEmployee
+                          ? (scanResult.type === 'merchant' ? `确认向「${scanResult.shopName || '门店'}」发起入职申请？` : '请扫描商家二维码加入店铺')
+                          : (scanResult.type === 'employee' ? `确认向「${scanResult.name || '员工'}」发送入职邀请？` : '请扫描员工二维码邀请入职')
+                        }
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BG_BORDER }}>
+                    <TouchableOpacity
+                      onPress={() => { setShowConfirm(false); setScanResult(null); setScanned(false); }}
+                      style={{ flex: 1, paddingVertical: 16, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
+                    </TouchableOpacity>
+                    <View style={{ width: 1, backgroundColor: BG_BORDER }} />
+                    <TouchableOpacity
+                      onPress={confirmScanResult}
+                      style={{ flex: 1, paddingVertical: 16, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 16, color: PRIMARY_COLOR, fontWeight: '600' }}>确认</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
+    </View>
+  );
+};
+
 // ================== 我的二维码页面 ==================
 const MyQRCodeScreen = ({ navigation }) => {
   const { state } = useApp();
@@ -10657,8 +11032,10 @@ const HomePage = () => {
       return count;
     }
     if (key === 'StaffManage' && !isEmployee) {
-      // 员工管理（商家）：待审核且未查看的入职申请
-      return (state.staffMemberList || []).filter(s => s.status === 'pending' && !s.viewed).length;
+      // 员工管理（商家）：待审核的入职申请 + 待处理的离职申请（未查看）
+      const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && !s.viewed).length;
+      const pendingRes = (state.resignationApplications || []).filter(a => a.status === 'pending' && !a.viewed).length;
+      return pendingStaff + pendingRes;
     }
     if (key === 'MerchantAssistant' && (state.badReviewCount || 0) > 0) {
       return state.badReviewCount;
@@ -10905,10 +11282,10 @@ const HomePage = () => {
             )}
           </View>
 
-          <View style={styles.dailyReportCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.reportTitle}>📊 经营报告</Text>
-              {!isEmployee && (
+          {!isEmployee && (
+            <View style={styles.dailyReportCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.reportTitle}>📊 经营报告</Text>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {['daily', 'weekly', 'monthly'].map(type => {
                     const label = type === 'daily' ? '日报' : type === 'weekly' ? '周报' : '月报';
@@ -10919,54 +11296,54 @@ const HomePage = () => {
                     );
                   })}
                 </View>
-              )}
+              </View>
+                {reportData ? (
+                  <>
+                    {reportType === 'daily' && reportData && (
+                      <>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{reportData.date || '-'}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate || 0}%</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
+                      </>
+                    )}
+                    {reportType === 'weekly' && reportData && (
+                      <>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>周期</Text><Text style={styles.reportValue}>{reportData.startDate || '-'} ~ {reportData.endDate || '-'}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
+                      </>
+                    )}
+                    {reportType === 'monthly' && reportData && (
+                      <>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>月份</Text><Text style={styles.reportValue}>{reportData.yearMonth || '-'}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>有效天数</Text><Text style={styles.reportValue}>{reportData.dayCount || 0}天</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
+                        <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 8 }}>
+                    {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据'}
+                  </Text>
+                )}
+                {/* 经营报告自动计算展示，无需手动导出 */}
             </View>
-              {reportData ? (
-                <>
-                  {reportType === 'daily' && reportData && (
-                    <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日期</Text><Text style={styles.reportValue}>{reportData.date || '-'}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>订单数</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.income || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>净利润</Text><Text style={styles.reportValue}>¥{reportData.profit || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>利润率</Text><Text style={styles.reportValue}>{reportData.profitRate || 0}%</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
-                    </>
-                  )}
-                  {reportType === 'weekly' && reportData && (
-                    <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>周期</Text><Text style={styles.reportValue}>{reportData.startDate || '-'} ~ {reportData.endDate || '-'}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>日均营收</Text><Text style={styles.reportValue}>¥{reportData.avgDailyIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
-                    </>
-                  )}
-                  {reportType === 'monthly' && reportData && (
-                    <>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>月份</Text><Text style={styles.reportValue}>{reportData.yearMonth || '-'}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>有效天数</Text><Text style={styles.reportValue}>{reportData.dayCount || 0}天</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总订单</Text><Text style={styles.reportValue}>{reportData.totalOrder || 0}单</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总营收</Text><Text style={styles.reportValue}>¥{reportData.totalIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>总利润</Text><Text style={styles.reportValue}>¥{reportData.totalProfit || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>美团</Text><Text style={styles.reportValue}>¥{reportData.meituanIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>抖音</Text><Text style={styles.reportValue}>¥{reportData.douyinIncome || 0}</Text></View>
-                      <View style={styles.reportRow}><Text style={styles.reportLabel}>点评</Text><Text style={styles.reportValue}>¥{reportData.dianpingIncome || 0}</Text></View>
-                    </>
-                  )}
-                </>
-              ) : (
-                <Text style={{ color: TEXT_THIRD, fontSize: 14, textAlign: 'center', paddingVertical: 8 }}>
-                  {reportType === 'daily' ? '暂无日报数据，请先核销订单' : '暂无该周期数据'}
-                </Text>
-              )}
-              {/* 经营报告自动计算展示，无需手动导出 */}
-            </View>
+          )}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={{ flexDirection: 'row', gap: 12, paddingRight: 16 }}>
@@ -11339,8 +11716,7 @@ const HomePage = () => {
                       onPress={() => {
                         setShowAddStaffModal(false);
                         setTimeout(() => {
-                          showToast('扫码功能需要相机权限');
-                          // TODO: 调用相机扫码
+                          navigation.navigate('ScanQRCode');
                         }, 300);
                       }}
                       style={{ marginTop: 20, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -12607,15 +12983,20 @@ const StaffManage = () => {
   const staffMemberList = state.staffMemberList || [];
   const pendingList = staffMemberList.filter(s => s.status === 'pending');
   const approvedList = staffMemberList.filter(s => s.status === 'approved');
-  
+  // 待处理离职申请
+  const resignationList = (state.resignationApplications || []).filter(a => a.status === 'pending');
+
   // 进入页面时标记所有pending申请为已查看，消除红点
   useEffect(() => {
-    // 使用state中的最新数据，避免闭包问题
     const currentList = state.staffMemberList || [];
     const hasUnviewedPending = currentList.some(s => s.status === 'pending' && !s.viewed);
     if (hasUnviewedPending) {
       dispatch({ type: 'MARK_STAFF_VIEWED' });
     }
+    // 标记离职申请为已查看
+    const resApps = state.resignationApplications || [];
+    const unviewedRes = resApps.filter(a => a.status === 'pending' && !a.viewed);
+    unviewedRes.forEach(a => dispatch({ type: 'MARK_RESIGNATION_VIEWED', payload: { id: a.id } }));
   }, []);
 
   const handleAddStaff = () => {
@@ -12679,6 +13060,40 @@ const StaffManage = () => {
     showToast('已恢复该员工权限');
   };
 
+  // 商家同意员工离职
+  const handleApproveResignation = (app) => {
+    Alert.alert(
+      '同意离职',
+      `确认同意「${app.employeeName}」的离职申请？该员工将从员工列表和所有群聊中移除。`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '确认同意',
+          style: 'destructive',
+          onPress: () => {
+            dispatch({ type: 'APPROVE_RESIGNATION', payload: { id: app.id } });
+            // Mock：员工端自动执行退出店铺（本地模拟双方同步）
+            dispatch({ type: 'EMPLOYEE_PERFORM_EXIT_SHOP' });
+            showToast(`已同意 ${app.employeeName} 离职`);
+            // 发送系统群消息
+            const leaveMsg = {
+              id: `g_${Date.now()}`,
+              text: `${app.employeeName} 已离职，告别本店铺。`,
+              from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text',
+            };
+            const list = state.groupChatList || [];
+            list.forEach(g => {
+              if ((g.members || []).includes(state.user?.phone)) {
+                dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: g.id, message: leaveMsg } });
+              }
+            });
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  };
+
   const goToChat = (staff) => {
     navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
     setShowDetail(false);
@@ -12708,6 +13123,29 @@ const StaffManage = () => {
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => handleApprove(staff)}><Text style={styles.sendTxt}>同意</Text></TouchableOpacity>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleReject(staff)}><Text style={styles.sendTxt}>拒绝</Text></TouchableOpacity>
                 </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {resignationList.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>📝 离职申请 ({resignationList.length})</Text>
+            {resignationList.map(app => (
+              <View key={app.id} style={[styles.listItem, { borderLeftWidth: 3, borderLeftColor: DANGER_COLOR }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{app.employeeName || '员工'}</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>
+                    {app.employeePhone || ''} · {app.shopName || '门店'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: TEXT_THIRD, marginTop: 3 }}>
+                    申请时间：{app.createdAt ? new Date(app.createdAt).toLocaleString() : '-'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]}
+                  onPress={() => handleApproveResignation(app)}>
+                  <Text style={styles.sendTxt}>同意</Text>
+                </TouchableOpacity>
               </View>
             ))}
           </View>
@@ -12808,6 +13246,44 @@ const PlaceholderPage = ({ title }) => {
 };
 
 // ================== 底部标签导航 ==================
+// ===== 暂无店铺占位组件（员工退出店铺后非首页展示）=====
+const NoShopPlaceholder = ({ allowBack = true }) => {
+  const navigation = useNavigation();
+  return (
+    <View style={{ flex: 1, backgroundColor: '#F5F7FA', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
+      <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: '#EEF0F5', justifyContent: 'center', alignItems: 'center', marginBottom: 22 }}>
+        <Ionicons name="storefront-outline" size={56} color={TEXT_THIRD} />
+      </View>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>暂无店铺</Text>
+      <Text style={{ fontSize: 14, color: TEXT_SECOND, textAlign: 'center', marginTop: 10, lineHeight: 22 }}>
+        您已退出当前店铺{'\n'}请联系商家重新邀请入职或通过扫码加入新店铺
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 32 }}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ScanQRCode')}
+          style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="scan-outline" size={18} color="#fff" />
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>扫码加入</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+// HOC：包装Tab页面，非首页+员工+已退出时显示暂无店铺
+const withNoShopGuard = (WrappedComponent, tabName = '') => {
+  return (props) => {
+    const { state } = useApp();
+    const isEmployee = state.user?.role === '员工';
+    const frozen = state.frozenExited;
+    // 首页始终允许查看，其他Tab在冻结状态下显示暂无店铺
+    if (isEmployee && frozen && tabName !== '首页') {
+      return <NoShopPlaceholder />;
+    }
+    return <WrappedComponent {...props} />;
+  };
+};
+
 const Tab = createBottomTabNavigator();
 function RootTabs() {
   const { state, dispatch } = useApp();
@@ -12889,12 +13365,12 @@ function RootTabs() {
         },
       }}
     >
-      <Tab.Screen name="首页" component={HomePage} />
-      <Tab.Screen name="核销" component={VerifyOrder} />
-      {!isEmployee && <Tab.Screen name="客服" component={CustomerService} />}
-      <Tab.Screen name="出入库" component={StockManage} />
-      <Tab.Screen name="内部" component={InternalChat} />
-      {!isEmployee && <Tab.Screen name="AI助手" component={MerchantAssistant} />}
+      <Tab.Screen name="首页" component={withNoShopGuard(HomePage, '首页')} />
+      <Tab.Screen name="核销" component={withNoShopGuard(VerifyOrder, '核销')} />
+      {!isEmployee && <Tab.Screen name="客服" component={withNoShopGuard(CustomerService, '客服')} />}
+      <Tab.Screen name="出入库" component={withNoShopGuard(StockManage, '出入库')} />
+      <Tab.Screen name="内部" component={withNoShopGuard(InternalChat, '内部')} />
+      {!isEmployee && <Tab.Screen name="AI助手" component={withNoShopGuard(MerchantAssistant, 'AI助手')} />}
     </Tab.Navigator>
   );
 }
@@ -14004,6 +14480,7 @@ function AppStack() {
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
       <Stack.Screen name="MyQRCode" component={MyQRCodeScreen} options={{ gestureEnabled: true }} />
+      <Stack.Screen name="ScanQRCode" component={ScanQRCodeScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
       <Stack.Screen name="UserAgreement" component={UserAgreementScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ gestureEnabled: true }} />
