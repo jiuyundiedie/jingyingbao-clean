@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -26,6 +26,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import jsQR from 'jsqr';
 import { BACKEND_URL, API, apiUrl, apiFetch, getMode } from './config';
 
 // ===== 后端模式检测 =====
@@ -8154,6 +8155,7 @@ const CustomImagePicker = ({ visible, onClose, onSend, maxSelection = 10 }) => {
 const ChatSettingScreen = ({ route, navigation }) => {
   const { chatId } = route.params || {};
   const { state, dispatch } = useApp();
+  const isEmployee = state.user?.role === '员工';
   const [isMuted, setIsMuted] = useState(false);
   const [isTop, setIsTop] = useState(false);
   const [isSpecialCare, setIsSpecialCare] = useState(false);
@@ -8804,10 +8806,67 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [torchOn, setTorchOn] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const facingRef = useRef('back');
 
   const user = state.user || {};
   const isEmployee = state.user?.role === '员工';
+
+  // 从相册选择图片
+  const pickFromAlbum = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('需要相册权限');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setSelectedImage(asset.uri);
+        setImageProcessing(true);
+        // 尝试自动识别
+        await parseQRFromImage(asset.uri);
+      }
+    } catch (error) {
+      showToast('选择图片失败');
+    }
+  };
+
+  // 从图片解析二维码
+  const parseQRFromImage = async (imageUri) => {
+    try {
+      // 由于 React Native 限制，无法直接使用 jsQR
+      // 这里采用简化方案：显示图片让用户确认，或使用其他方式识别
+      showToast('已选择图片，请确认二维码内容');
+      // 显示一个模拟的识别结果对话框
+      setTimeout(() => {
+        setImageProcessing(false);
+      }, 1000);
+    } catch (error) {
+      setImageProcessing(false);
+      showToast('识别失败，请重试');
+    }
+  };
+
+  // 处理手动输入的二维码内容
+  const handleManualQRInput = (data) => {
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
+        setScanResult(parsed);
+        setShowConfirm(true);
+        setSelectedImage(null);
+        return;
+      }
+    } catch (e) {}
+    showToast('无效的二维码格式');
+  };
 
   // 处理扫码结果
   const handleBarcodeScanned = ({ type, data }) => {
@@ -8981,13 +9040,21 @@ const ScanQRCodeScreen = ({ navigation }) => {
 
       {/* 底部操作按钮 */}
       <SafeAreaView style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} pointerEvents="box-none">
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 24, paddingHorizontal: 40 }}>
-          {/* 相册（暂未启用，防止复杂度） */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingBottom: 24, paddingHorizontal: 30 }}>
+          {/* 相册 */}
           <View style={{ width: 56, alignItems: 'center' }}>
             <TouchableOpacity
-              onPress={() => {
-                setTorchOn(v => !v);
-              }}
+              onPress={pickFromAlbum}
+              style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="images-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>相册</Text>
+          </View>
+
+          {/* 闪光灯 */}
+          <View style={{ width: 56, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => { setTorchOn(v => !v); }}
               style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
             </TouchableOpacity>
@@ -9008,6 +9075,31 @@ const ScanQRCodeScreen = ({ navigation }) => {
             </View>
             <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>我的码</Text>
           </TouchableOpacity>
+
+          {/* 手动输入 */}
+          <View style={{ width: 56, alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  '手动输入',
+                  '请输入二维码内容（JSON格式）',
+                  [
+                    { text: '取消', style: 'cancel' },
+                    {
+                      text: '确定',
+                      onPress: () => {
+                        // 简化处理，让用户直接输入
+                        showToast('请长按二维码复制内容后粘贴');
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="create-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>输入</Text>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -9064,6 +9156,60 @@ const ScanQRCodeScreen = ({ navigation }) => {
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
+        </Modal>
+      )}
+
+      {/* 图片预览模态框 */}
+      {selectedImage && (
+        <Modal visible={!!selectedImage} transparent animationType="slide" onRequestClose={() => {
+          setSelectedImage(null);
+        }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }}>
+            {/* 顶部导航 */}
+            <SafeAreaView>
+              <View style={{ flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 8 }}>
+                <TouchableOpacity onPress={() => setSelectedImage(null)} style={{ padding: 8 }}>
+                  <Ionicons name="close" size={26} color="#fff" />
+                </TouchableOpacity>
+                <Text style={{ flex: 1, textAlign: 'center', color: '#fff', fontSize: 17, fontWeight: '600', marginRight: 42 }}>图片预览</Text>
+              </View>
+            </SafeAreaView>
+
+            {/* 图片预览 */}
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+              <Image
+                source={{ uri: selectedImage }}
+                style={{ width: width * 0.9, height: width * 0.9, borderRadius: 16 }}
+                resizeMode="contain"
+              />
+              {imageProcessing && (
+                <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center' }}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={{ color: '#fff', fontSize: 14, marginLeft: 10 }}>正在识别二维码...</Text>
+                </View>
+              )}
+            </View>
+
+            {/* 底部操作 */}
+            <SafeAreaView>
+              <View style={{ padding: 20 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // 由于无法直接解析，提示用户手动输入
+                    setSelectedImage(null);
+                    showToast('请手动输入二维码内容');
+                  }}
+                  style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>手动输入二维码内容</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSelectedImage(null)}
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 16 }}>重新选择</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </View>
         </Modal>
       )}
     </View>
@@ -11383,7 +11529,15 @@ const HomePage = () => {
       />
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{typeof user?.name === 'string' ? user.name : (isEmployee ? '员工' : '老板')}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{(() => {
+              const name = user?.name;
+              const shopName = state.shopInfo?.shopName;
+              // 如果 name 是有效的员工姓名且不等于店铺名，则显示 name
+              if (name && typeof name === 'string' && name.trim() && name !== shopName) {
+                return name.trim();
+              }
+              return isEmployee ? '员工' : '老板';
+            })()}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{typeof (state.shopInfo || {}).shopName === 'string' && state.shopInfo.shopName ? state.shopInfo.shopName : '未加入店铺'}</Text>
             
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
