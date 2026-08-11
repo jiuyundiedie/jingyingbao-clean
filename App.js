@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1560,6 +1560,19 @@ function appReducer(state, action) {
       if (index === -1) return state;
       const newList = [...list];
       newList[index] = { ...newList[index], status: 'approved' };
+      // 如果批准的员工是当前用户，更新其店铺信息
+      const approvedStaff = newList[index];
+      if (state.user?.role === '员工' && state.user?.phone === approvedStaff.phone) {
+        // 员工被批准后，更新shopInfo为商家的店铺信息
+        const merchantShopInfo = state.shopInfo || {};
+        const updatedShopInfo = {
+          shopName: approvedStaff.shopName || merchantShopInfo.shopName || '',
+          phone: merchantShopInfo.phone || '',
+          industry: merchantShopInfo.industry || '餐饮类',
+          ownerName: state.user?.name || '老板',
+        };
+        return { ...state, staffMemberList: newList, shopInfo: updatedShopInfo };
+      }
       return { ...state, staffMemberList: newList };
     }
     case 'REJECT_STAFF_APPLICATION': {
@@ -2408,8 +2421,9 @@ const LoginScreen = () => {
         setLoading(false); 
         return; 
       }
-      if (!shopName.trim()) { 
-        console.log('[Login] Error: shopName empty');
+      // 商家端必须填写店铺名称，员工端可跳过（后续引导加入）
+      if (role === '商家' && !shopName.trim()) { 
+        console.log('[Login] Error: shopName empty for merchant');
         showToast('请输入店铺名称'); 
         setLoading(false); 
         return; 
@@ -2434,12 +2448,17 @@ const LoginScreen = () => {
         }
       }
 
-      const user = { role, phone, shopName, name: role === '员工' ? employeeName.trim() : '老板' };
+      // 员工端无店铺时使用空shopInfo，后续引导加入
+      const userShopName = role === '员工' ? (shopName.trim() || '') : shopName.trim();
+      const user = { role, phone, shopName: userShopName, name: role === '员工' ? employeeName.trim() : '老板' };
       
       // 根据店铺名称自动识别行业类型（使用统一的智能识别函数）
-      const industry = detectIndustryFromName(shopName);
+      const industry = userShopName ? detectIndustryFromName(userShopName) : '餐饮类';
       
-      const shopInfo = { shopName, phone, industry };
+      // 员工端无店铺时使用空shopInfo
+      const shopInfo = role === '员工' && !userShopName 
+        ? { shopName: '', phone: '', industry: '餐饮类' }
+        : { shopName: userShopName, phone, industry };
       
       console.log('[Login] user:', JSON.stringify(user));
       console.log('[Login] shopInfo:', JSON.stringify(shopInfo));
@@ -2450,9 +2469,10 @@ const LoginScreen = () => {
       console.log('[Login] AsyncStorage set successfully');
 
       dispatch({ type: 'LOGIN', payload: { user, shopInfo } });
-      dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName, name: user.name } });
+      dispatch({ type: 'ADD_PREVIOUS_ACCOUNT', payload: { phone, role, shopName: userShopName, name: user.name } });
 
-      if (role === '员工') {
+      // 只有当员工填写了店铺名称时才自动发送入职申请
+      if (role === '员工' && userShopName) {
         dispatch({ type: 'ADD_STAFF_APPLICATION', payload: {
           id: Date.now().toString(),
           phone,
@@ -2462,6 +2482,8 @@ const LoginScreen = () => {
           role: '员工',
         }});
         showToast('入职申请已发送，请等待商家审核');
+      } else if (role === '员工' && !userShopName) {
+        showToast('登录成功，请加入店铺以解锁全部功能');
       }
 
       console.log('[Login] Navigation to RootTabs');
@@ -2770,13 +2792,18 @@ const LoginScreen = () => {
               <TouchableOpacity style={styles.getCodeBtn} onPress={handleGetCode} disabled={codeCountdown > 0}><Text style={styles.getCodeText}>{codeCountdown > 0 ? codeCountdown + 's 后重发' : '获取验证码'}</Text></TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, { marginBottom: 6 }]}>店铺名称</Text>
-            <TextInput style={styles.formInput} placeholder="请输入店铺名称（必填）" value={shopName} onChangeText={setShopName} />
+            {role === '商家' && (
+              <>
+                <Text style={[styles.label, { marginBottom: 6 }]}>店铺名称</Text>
+                <TextInput style={styles.formInput} placeholder="请输入店铺名称（必填）" value={shopName} onChangeText={setShopName} />
+              </>
+            )}
 
             {role === '员工' && (
               <>
-                <Text style={[styles.label, { marginTop: 14, marginBottom: 6 }]}>员工姓名</Text>
+                <Text style={[styles.label, { marginBottom: 6 }]}>员工姓名</Text>
                 <TextInput style={styles.formInput} placeholder="请输入您的姓名（必填）" value={employeeName} onChangeText={setEmployeeName} />
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>💡 登录后可通过扫一扫或搜索店铺加入</Text>
               </>
             )}
 
@@ -5459,6 +5486,32 @@ const StockManage = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
   const isEmployee = state.user?.role === '员工';
+  const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
+  const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
+
+  // 员工未加入店铺时显示提示
+  if (isEmployee && !hasJoinedShop) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="出入库" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
+            请先加入店铺后才能使用出入库功能{'\n'}点击下方按钮扫一扫加入店铺
+          </Text>
+          <TouchableOpacity 
+            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
+          >
+            <Ionicons name="scan-outline" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   const [modalVisible, setModalVisible] = useState(false);
   const [type, setType] = useState('入库');
   const [quantity, setQuantity] = useState('');
@@ -7342,6 +7395,33 @@ const CustomerService = () => {
 const InternalChat = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const isEmployee = state.user?.role === '员工';
+  const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
+  const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
+
+  // 员工未加入店铺时显示提示
+  if (isEmployee && !hasJoinedShop) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="内部沟通" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
+            请先加入店铺后才能使用内部沟通功能{'\n'}点击下方按钮扫一扫加入店铺
+          </Text>
+          <TouchableOpacity 
+            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
+          >
+            <Ionicons name="scan-outline" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -8115,12 +8195,15 @@ const ChatSettingScreen = ({ route, navigation }) => {
     if (!currentGroupInfo) {
       // 创建默认internal群的记录
       const approvedStaffPhones = staffMembers.filter(s => s.status === 'approved').map(s => s.phone);
+      // 员工端时，群成员应该包含老板（从shopInfo.phone获取）
+      const bossPhone = isEmployee ? (state.shopInfo?.phone || '') : state.user?.phone;
+      const memberPhones = bossPhone ? [bossPhone, ...approvedStaffPhones] : [state.user?.phone, ...approvedStaffPhones];
       dispatch({
         type: 'CREATE_GROUP_CHAT',
         payload: {
           groupId: 'internal',
           groupName: trimmed,
-          memberPhones: [state.user?.phone, ...approvedStaffPhones],
+          memberPhones,
           ownerPhone: state.user?.phone,
         }
       });
@@ -8150,26 +8233,46 @@ const ChatSettingScreen = ({ route, navigation }) => {
     showToast('群公告已发布');
   };
 
-  // 群成员：老板在首位，员工在后面（支持currentGroupInfo.members，兼容旧版本）
+  // ===== 群成员列表（两端一致）=====
+  // 员工端时，老板信息从shopInfo获取；商家端时，老板信息从user获取
+  const bossPhone = isEmployee ? (state.shopInfo?.phone || '') : (state.user?.phone || '');
+  const bossName = isEmployee ? (state.shopInfo?.ownerName || '老板') : (state.user?.name || '老板');
+
+  // 获取已批准的员工
   const getApprovedStaff = () => {
     const approved = staffMembers.filter(s => s.status === 'approved');
     if (currentGroupInfo?.members && currentGroupInfo.members.length > 0) {
-      // 从群成员中匹配
       return approved.filter(s => currentGroupInfo.members.includes(s.phone));
     }
     return approved;
   };
   const approvedStaff = getApprovedStaff();
-  const allMembers = [
-    { phone: state.user?.phone, name: state.user?.name || '老板', role: '老板', isOwner: true, joinedAt: '创建者' },
-    ...approvedStaff.map(s => ({ 
-      phone: s.phone, 
-      name: s.name, 
-      role: '员工', 
-      isOwner: false, 
-      joinedAt: s.joinedAt ? (() => { try { const d = new Date(s.joinedAt); return isNaN(d.getTime()) ? '未记录' : d.toLocaleDateString('zh-CN').replace(/\//g, '-'); } catch(e) { return '未记录'; } })() : '未记录'
-    }))
-  ];
+
+  // 构建完整成员列表：老板在前，员工在后
+  const allMembers = [];
+  // 1. 老板
+  if (bossPhone) {
+    allMembers.push({
+      phone: bossPhone,
+      name: bossName,
+      role: '老板',
+      isOwner: true,
+      joinedAt: '创建者',
+    });
+  }
+  // 2. 所有已批准员工（排除重复）
+  approvedStaff.forEach(s => {
+    // 排除当前用户自己（在员工端，自己已经通过 approvedStaff 包含了）
+    if (s.phone !== bossPhone) {
+      allMembers.push({
+        phone: s.phone,
+        name: s.name,
+        role: '员工',
+        isOwner: false,
+        joinedAt: s.joinedAt ? (() => { try { const d = new Date(s.joinedAt); return isNaN(d.getTime()) ? '未记录' : d.toLocaleDateString('zh-CN').replace(/\//g, '-'); } catch(e) { return '未记录'; } })() : '未记录'
+      });
+    }
+  });
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -10889,6 +10992,7 @@ const HomePage = () => {
   const [reportType, setReportType] = useState('daily');
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   const [showHelpGuide, setShowHelpGuide] = useState(false);
+  const [showEmployeeAddModal, setShowEmployeeAddModal] = useState(false);
 
   // 登录后弹出使用帮助（仅首次安装时弹出一次）
   useEffect(() => {
@@ -10991,6 +11095,10 @@ const HomePage = () => {
   };
 
   const isEmployee = user?.role === '员工';
+  // 检查员工是否已加入店铺
+  const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === user?.phone) : null;
+  const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
+
   const allMenuList = [
     { icon: "qr-code-outline", label: "订单核销", key: 'VerifyOrder', tab: '核销', screen: 'VerifyOrder' },
     { icon: "swap-horizontal-outline", label: "出入库", key: 'StockManage', tab: '出入库', screen: 'StockManage' },
@@ -11049,6 +11157,11 @@ const HomePage = () => {
     .sort((a, b) => b.unread - a.unread);
 
   const handleMenuPress = (item) => {
+    // 员工未加入店铺时，点击功能显示提示
+    if (isEmployee && !hasJoinedShop) {
+      showToast('未加入店铺，无法使用该功能，请先加入店铺');
+      return;
+    }
     try {
       // 如果是内部沟通，先标记所有消息为已读
       if (item.key === 'InternalChat') {
@@ -11251,9 +11364,38 @@ const HomePage = () => {
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 80 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY_COLOR]} />}>
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{typeof user?.name === 'string' ? user.name : (isEmployee ? '员工' : '老板')}</Text>
-            <Text style={{ color: TEXT_SECOND }}>店铺：{typeof (state.shopInfo || {}).shopName === 'string' ? ((state.shopInfo || {}).shopName || '未设置') : '未设置'}</Text>
+            <Text style={{ color: TEXT_SECOND }}>店铺：{typeof (state.shopInfo || {}).shopName === 'string' && state.shopInfo.shopName ? state.shopInfo.shopName : '未加入店铺'}</Text>
             
             {isEmployee && <Text style={{ color: TEXT_SECOND, marginTop: 4 }}>角色：员工</Text>}
+            
+            {/* 员工未加入店铺引导 */}
+            {isEmployee && !hasJoinedShop && (
+              <View style={{ marginTop: 14, backgroundColor: '#FFF8E1', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FFC107' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                  <Ionicons name="alert-circle-outline" size={22} color="#FF9800" />
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#FF9800', marginLeft: 8 }}>尚未加入店铺</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#666', lineHeight: 20, marginBottom: 12 }}>
+                  加入店铺后可使用核销、出入库、内部沟通等全部功能
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity 
+                    style={{ flex: 1, backgroundColor: PRIMARY_COLOR, borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
+                  >
+                    <Ionicons name="scan-outline" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>扫一扫加入</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={{ flex: 1, backgroundColor: '#FF9800', borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                    onPress={() => navigation.navigate('MyQRCode')}
+                  >
+                    <Ionicons name="qr-code-outline" size={18} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>我的二维码</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
@@ -11446,14 +11588,24 @@ const HomePage = () => {
             </View>
           )}
 
-          {isEmployee && chatStaffList.length > 0 && (
+          {isEmployee && (
             <View style={{ marginTop: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 联系老板</Text>
-                <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>💬 消息通知</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
+                  <TouchableOpacity 
+                    onPress={() => setShowEmployeeAddModal(true)}
+                    style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="add-outline" size={22} color={PRIMARY_COLOR} />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
-                {chatStaffList.map(staff => {
+              {chatStaffList.length > 0 ? (
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
+                  {chatStaffList.map(staff => {
                   const staffMessages = (state.privateChatMessages || {})[staff.phone] || [];
                   const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
                   const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
@@ -11510,6 +11662,14 @@ const HomePage = () => {
                   );
                 })}
               </View>
+              ) : (
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 32, alignItems: 'center', ...SHADOW }}>
+                  <Ionicons name="chatbubbles-outline" size={40} color={TEXT_THIRD} />
+                  <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 10, textAlign: 'center' }}>
+                    暂无聊天消息{'\n'}点击右上角+添加店铺或二维码
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -11750,6 +11910,63 @@ const HomePage = () => {
         )}
       </Modal>
 
+      {/* ===== 员工消息通知加号弹窗 ===== */}
+      <Modal visible={showEmployeeAddModal} transparent animationType="slide" onRequestClose={() => setShowEmployeeAddModal(false)}>
+        {showEmployeeAddModal && (
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, minHeight: height * 0.4, maxHeight: height * 0.55 }}>
+            {/* 顶部把手 */}
+            <View style={{ alignItems: 'center', paddingTop: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0' }} />
+            </View>
+            {/* 标题+关闭 */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>消息通知</Text>
+              <TouchableOpacity onPress={() => setShowEmployeeAddModal(false)}>
+                <Ionicons name="close-outline" size={26} color={TEXT_SECOND} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={{ padding: 16 }}>
+              {/* 我的二维码 */}
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowEmployeeAddModal(false);
+                  setTimeout(() => navigation.navigate('MyQRCode'), 300);
+                }}
+                style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 12, ...SHADOW }}>
+                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="qr-code-outline" size={26} color={PRIMARY_COLOR} />
+                </View>
+                <View style={{ marginLeft: 14, flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>我的二维码</Text>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>展示给商家扫码添加店铺</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
+              </TouchableOpacity>
+
+              {/* 扫一扫添加店铺 */}
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowEmployeeAddModal(false);
+                  setTimeout(() => navigation.navigate('ScanQRCode', { type: 'joinShop' }), 300);
+                }}
+                style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', ...SHADOW }}>
+                <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="scan-outline" size={26} color={PRIMARY_COLOR} />
+                </View>
+                <View style={{ marginLeft: 14, flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>扫一扫添加店铺</Text>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>扫描商家二维码快速加入</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        )}
+      </Modal>
+
       <HomeVoiceAssistant visible={showVoiceAssistant} onClose={() => setShowVoiceAssistant(false)} />
     </View>
   );
@@ -11864,12 +12081,39 @@ const DraggableFloatingButton = ({ onPress }) => {
 const VerifyOrder = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
+  const isEmployee = state.user?.role === '员工';
+  const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
+  const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
+
   const [orderCode, setOrderCode] = useState('');
   const [platform, setPlatform] = useState('美团');
   const [couponPrice, setCouponPrice] = useState('');
   const [scanning, setScanning] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  // 员工未加入店铺时显示提示
+  if (isEmployee && !hasJoinedShop) {
+    return (
+      <View style={styles.container}>
+        <CommonHeader title="订单核销" showBack />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+          <Ionicons name="lock-closed-outline" size={64} color={TEXT_THIRD} />
+          <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginTop: 20 }}>未加入店铺</Text>
+          <Text style={{ fontSize: 14, color: TEXT_SECOND, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
+            请先加入店铺后才能使用核销功能{'\n'}点击下方按钮扫一扫加入店铺
+          </Text>
+          <TouchableOpacity 
+            style={{ marginTop: 24, backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
+          >
+            <Ionicons name="scan-outline" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>扫一扫加入店铺</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const handleVerify = () => {
     try {
@@ -13247,8 +13491,11 @@ const PlaceholderPage = ({ title }) => {
 
 // ================== 底部标签导航 ==================
 // ===== 暂无店铺占位组件（员工退出店铺后非首页展示）=====
-const NoShopPlaceholder = ({ allowBack = true }) => {
+const NoShopPlaceholder = ({ allowBack = true, isFrozen = false }) => {
   const navigation = useNavigation();
+  const message = isFrozen 
+    ? '您已退出当前店铺\n请联系商家重新邀请入职或通过扫码加入新店铺'
+    : '您尚未加入任何店铺\n请扫描商家二维码加入店铺后解锁全部功能';
   return (
     <View style={{ flex: 1, backgroundColor: '#F5F7FA', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 }}>
       <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: '#EEF0F5', justifyContent: 'center', alignItems: 'center', marginBottom: 22 }}>
@@ -13256,11 +13503,11 @@ const NoShopPlaceholder = ({ allowBack = true }) => {
       </View>
       <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>暂无店铺</Text>
       <Text style={{ fontSize: 14, color: TEXT_SECOND, textAlign: 'center', marginTop: 10, lineHeight: 22 }}>
-        您已退出当前店铺{'\n'}请联系商家重新邀请入职或通过扫码加入新店铺
+        {message}
       </Text>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 32 }}>
         <TouchableOpacity
-          onPress={() => navigation.navigate('ScanQRCode')}
+          onPress={() => navigation.navigate('ScanQRCode', { type: 'joinShop' })}
           style={{ backgroundColor: PRIMARY_COLOR, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Ionicons name="scan-outline" size={18} color="#fff" />
           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>扫码加入</Text>
@@ -13270,15 +13517,22 @@ const NoShopPlaceholder = ({ allowBack = true }) => {
   );
 };
 
-// HOC：包装Tab页面，非首页+员工+已退出时显示暂无店铺
+// HOC：包装Tab页面，非首页+员工+未加入店铺或已退出时显示暂无店铺
 const withNoShopGuard = (WrappedComponent, tabName = '') => {
   return (props) => {
     const { state } = useApp();
     const isEmployee = state.user?.role === '员工';
     const frozen = state.frozenExited;
-    // 首页始终允许查看，其他Tab在冻结状态下显示暂无店铺
-    if (isEmployee && frozen && tabName !== '首页') {
-      return <NoShopPlaceholder />;
+    const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
+    const hasJoinedShop = !isEmployee || (state.shopInfo?.shopName && state.shopInfo.shopName.trim() !== '' && myApplication?.status === 'approved');
+    // 首页始终允许查看，其他Tab在冻结状态下或未加入店铺时显示暂无店铺
+    if (isEmployee && tabName !== '首页') {
+      if (frozen) {
+        return <NoShopPlaceholder isFrozen={true} />;
+      }
+      if (!hasJoinedShop) {
+        return <NoShopPlaceholder isFrozen={false} />;
+      }
     }
     return <WrappedComponent {...props} />;
   };
