@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -13284,6 +13284,14 @@ const withNoShopGuard = (WrappedComponent, tabName = '') => {
   };
 };
 
+// 预先包装好的守卫组件（模块级创建，保证引用稳定，防止死循环）
+const GuardedHomePage = withNoShopGuard(HomePage, '首页');
+const GuardedVerifyOrder = withNoShopGuard(VerifyOrder, '核销');
+const GuardedCustomerService = withNoShopGuard(CustomerService, '客服');
+const GuardedStockManage = withNoShopGuard(StockManage, '出入库');
+const GuardedInternalChat = withNoShopGuard(InternalChat, '内部');
+const GuardedMerchantAssistant = withNoShopGuard(MerchantAssistant, 'AI助手');
+
 const Tab = createBottomTabNavigator();
 function RootTabs() {
   const { state, dispatch } = useApp();
@@ -13365,12 +13373,12 @@ function RootTabs() {
         },
       }}
     >
-      <Tab.Screen name="首页" component={withNoShopGuard(HomePage, '首页')} />
-      <Tab.Screen name="核销" component={withNoShopGuard(VerifyOrder, '核销')} />
-      {!isEmployee && <Tab.Screen name="客服" component={withNoShopGuard(CustomerService, '客服')} />}
-      <Tab.Screen name="出入库" component={withNoShopGuard(StockManage, '出入库')} />
-      <Tab.Screen name="内部" component={withNoShopGuard(InternalChat, '内部')} />
-      {!isEmployee && <Tab.Screen name="AI助手" component={withNoShopGuard(MerchantAssistant, 'AI助手')} />}
+      <Tab.Screen name="首页" component={GuardedHomePage} />
+      <Tab.Screen name="核销" component={GuardedVerifyOrder} />
+      {!isEmployee && <Tab.Screen name="客服" component={GuardedCustomerService} />}
+      <Tab.Screen name="出入库" component={GuardedStockManage} />
+      <Tab.Screen name="内部" component={GuardedInternalChat} />
+      {!isEmployee && <Tab.Screen name="AI助手" component={GuardedMerchantAssistant} />}
     </Tab.Navigator>
   );
 }
