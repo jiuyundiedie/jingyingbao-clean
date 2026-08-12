@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -27,6 +27,8 @@ import * as Clipboard from 'expo-clipboard';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import jsQR from 'jsqr';
+import QRCode from 'react-native-qrcode-svg';
+import { WebView } from 'react-native-webview';
 import { BACKEND_URL, API, apiUrl, apiFetch, getMode } from './config';
 
 // ===== 后端模式检测 =====
@@ -8825,6 +8827,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [manualQRInput, setManualQRInput] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
+  const webViewRef = useRef(null);
   const facingRef = useRef('back');
 
   const user = state.user || {};
@@ -8855,52 +8858,52 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  // 从图片解析二维码
+  // 从图片解析二维码（使用 WebView+Canvas 获取像素数据）
   const parseQRFromImage = async (imageUri) => {
     try {
-      // 在 React Native 中无法直接获取图片像素数据
-      // 尝试读取 base64 并用 jsQR 解析（对部分格式可能有效）
       const base64Data = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8ClampedArray(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      Image.getSize(imageUri, (imgWidth, imgHeight) => {
-        try {
-          const code = jsQR(bytes, imgWidth, imgHeight, { inversionAttempts: 'attemptBoth' });
-          setImageProcessing(false);
-          if (code && code.data) {
-            try {
-              const parsed = JSON.parse(code.data);
-              if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
-                setScanResult(parsed);
-                setShowConfirm(true);
-                setSelectedImage(null);
-                return;
+      // 通过 WebView 中的 Canvas 解析二维码
+      // jsQR 需要 RGBA 像素数据，只有 Canvas 能从压缩图片中提取
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript(`
+          (function() {
+            var img = new Image();
+            img.onload = function() {
+              var canvas = document.getElementById('c');
+              var ctx = canvas.getContext('2d');
+              var maxSize = 1000;
+              var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+              canvas.width = Math.floor(img.width * scale);
+              canvas.height = Math.floor(img.height * scale);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              function tryDecode() {
+                if (typeof jsQR === 'undefined') {
+                  setTimeout(tryDecode, 100);
+                  return;
+                }
+                var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                if (code && code.data) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
+                } else {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
+                }
               }
-            } catch (e) {}
-            // 识别到内容但格式不匹配，也尝试处理
-            handleManualQRInput(code.data);
-            setSelectedImage(null);
-            return;
-          }
-          // jsQR 无法直接解析压缩图片，提示用户手动输入
-          showToast('未自动识别到二维码，请手动输入');
-        } catch (parseError) {
-          setImageProcessing(false);
-          showToast('自动识别失败，请手动输入二维码内容');
-        }
-      }, () => {
-        setImageProcessing(false);
-        showToast('自动识别失败，请手动输入二维码内容');
-      });
+              tryDecode();
+            };
+            img.onerror = function() {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
+            };
+            img.src = 'data:image/jpeg;base64,' + '${base64Data}';
+          })();
+          true;
+        `);
+      }
     } catch (error) {
       setImageProcessing(false);
-      showToast('读取图片失败，请手动输入');
+      showToast('读取图片失败');
     }
   };
 
@@ -9288,6 +9291,44 @@ const ScanQRCodeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* 隐藏的 WebView 用于解析图片中的二维码 */}
+      <View style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}>
+        <WebView
+          ref={webViewRef}
+          source={{
+            html: `<!DOCTYPE html>
+            <html><head><meta charset="utf-8">
+            <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+            </head><body><canvas id="c"></canvas></body></html>`,
+          }}
+          onMessage={(event) => {
+            try {
+              const result = JSON.parse(event.nativeEvent.data);
+              setImageProcessing(false);
+              if (result.success && result.data) {
+                try {
+                  const parsed = JSON.parse(result.data);
+                  if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
+                    setScanResult(parsed);
+                    setShowConfirm(true);
+                    setSelectedImage(null);
+                    return;
+                  }
+                } catch (e) {}
+                handleManualQRInput(result.data);
+                setSelectedImage(null);
+              } else {
+                showToast('未识别到二维码，请确保图片清晰或手动输入');
+              }
+            } catch (e) {
+              setImageProcessing(false);
+            }
+          }}
+          javaScriptEnabled={true}
+          style={{ width: 1, height: 1 }}
+        />
+      </View>
     </View>
   );
 };
@@ -9327,9 +9368,15 @@ const MyQRCodeScreen = ({ navigation }) => {
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#000' }}>{user.name || '用户'}</Text>
           <Text style={{ fontSize: 14, color: '#888', marginTop: 4 }}>{isEmployee ? '员工' : '商家'} · {shopName}</Text>
           
-          {/* 二维码占位（用图标代替） */}
-          <View style={{ marginTop: 24, width: 200, height: 200, backgroundColor: '#F5F5F5', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
-            <Ionicons name="qr-code-outline" size={120} color="#333" />
+          {/* 真正的二维码 */}
+          <View style={{ marginTop: 24, width: 200, height: 200, backgroundColor: '#fff', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+            <QRCode
+              value={qrData}
+              size={170}
+              color="#333"
+              backgroundColor="#fff"
+              logoSize={0}
+            />
           </View>
           
           <Text style={{ fontSize: 13, color: '#999', marginTop: 16, textAlign: 'center' }}>
