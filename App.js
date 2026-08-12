@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -1595,7 +1595,17 @@ function appReducer(state, action) {
       const index = list.findIndex(item => item.phone === action.payload.phone);
       if (index === -1) return state;
       const newList = [...list];
-      newList[index] = { ...newList[index], status: 'approved' };
+      newList[index] = {
+        ...newList[index],
+        status: 'approved',
+        joinedAt: new Date().toISOString(),
+        // 入职后默认开启团购核销和出入库权限
+        permissions: {
+          groupVerify: true,   // 团购平台核销
+          inventory: true,     // 出入库
+          ...(newList[index].permissions || {}),
+        },
+      };
       // 如果批准的员工是当前用户，更新其店铺信息
       const approvedStaff = newList[index];
       if (state.user?.role === '员工' && state.user?.phone === approvedStaff.phone) {
@@ -2005,6 +2015,11 @@ function appReducer(state, action) {
         status: 'approved',
         shopName: app.shopName,
         joinedAt: new Date().toISOString(),
+        // 入职后默认开启团购核销和出入库权限
+        permissions: {
+          groupVerify: true,   // 团购平台核销
+          inventory: true,     // 出入库
+        },
       };
       const staffList = state.staffMemberList || [];
       const exists = staffList.find(s => s.phone === newStaff.phone);
@@ -8808,6 +8823,8 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageProcessing, setImageProcessing] = useState(false);
+  const [manualQRInput, setManualQRInput] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
   const facingRef = useRef('back');
 
   const user = state.user || {};
@@ -8841,16 +8858,49 @@ const ScanQRCodeScreen = ({ navigation }) => {
   // 从图片解析二维码
   const parseQRFromImage = async (imageUri) => {
     try {
-      // 由于 React Native 限制，无法直接使用 jsQR
-      // 这里采用简化方案：显示图片让用户确认，或使用其他方式识别
-      showToast('已选择图片，请确认二维码内容');
-      // 显示一个模拟的识别结果对话框
-      setTimeout(() => {
+      // 在 React Native 中无法直接获取图片像素数据
+      // 尝试读取 base64 并用 jsQR 解析（对部分格式可能有效）
+      const base64Data = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8ClampedArray(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      Image.getSize(imageUri, (imgWidth, imgHeight) => {
+        try {
+          const code = jsQR(bytes, imgWidth, imgHeight, { inversionAttempts: 'attemptBoth' });
+          setImageProcessing(false);
+          if (code && code.data) {
+            try {
+              const parsed = JSON.parse(code.data);
+              if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
+                setScanResult(parsed);
+                setShowConfirm(true);
+                setSelectedImage(null);
+                return;
+              }
+            } catch (e) {}
+            // 识别到内容但格式不匹配，也尝试处理
+            handleManualQRInput(code.data);
+            setSelectedImage(null);
+            return;
+          }
+          // jsQR 无法直接解析压缩图片，提示用户手动输入
+          showToast('未自动识别到二维码，请手动输入');
+        } catch (parseError) {
+          setImageProcessing(false);
+          showToast('自动识别失败，请手动输入二维码内容');
+        }
+      }, () => {
         setImageProcessing(false);
-      }, 1000);
+        showToast('自动识别失败，请手动输入二维码内容');
+      });
     } catch (error) {
       setImageProcessing(false);
-      showToast('识别失败，请重试');
+      showToast('读取图片失败，请手动输入');
     }
   };
 
@@ -9079,22 +9129,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
           {/* 手动输入 */}
           <View style={{ width: 56, alignItems: 'center' }}>
             <TouchableOpacity
-              onPress={() => {
-                Alert.alert(
-                  '手动输入',
-                  '请输入二维码内容（JSON格式）',
-                  [
-                    { text: '取消', style: 'cancel' },
-                    {
-                      text: '确定',
-                      onPress: () => {
-                        // 简化处理，让用户直接输入
-                        showToast('请长按二维码复制内容后粘贴');
-                      }
-                    }
-                  ]
-                );
-              }}
+              onPress={() => { setManualQRInput(''); setShowManualInput(true); }}
               style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="create-outline" size={24} color="#fff" />
             </TouchableOpacity>
@@ -9188,17 +9223,18 @@ const ScanQRCodeScreen = ({ navigation }) => {
                   <Text style={{ color: '#fff', fontSize: 14, marginLeft: 10 }}>正在识别二维码...</Text>
                 </View>
               )}
+              {!imageProcessing && (
+                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 16, textAlign: 'center' }}>
+                  若自动识别失败，请点击下方手动输入二维码内容
+                </Text>
+              )}
             </View>
 
             {/* 底部操作 */}
             <SafeAreaView>
               <View style={{ padding: 20 }}>
                 <TouchableOpacity
-                  onPress={() => {
-                    // 由于无法直接解析，提示用户手动输入
-                    setSelectedImage(null);
-                    showToast('请手动输入二维码内容');
-                  }}
+                  onPress={() => setShowManualInput(true)}
                   style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 }}>
                   <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>手动输入二维码内容</Text>
                 </TouchableOpacity>
@@ -9212,6 +9248,46 @@ const ScanQRCodeScreen = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
+      {/* 手动输入二维码内容弹窗 */}
+      <Modal visible={showManualInput} transparent animationType="fade" onRequestClose={() => setShowManualInput(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 }} onPress={() => setShowManualInput(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: '#fff', borderRadius: 16, width: '100%', padding: 22 }} onPress={() => {}}>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>手动输入二维码内容</Text>
+            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 12 }}>请输入二维码中的内容（如：{"{type:'merchant',phone:'...'}"}）</Text>
+            <TextInput
+              value={manualQRInput}
+              onChangeText={setManualQRInput}
+              placeholder='{"type":"merchant","phone":"...","name":"..."}'
+              placeholderTextColor="#ccc"
+              multiline
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{ minHeight: 80, borderWidth: 1, borderColor: BG_BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT_MAIN, textAlignVertical: 'top', marginBottom: 16 }}
+            />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => { setShowManualInput(false); setManualQRInput(''); }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#F0F0F0', alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!manualQRInput.trim()) { showToast('请输入内容'); return; }
+                  handleManualQRInput(manualQRInput.trim());
+                  if (scanResult) {
+                    setShowManualInput(false);
+                    setManualQRInput('');
+                    setSelectedImage(null);
+                  }
+                }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>确认</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
