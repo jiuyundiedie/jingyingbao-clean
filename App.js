@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3512,6 +3512,11 @@ const SettingDrawer = ({ visible, onClose }) => {
   const saveEmployeeDailyReportConfig = () => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
+    // 调度日报推送通知
+    if (dailyReportEnable) {
+      const [h, m] = workTimeStart.split(':');
+      scheduleDailyReportNotification(h, m);
+    }
     showToast('日报推送设置已保存');
     setShowTimePicker(false);
   };
@@ -3519,14 +3524,30 @@ const SettingDrawer = ({ visible, onClose }) => {
   const saveDailyReportConfig = () => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
+    // 调度日报推送通知
+    if (dailyReportEnable) {
+      const [h, m] = workTimeStart.split(':');
+      scheduleDailyReportNotification(h, m);
+    } else {
+      // 关闭日报推送
+      Notifications.cancelScheduledNotificationAsync('daily-report').catch(() => {});
+    }
     showToast('日报推送设置已保存');
     setShowTimePicker(false);
   };
 
   const toggleDailyReport = () => {
-    setDailyReportEnable(!dailyReportEnable);
-    dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: { enable: !dailyReportEnable, workTimeStart, workTimeEnd } });
-    showToast(!dailyReportEnable ? '日报推送已开启' : '日报推送已关闭');
+    const newEnable = !dailyReportEnable;
+    setDailyReportEnable(newEnable);
+    dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: { enable: newEnable, workTimeStart, workTimeEnd } });
+    // 调度或取消日报推送
+    if (newEnable) {
+      const [h, m] = workTimeStart.split(':');
+      scheduleDailyReportNotification(h, m);
+    } else {
+      Notifications.cancelScheduledNotificationAsync('daily-report').catch(() => {});
+    }
+    showToast(newEnable ? '日报推送已开启' : '日报推送已关闭');
   };
 
   const handleLogout = async () => {
@@ -8828,6 +8849,8 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [manualQRInput, setManualQRInput] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   const webViewRef = useRef(null);
+  const webViewReadyRef = useRef(false);
+  const pendingBase64Ref = useRef(null);
   const facingRef = useRef('back');
 
   const user = state.user || {};
@@ -8864,43 +8887,17 @@ const ScanQRCodeScreen = ({ navigation }) => {
       const base64Data = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      // 通过 WebView 中的 Canvas 解析二维码
-      // jsQR 需要 RGBA 像素数据，只有 Canvas 能从压缩图片中提取
-      if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(`
-          (function() {
-            var img = new Image();
-            img.onload = function() {
-              var canvas = document.getElementById('c');
-              var ctx = canvas.getContext('2d');
-              var maxSize = 1000;
-              var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-              canvas.width = Math.floor(img.width * scale);
-              canvas.height = Math.floor(img.height * scale);
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              function tryDecode() {
-                if (typeof jsQR === 'undefined') {
-                  setTimeout(tryDecode, 100);
-                  return;
-                }
-                var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-                if (code && code.data) {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
-                } else {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
-                }
-              }
-              tryDecode();
-            };
-            img.onerror = function() {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
-            };
-            img.src = 'data:image/jpeg;base64,' + '${base64Data}';
-          })();
-          true;
-        `);
+      // 保存 base64 到 ref，等待 WebView 加载完成后再处理
+      pendingBase64Ref.current = base64Data;
+      
+      if (webViewReadyRef.current && webViewRef.current) {
+        // WebView 已就绪，直接发送数据
+        webViewRef.current.postMessage(JSON.stringify({
+          action: 'decode',
+          base64: base64Data
+        }));
       }
+      // 如果 WebView 还没就绪，pendingBase64Ref 会在 onLoad 时被消费
     } catch (error) {
       setImageProcessing(false);
       showToast('读取图片失败');
@@ -9300,11 +9297,76 @@ const ScanQRCodeScreen = ({ navigation }) => {
             html: `<!DOCTYPE html>
             <html><head><meta charset="utf-8">
             <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-            </head><body><canvas id="c"></canvas></body></html>`,
+            </head><body>
+            <canvas id="c"></canvas>
+            <script>
+              // 等待 jsQR 加载完成后处理来自 React Native 的消息
+              function waitForJsQR(callback) {
+                if (typeof jsQR !== 'undefined') {
+                  callback();
+                } else {
+                  setTimeout(function() { waitForJsQR(callback); }, 100);
+                }
+              }
+              
+              function decodeBase64(base64) {
+                waitForJsQR(function() {
+                  var img = new Image();
+                  img.onload = function() {
+                    var canvas = document.getElementById('c');
+                    var ctx = canvas.getContext('2d');
+                    var maxSize = 1000;
+                    var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                    canvas.width = Math.floor(img.width * scale);
+                    canvas.height = Math.floor(img.height * scale);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                    if (code && code.data) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
+                    } else {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
+                    }
+                  };
+                  img.onerror = function() {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
+                  };
+                  img.src = 'data:image/png;base64,' + base64;
+                });
+              }
+              
+              // 监听 React Native 发来的消息
+              window.addEventListener('message', function(event) {
+                try {
+                  var data = JSON.parse(event.data);
+                  if (data.action === 'decode' && data.base64) {
+                    decodeBase64(data.base64);
+                  }
+                } catch(e) {}
+              });
+              
+              // 告诉 React Native 页面已就绪
+              window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'ready' }));
+            </script>
+            </body></html>`,
+          }}
+          onLoad={() => {
+            webViewReadyRef.current = true;
+            // 检查是否有待处理的图片
+            if (pendingBase64Ref.current && webViewRef.current) {
+              webViewRef.current.postMessage(JSON.stringify({
+                action: 'decode',
+                base64: pendingBase64Ref.current
+              }));
+              pendingBase64Ref.current = null;
+            }
           }}
           onMessage={(event) => {
             try {
               const result = JSON.parse(event.nativeEvent.data);
+              // 忽略 ready 消息
+              if (result.status === 'ready') return;
+              
               setImageProcessing(false);
               if (result.success && result.data) {
                 try {
@@ -9319,13 +9381,28 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 handleManualQRInput(result.data);
                 setSelectedImage(null);
               } else {
-                showToast('未识别到二维码，请确保图片清晰或手动输入');
+                showToast(result.error || '未识别到二维码，请确保图片清晰或手动输入');
               }
             } catch (e) {
-              setImageProcessing(false);
+              // 忽略非 JSON 消息
             }
           }}
+          injectedJavaScript={`
+            // 注入消息监听器（作为后备）
+            window.addEventListener('message', function(event) {
+              try {
+                var data = JSON.parse(event.data);
+                if (data.action === 'decode' && data.base64) {
+                  // 调用全局 decodeBase64 函数
+                  if (typeof decodeBase64 === 'function') {
+                    decodeBase64(data.base64);
+                  }
+                }
+              } catch(e) {}
+            });
+          `}
           javaScriptEnabled={true}
+          originWhitelist={['*']}
           style={{ width: 1, height: 1 }}
         />
       </View>
@@ -15174,6 +15251,35 @@ async function sendLocalNotification(title, body, data = {}) {
   }
 }
 
+// 调度每日日报推送通知
+async function scheduleDailyReportNotification(hour, minute) {
+  try {
+    // 先取消之前的日报通知
+    await Notifications.cancelScheduledNotificationAsync('daily-report');
+    
+    const [h, m] = [parseInt(hour), parseInt(minute)];
+    const trigger = {
+      hour: h,
+      minute: m,
+      repeats: true, // 每天重复
+    };
+    
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily-report',
+      content: {
+        title: '📊 经营宝日报',
+        body: '今日经营数据已生成，点击查看详情',
+        data: { screen: 'dailyReport' },
+        sound: 'default',
+      },
+      trigger,
+    });
+    console.log(`日报推送已设置为每天 ${hour}:${minute}`);
+  } catch (e) {
+    console.warn('设置日报推送失败', e);
+  }
+}
+
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [loading, setLoading] = useState(true);
@@ -15254,6 +15360,14 @@ export default function App() {
       if (finalStatus !== 'granted') {
         console.warn('通知权限未授予');
       }
+      
+      // App 启动时，如果已配置日报推送，则重新调度
+      if (state.dailyReportConfig?.enable && state.dailyReportConfig?.workTimeStart) {
+        const [h, m] = state.dailyReportConfig.workTimeStart.split(':');
+        if (h && m) {
+          scheduleDailyReportNotification(h, m);
+        }
+      }
     })();
 
     // 监听前台收到的通知
@@ -15272,6 +15386,8 @@ export default function App() {
           navigationRef.current.navigate('MainTabs', { screen: '客服' });
         } else if (data.screen === 'privateChat' && data.phone && data.name) {
           navigationRef.current.navigate('PrivateChat', { phone: data.phone, name: data.name });
+        } else if (data.screen === 'dailyReport') {
+          navigationRef.current.navigate('MainTabs', { screen: '首页' });
         }
       }
     });
