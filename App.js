@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -8887,17 +8887,14 @@ const ScanQRCodeScreen = ({ navigation }) => {
       const base64Data = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      // 保存 base64 到 ref，等待 WebView 加载完成后再处理
+      // 保存到 ref，等 WebView 就绪后处理
       pendingBase64Ref.current = base64Data;
       
       if (webViewReadyRef.current && webViewRef.current) {
-        // WebView 已就绪，直接发送数据
-        webViewRef.current.postMessage(JSON.stringify({
-          action: 'decode',
-          base64: base64Data
-        }));
+        // WebView 已就绪，直接用 injectJavaScript 调用 decodeBase64
+        // base64 只含 A-Za-z0-9+/= ，安全嵌入 JS 字符串
+        webViewRef.current.injectJavaScript(`decodeBase64('${base64Data}');true;`);
       }
-      // 如果 WebView 还没就绪，pendingBase64Ref 会在 onLoad 时被消费
     } catch (error) {
       setImageProcessing(false);
       showToast('读取图片失败');
@@ -9300,12 +9297,14 @@ const ScanQRCodeScreen = ({ navigation }) => {
             </head><body>
             <canvas id="c"></canvas>
             <script>
-              // 等待 jsQR 加载完成后处理来自 React Native 的消息
-              function waitForJsQR(callback) {
+              function waitForJsQR(callback, attempts) {
+                attempts = attempts || 0;
                 if (typeof jsQR !== 'undefined') {
                   callback();
+                } else if (attempts < 50) {
+                  setTimeout(function() { waitForJsQR(callback, attempts + 1); }, 100);
                 } else {
-                  setTimeout(function() { waitForJsQR(callback); }, 100);
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: 'jsQR加载超时' }));
                 }
               }
               
@@ -9313,19 +9312,23 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 waitForJsQR(function() {
                   var img = new Image();
                   img.onload = function() {
-                    var canvas = document.getElementById('c');
-                    var ctx = canvas.getContext('2d');
-                    var maxSize = 1000;
-                    var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-                    canvas.width = Math.floor(img.width * scale);
-                    canvas.height = Math.floor(img.height * scale);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-                    if (code && code.data) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
-                    } else {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
+                    try {
+                      var canvas = document.getElementById('c');
+                      var ctx = canvas.getContext('2d');
+                      var maxSize = 1000;
+                      var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                      canvas.width = Math.floor(img.width * scale);
+                      canvas.height = Math.floor(img.height * scale);
+                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                      var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                      if (code && code.data) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
+                      } else {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
+                      }
+                    } catch(e) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析异常:' + e.message }));
                     }
                   };
                   img.onerror = function() {
@@ -9334,16 +9337,6 @@ const ScanQRCodeScreen = ({ navigation }) => {
                   img.src = 'data:image/png;base64,' + base64;
                 });
               }
-              
-              // 监听 React Native 发来的消息
-              window.addEventListener('message', function(event) {
-                try {
-                  var data = JSON.parse(event.data);
-                  if (data.action === 'decode' && data.base64) {
-                    decodeBase64(data.base64);
-                  }
-                } catch(e) {}
-              });
               
               // 告诉 React Native 页面已就绪
               window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'ready' }));
@@ -9354,17 +9347,14 @@ const ScanQRCodeScreen = ({ navigation }) => {
             webViewReadyRef.current = true;
             // 检查是否有待处理的图片
             if (pendingBase64Ref.current && webViewRef.current) {
-              webViewRef.current.postMessage(JSON.stringify({
-                action: 'decode',
-                base64: pendingBase64Ref.current
-              }));
+              const b64 = pendingBase64Ref.current;
               pendingBase64Ref.current = null;
+              webViewRef.current.injectJavaScript(`decodeBase64('${b64}');true;`);
             }
           }}
           onMessage={(event) => {
             try {
               const result = JSON.parse(event.nativeEvent.data);
-              // 忽略 ready 消息
               if (result.status === 'ready') return;
               
               setImageProcessing(false);
@@ -9383,24 +9373,8 @@ const ScanQRCodeScreen = ({ navigation }) => {
               } else {
                 showToast(result.error || '未识别到二维码，请确保图片清晰或手动输入');
               }
-            } catch (e) {
-              // 忽略非 JSON 消息
-            }
+            } catch (e) {}
           }}
-          injectedJavaScript={`
-            // 注入消息监听器（作为后备）
-            window.addEventListener('message', function(event) {
-              try {
-                var data = JSON.parse(event.data);
-                if (data.action === 'decode' && data.base64) {
-                  // 调用全局 decodeBase64 函数
-                  if (typeof decodeBase64 === 'function') {
-                    decodeBase64(data.base64);
-                  }
-                }
-              } catch(e) {}
-            });
-          `}
           javaScriptEnabled={true}
           originWhitelist={['*']}
           style={{ width: 1, height: 1 }}
@@ -15254,15 +15228,26 @@ async function sendLocalNotification(title, body, data = {}) {
 // 调度每日日报推送通知
 async function scheduleDailyReportNotification(hour, minute) {
   try {
-    // 先取消之前的日报通知
-    await Notifications.cancelScheduledNotificationAsync('daily-report');
+    // 先取消所有已调度的通知（避免重复）
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+    } catch (e) {
+      console.warn('取消旧通知失败(忽略)', e);
+    }
     
-    const [h, m] = [parseInt(hour), parseInt(minute)];
-    const trigger = {
-      hour: h,
-      minute: m,
-      repeats: true, // 每天重复
-    };
+    const h = parseInt(hour);
+    const m = parseInt(minute);
+    
+    // 计算下一个触发时间
+    const now = new Date();
+    const triggerDate = new Date();
+    triggerDate.setHours(h, m, 0, 0);
+    // 如果今天的时间已过，设为明天
+    if (triggerDate <= now) {
+      triggerDate.setDate(triggerDate.getDate() + 1);
+    }
+    
+    console.log(`日报推送：设置每天 ${h}:${m}，下次触发: ${triggerDate.toLocaleString()}`);
     
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily-report',
@@ -15272,9 +15257,10 @@ async function scheduleDailyReportNotification(hour, minute) {
         data: { screen: 'dailyReport' },
         sound: 'default',
       },
-      trigger,
+      trigger: triggerDate,
     });
-    console.log(`日报推送已设置为每天 ${hour}:${minute}`);
+    
+    console.log('日报推送调度成功');
   } catch (e) {
     console.warn('设置日报推送失败', e);
   }
@@ -15455,6 +15441,44 @@ export default function App() {
   useEffect(() => {
     if (!loading) { saveAllData(state); }
   }, [state, loading]);
+
+  // ===== 日报推送定时检查（前台时每分钟检查时间）=====
+  const lastDailyReportKey = useRef('');
+  useEffect(() => {
+    if (!state.user || loading) return;
+    if (!state.dailyReportConfig?.enable) return;
+    
+    const checkDailyReport = () => {
+      const now = new Date();
+      const configTime = state.dailyReportConfig?.workTimeStart || '09:00';
+      const [h, m] = configTime.split(':').map(s => parseInt(s.trim()));
+      
+      // 用日期+时间作为唯一 key，确保每天只推送一次
+      const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
+      if (lastDailyReportKey.current === todayKey) return; // 今天已推送过
+      
+      if (now.getHours() === h && now.getMinutes() === m) {
+        lastDailyReportKey.current = todayKey;
+        // 立即发送日报通知
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: '📊 经营宝日报',
+            body: `今日经营数据已生成，点击查看详情`,
+            data: { screen: 'dailyReport' },
+            sound: 'default',
+          },
+          trigger: null, // 立即发送
+        }).catch(e => console.warn('日报通知发送失败', e));
+        console.log('日报推送已发送');
+      }
+    };
+    
+    // 立即检查一次（防止启动时刚好到时间）
+    checkDailyReport();
+    // 每分钟检查
+    const interval = setInterval(checkDailyReport, 60000);
+    return () => clearInterval(interval);
+  }, [state.user, state.dailyReportConfig, loading]);
 
   // 监听新消息，在后台时发送系统通知
   const lastMsgCountRef = useRef({ group: 0, private: 0, customer: 0 });
