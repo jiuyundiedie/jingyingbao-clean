@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3524,13 +3524,21 @@ const SettingDrawer = ({ visible, onClose }) => {
   const saveDailyReportConfig = () => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
-    // 调度日报推送通知
     if (dailyReportEnable) {
       const [h, m] = workTimeStart.split(':');
       scheduleDailyReportNotification(h, m);
+      // 10秒后发送测试通知，让用户验证通知是否正常
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: '📊 日报推送测试',
+          body: `日报推送已设置为每天 ${workTimeStart}，这是一条测试通知`,
+          data: { screen: 'dailyReport' },
+          sound: 'default',
+        },
+        trigger: { seconds: 10 },
+      }).catch(() => {});
     } else {
-      // 关闭日报推送
-      Notifications.cancelScheduledNotificationAsync('daily-report').catch(() => {});
+      Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
     showToast('日报推送设置已保存');
     setShowTimePicker(false);
@@ -3540,12 +3548,11 @@ const SettingDrawer = ({ visible, onClose }) => {
     const newEnable = !dailyReportEnable;
     setDailyReportEnable(newEnable);
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: { enable: newEnable, workTimeStart, workTimeEnd } });
-    // 调度或取消日报推送
     if (newEnable) {
       const [h, m] = workTimeStart.split(':');
       scheduleDailyReportNotification(h, m);
     } else {
-      Notifications.cancelScheduledNotificationAsync('daily-report').catch(() => {});
+      Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
     showToast(newEnable ? '日报推送已开启' : '日报推送已关闭');
   };
@@ -9287,7 +9294,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
       </Modal>
 
       {/* 隐藏的 WebView 用于解析图片中的二维码 */}
-      <View style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}>
+      <View style={{ position: 'absolute', left: -2000, top: 0, width: 600, height: 600 }}>
         <WebView
           ref={webViewRef}
           source={{
@@ -9295,13 +9302,13 @@ const ScanQRCodeScreen = ({ navigation }) => {
             <html><head><meta charset="utf-8">
             <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
             </head><body>
-            <canvas id="c"></canvas>
+            <canvas id="c" width="1000" height="1000"></canvas>
             <script>
               function waitForJsQR(callback, attempts) {
                 attempts = attempts || 0;
                 if (typeof jsQR !== 'undefined') {
                   callback();
-                } else if (attempts < 50) {
+                } else if (attempts < 80) {
                   setTimeout(function() { waitForJsQR(callback, attempts + 1); }, 100);
                 } else {
                   window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: 'jsQR加载超时' }));
@@ -9310,42 +9317,45 @@ const ScanQRCodeScreen = ({ navigation }) => {
               
               function decodeBase64(base64) {
                 waitForJsQR(function() {
-                  var img = new Image();
-                  img.onload = function() {
-                    try {
-                      var canvas = document.getElementById('c');
-                      var ctx = canvas.getContext('2d');
-                      var maxSize = 1000;
-                      var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-                      canvas.width = Math.floor(img.width * scale);
-                      canvas.height = Math.floor(img.height * scale);
-                      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                      var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                      var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-                      if (code && code.data) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
-                      } else {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码' }));
+                  try {
+                    var img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = function() {
+                      try {
+                        var canvas = document.getElementById('c');
+                        var ctx = canvas.getContext('2d');
+                        var maxSize = 1000;
+                        var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                        canvas.width = Math.floor(img.width * scale);
+                        canvas.height = Math.floor(img.height * scale);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                        if (code && code.data) {
+                          window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
+                        } else {
+                          window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码，请确保图片清晰' }));
+                        }
+                      } catch(e) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析异常' }));
                       }
-                    } catch(e) {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析异常:' + e.message }));
-                    }
-                  };
-                  img.onerror = function() {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
-                  };
-                  img.src = 'data:image/png;base64,' + base64;
+                    };
+                    img.onerror = function() {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
+                    };
+                    img.src = 'data:image/png;base64,' + base64;
+                  } catch(e) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析失败' }));
+                  }
                 });
               }
               
-              // 告诉 React Native 页面已就绪
               window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'ready' }));
             </script>
             </body></html>`,
           }}
           onLoad={() => {
             webViewReadyRef.current = true;
-            // 检查是否有待处理的图片
             if (pendingBase64Ref.current && webViewRef.current) {
               const b64 = pendingBase64Ref.current;
               pendingBase64Ref.current = null;
@@ -9377,7 +9387,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
           }}
           javaScriptEnabled={true}
           originWhitelist={['*']}
-          style={{ width: 1, height: 1 }}
+          style={{ width: 600, height: 600 }}
         />
       </View>
     </View>
@@ -10463,7 +10473,10 @@ const MerchantAssistant = () => {
   const isImageGenRequest = (text) => {
     // 广告语/文字类内容不触发图片生成
     if (/广告语|文案|宣传语|标语|口号|广告词/.test(text)) return false;
-    return /海报|图片|设计|封面|宣传图|画一张|生成图|制作图|配图/.test(text);
+    // 业务方案类不触发
+    if (/方案|设计|计划|规划|策略|流程/.test(text)) return false;
+    // 只有明确要求生成图片时才触发
+    return /海报|图片|画一张|生成图|制作图|配图|宣传图|封面设计|海报设计|做一张图|来一张图|出一张图/.test(text);
   };
 
   // 检测是否是日报/周报/月报
@@ -15228,7 +15241,6 @@ async function sendLocalNotification(title, body, data = {}) {
 // 调度每日日报推送通知
 async function scheduleDailyReportNotification(hour, minute) {
   try {
-    // 先取消所有已调度的通知（避免重复）
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
     } catch (e) {
@@ -15238,17 +15250,9 @@ async function scheduleDailyReportNotification(hour, minute) {
     const h = parseInt(hour);
     const m = parseInt(minute);
     
-    // 计算下一个触发时间
-    const now = new Date();
-    const triggerDate = new Date();
-    triggerDate.setHours(h, m, 0, 0);
-    // 如果今天的时间已过，设为明天
-    if (triggerDate <= now) {
-      triggerDate.setDate(triggerDate.getDate() + 1);
-    }
+    console.log(`日报推送：设置每天 ${h}:${m}`);
     
-    console.log(`日报推送：设置每天 ${h}:${m}，下次触发: ${triggerDate.toLocaleString()}`);
-    
+    // 用 DailyTriggerInput 格式，每天重复
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily-report',
       content: {
@@ -15257,7 +15261,11 @@ async function scheduleDailyReportNotification(hour, minute) {
         data: { screen: 'dailyReport' },
         sound: 'default',
       },
-      trigger: triggerDate,
+      trigger: {
+        hour: h,
+        minute: m,
+        repeats: true,
+      },
     });
     
     console.log('日报推送调度成功');
