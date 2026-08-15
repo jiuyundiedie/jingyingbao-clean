@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -121,20 +121,27 @@ const INDUSTRY_LIST = ['餐饮类', '服务类', '企业类', '零售类', '教�
 
 // 关键词映射表（用于从店名自动识别行业类型）
 const INDUSTRY_KEYWORDS = {
-  '数码电子类': ['手机','数码','电子','电脑','笔记本','平板','相机','摄像头','耳机','音响','智能','配件','华为','苹果','小米','OPPO','vivo','荣耀','三星','iPhone','安卓','充电宝','数据线','充电器','科技','通讯','5G','营业厅','家电维修','手机店','电脑城','数码城','旗舰店','大疆','联想','华硕','惠普','戴尔','游戏机','PS5','Switch','VR','智能手表','手环'],
+  '数码电子类': ['手机','数码','电子','电脑','笔记本','平板','相机','摄像头','耳机','音响','配件','华为','苹果','小米','OPPO','vivo','荣耀','三星','iPhone','安卓','充电宝','数据线','充电器','通讯','5G','营业厅','家电维修','手机店','电脑城','数码城','旗舰店','大疆','联想','华硕','惠普','戴尔','游戏机','PS5','Switch','VR','智能手表','手环','维修'],
   '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','牛排'],
   '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','会所','宠物','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家'],
-  '企业类': ['公司','企业','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','平台','策划','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储'],
+  '企业类': ['公司','企业','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','平台','策划','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储','科技','智能','技术','信息','数据'],
   '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品','零食店','水果店','生鲜'],
   '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','幼儿园','小学','中学','大学','辅导班','培训班'],
   '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','医美','整形','牙科','体检中心','康复'],
   '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','自媒体']
 };
 
+// 通用/需排除的关键词（同时在多个行业出现，不应单独作为判定依据）
+const GENERIC_KEYWORDS = ['科技', '智能', '电子', '设计', '开发', '软件', '网络', '平台', '数据'];
+
 // 统一的行业识别函数：从店名智能识别行业类型
 const detectIndustryFromName = (name) => {
   if (!name) return '餐饮类';
   const lowerName = String(name).toLowerCase();
+  
+  // 公司后缀优先判定为企业类
+  const companySuffixes = ['公司', '有限', '集团', '股份', '责任', '合伙企业'];
+  const hasCompanySuffix = companySuffixes.some(s => lowerName.includes(s.toLowerCase()));
   
   // 计算每个行业的关键词匹配数量
   const scores = {};
@@ -142,10 +149,20 @@ const detectIndustryFromName = (name) => {
     let score = 0;
     for (const kw of keywords) {
       if (lowerName.includes(kw.toLowerCase())) {
-        score += kw.length; // 长关键词权重更高
+        // 通用关键词只在有其他明确关键词时才计分
+        if (GENERIC_KEYWORDS.includes(kw)) {
+          score += 0.5; // 通用关键词权重减半
+        } else {
+          score += kw.length; // 长关键词权重更高
+        }
       }
     }
     scores[industry] = score;
+  }
+  
+  // 如果有公司后缀，给企业类额外加分
+  if (hasCompanySuffix) {
+    scores['企业类'] = (scores['企业类'] || 0) + 3;
   }
   
   // 选择得分最高的行业
@@ -158,7 +175,6 @@ const detectIndustryFromName = (name) => {
     }
   }
   
-  // 如果没有匹配到任何关键词，默认餐饮类
   return bestScore > 0 ? bestIndustry : '餐饮类';
 };
 
@@ -449,6 +465,39 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   } catch (err) {
     throw err;
   }
+}
+
+// 本地 fallback 回复生成器（当 AI 服务不可用时使用）
+function generateLocalReply(userText, industry, allData) {
+  const text = userText || '';
+  const data = allData || {};
+  
+  if (/日报|周报|月报|报告/.test(text)) {
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('zh-CN');
+    return `📊 ${dateStr} 经营简报（离线模式）\n\n` +
+      `💰 今日营收：¥${data.todayRevenue || 0}\n` +
+      `📦 今日订单：${data.todayOrders || 0} 单\n` +
+      `📈 本月营收：¥${data.monthRevenue || 0}\n` +
+      `👥 在职员工：${data.staffCount || 0} 人\n` +
+      `⚠️ 差评数：${data.badReviewCount || 0}\n\n` +
+      `💡 AI服务当前不可用，以上为本地数据汇总。请检查网络连接后获取AI深度分析。`;
+  }
+  
+  if (/营收|收入|营业额|流水/.test(text)) {
+    return `根据本地数据，今日营收 ¥${data.todayRevenue || 0}，本月营收 ¥${data.monthRevenue || 0}。\n\n💡 AI分析服务当前不可用，无法提供深度对比分析。请检查网络后重试。`;
+  }
+  
+  if (/订单|销量|销售/.test(text)) {
+    return `今日共 ${data.todayOrders || 0} 笔订单，本月共 ${data.monthOrders || 0} 笔。\n\n💡 AI服务暂不可用，更多分析请检查网络后重试。`;
+  }
+  
+  if (/库存|进货|补货/.test(text)) {
+    return `当前商品总数 ${data.totalGoods || 0}，总库存 ${data.totalStock || 0}。\n${(data.lowStockItems?.length ? '⚠️ 库存不足商品：' + data.lowStockItems.join('、') : '✅ 暂无库存预警')}\n\n💡 AI服务暂不可用，智能补货建议请检查网络后重试。`;
+  }
+  
+  // 默认回复
+  return `您好！我是经营宝AI助手。\n\n当前AI服务连接超时，我已记录您的问题："${text}"\n\n请检查网络连接后重试，或尝试以下操作：\n1. 切换网络（WiFi/4G/5G）\n2. 稍后再试\n3. 查看经营数据请直接点击首页数据卡片`;
 }
 
 async function fetchZhipuChat(msgList, prompt, signal) {
@@ -8888,23 +8937,46 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  // 从图片解析二维码（使用 WebView+Canvas 获取像素数据）
+  // 从图片解析二维码（压缩+分块传输到WebView）
   const parseQRFromImage = async (imageUri) => {
     try {
-      const base64Data = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      // 保存到 ref，等 WebView 就绪后处理
+      setImageProcessing(true);
+      // 步骤1: 压缩图片到最大800px，减少base64体积
+      const manipulated = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: { width: 800 } }],
+        { base64: true, format: 'png' }
+      );
+      
+      if (!manipulated.base64) {
+        setImageProcessing(false);
+        showToast('图片处理失败');
+        return;
+      }
+      
+      const base64Data = manipulated.base64;
       pendingBase64Ref.current = base64Data;
       
       if (webViewReadyRef.current && webViewRef.current) {
-        // WebView 已就绪，直接用 injectJavaScript 调用 decodeBase64
-        // base64 只含 A-Za-z0-9+/= ，安全嵌入 JS 字符串
-        webViewRef.current.injectJavaScript(`decodeBase64('${base64Data}');true;`);
+        // 用 postMessage 分块传输，避免 injectJavaScript 大小限制
+        const chunkSize = 5000;
+        const chunks = [];
+        for (let i = 0; i < base64Data.length; i += chunkSize) {
+          chunks.push(base64Data.substring(i, i + chunkSize));
+        }
+        // 发送开始信号
+        webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
+        // 依次发送各块
+        for (let i = 0; i < chunks.length; i++) {
+          webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
+        }
+        // 发送完成信号
+        webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
       }
     } catch (error) {
+      console.error('parseQRFromImage error:', error);
       setImageProcessing(false);
-      showToast('读取图片失败');
+      showToast('图片解析失败，请手动输入');
     }
   };
 
@@ -9304,11 +9376,14 @@ const ScanQRCodeScreen = ({ navigation }) => {
             </head><body>
             <canvas id="c" width="1000" height="1000"></canvas>
             <script>
+              var _chunks = [];
+              var _totalChunks = 0;
+              
               function waitForJsQR(callback, attempts) {
                 attempts = attempts || 0;
                 if (typeof jsQR !== 'undefined') {
                   callback();
-                } else if (attempts < 80) {
+                } else if (attempts < 100) {
                   setTimeout(function() { waitForJsQR(callback, attempts + 1); }, 100);
                 } else {
                   window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: 'jsQR加载超时' }));
@@ -9319,7 +9394,6 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 waitForJsQR(function() {
                   try {
                     var img = new Image();
-                    img.crossOrigin = 'anonymous';
                     img.onload = function() {
                       try {
                         var canvas = document.getElementById('c');
@@ -9350,6 +9424,25 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 });
               }
               
+              // 分块消息处理
+              window.addEventListener('message', function(event) {
+                try {
+                  var data = JSON.parse(event.data);
+                  if (data.action === 'chunkStart') {
+                    _chunks = [];
+                    _totalChunks = data.totalChunks;
+                  } else if (data.action === 'chunk') {
+                    _chunks[data.index] = data.data;
+                  } else if (data.action === 'chunkEnd') {
+                    // 合并所有块并解码
+                    var fullBase64 = _chunks.join('');
+                    decodeBase64(fullBase64);
+                    _chunks = [];
+                    _totalChunks = 0;
+                  }
+                } catch(e) {}
+              });
+              
               window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'ready' }));
             </script>
             </body></html>`,
@@ -9359,7 +9452,17 @@ const ScanQRCodeScreen = ({ navigation }) => {
             if (pendingBase64Ref.current && webViewRef.current) {
               const b64 = pendingBase64Ref.current;
               pendingBase64Ref.current = null;
-              webViewRef.current.injectJavaScript(`decodeBase64('${b64}');true;`);
+              // 用分块方式发送待处理的数据
+              const chunkSize = 5000;
+              const chunks = [];
+              for (let i = 0; i < b64.length; i += chunkSize) {
+                chunks.push(b64.substring(i, i + chunkSize));
+              }
+              webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
+              for (let i = 0; i < chunks.length; i++) {
+                webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
+              }
+              webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
             }
           }}
           onMessage={(event) => {
@@ -9982,78 +10085,16 @@ const MerchantAssistant = () => {
   };
 
   const getQuickReplies = () => {
-    const name = (shopName || '').toLowerCase();
+    const currentIndustry = industry || detectIndustryFromName(shopName);
     
-    // 根据店铺名称细分行业类型
-    const isPhone = ['手机', '数码', '通讯', '手机店', '数码店', '3C'].some(k => name.includes(k));
-    const isBeauty = ['美容', '美发', '美甲', '美体', 'SPA', '美容院', '美发店', '理发店'].some(k => name.includes(k));
-    const isFood = ['餐', '饭', '小吃', '饮', '茶', '咖啡', '面', '火锅', '烧烤', '小吃店', '餐厅', '饭店'].some(k => name.includes(k));
-    const isFitness = ['健身', '瑜伽', '运动', '健身房', '健身俱乐部'].some(k => name.includes(k));
-    const isMedical = ['医', '药', '诊所', '医院', '牙科', '眼科'].some(k => name.includes(k));
-    const isHome = ['家政', '保洁', '家电', '维修', '搬家'].some(k => name.includes(k));
-    const isClothing = ['服装', '服饰', '男装', '女装', '童装', '鞋'].some(k => name.includes(k));
-    const isEducation = ['教育', '培训', '课程', '学习', '驾校'].some(k => name.includes(k));
-    
-    if (isPhone) {
-      return {
-        '经营数据': ['今日手机销量统计', '热门机型库存查询', '配件销售占比分析', '本月维修服务量'],
-        '营销推广': ['新品上市宣传文案', '以旧换新活动方案', '手机维修推广话术', '配件组合促销'],
-        '运营管理': ['员工销售提成方案', '库存周转优化', '进货补货建议', '售后服务流程'],
-        '分类经营': ['iPhone销售话术', '安卓机型对比卖点', '贴膜维修报价表', '二手回收定价', '分期方案设计', '延保服务推广'],
-      };
-    } else if (isBeauty) {
-      return {
-        '经营数据': ['今日服务订单统计', '热门项目销量', '客户复购率分析', '本月业绩目标'],
-        '营销推广': ['新店开业宣传文案', '会员卡推广方案', '朋友圈美容文案', '节日促销海报'],
-        '运营管理': ['技师排班表', '美容师绩效考核', '客户回访话术', '用品库存管理'],
-        '分类经营': ['面部护理话术', '烫发染发推荐', '美甲款式推荐', 'SPA套餐设计', '会员权益说明', '老客邀约方案'],
-      };
-    } else if (isFood) {
-      return {
-        '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
-        '营销推广': ['招牌菜推荐文案', '开业活动方案', '美团运营', '短视频美食脚本'],
-        '运营管理': ['翻台率提升技巧', '食材采购建议', '后厨卫生管理', '员工培训方案'],
-        '分类经营': ['奶茶店选址建议', '小吃配方优化', '套餐组合设计', '会员积分体系', '生日优惠方案', '外卖满减策略'],
-      };
-    } else if (isFitness) {
-      return {
-        '经营数据': ['今日入店人数', '会员到期提醒', '课程满意度', '器械使用率'],
-        '营销推广': ['年卡优惠方案', '私教课程推广', '朋友圈健身文案', '新店开业宣传'],
-        '运营管理': ['教练排班表', '课程安排优化', '器械维护计划', '会员管理系统'],
-        '分类经营': ['私教课程定价', '团课排期设计', '暑期卡方案', '情侣健身套餐', '减脂营推广', '康复训练项目'],
-      };
-    } else if (isMedical) {
-      return {
-        '经营数据': ['今日接诊统计', '病种分布分析', '患者满意度', '复诊率统计'],
-        '营销推广': ['健康讲座宣传', '体检套餐推广', '公众号文案', '科普内容创作'],
-        '运营管理': ['医生排班表', '药品库存管理', '预约系统优化', '病例管理规范'],
-        '分类经营': ['口腔保健套餐', '体检项目推荐', '康复理疗方案', '心理咨询服务', '中医调理课程', '亲子体检包'],
-      };
-    } else if (isHome) {
-      return {
-        '经营数据': ['今日工单统计', '客户满意度', '服务区域分析', '利润率分析'],
-        '营销推广': ['家政服务宣传', '保洁套餐推广', '家电维修文案', '朋友圈引流'],
-        '运营管理': ['阿姨排班表', '服务标准流程', '客户回访', '用品采购管理'],
-        '分类经营': ['深度清洁套餐', '空调清洗报价', '开荒保洁方案', '月嫂服务推广', '水管维修话术', '家电保养建议'],
-      };
-    } else if (isClothing) {
-      return {
-        '经营数据': ['今日销售统计', '库存周转率', '滞销款式分析', '季节款占比'],
-        '营销推广': ['新品上架文案', '换季清仓方案', '穿搭推荐话术', '直播间脚本'],
-        '运营管理': ['导购员排班', '库存盘点流程', '补货建议', '陈列设计方案'],
-        '分类经营': ['夏装促销方案', '会员折扣设计', '搭配推荐话术', '尺码调整政策', '退换货流程', 'VIP专属权益'],
-      };
-    } else if (isEducation) {
-      return {
-        '经营数据': ['今日报名统计', '课程满意度', '续费率分析', '出勤率统计'],
-        '营销推广': ['暑期班宣传', '体验课方案', '家长沟通话术', '朋友圈招生'],
-        '运营管理': ['教师排班表', '课程大纲设计', '学员管理系统', '教学质量监控'],
-        '分类经营': ['一对一辅导方案', '小班课推广', '竞赛冲刺课程', '暑假集训营', '亲子教育讲座', '在线课程设计'],
-      };
-    }
-    
-    // 根据大行业类型提供通用话术
-    switch (industry) {
+    switch (currentIndustry) {
+      case '企业类':
+        return {
+          '经营数据': ['今日销售业绩', '本月营收完成度', '客户转化率分析', '库存周转率'],
+          '营销推广': ['促销活动策划', '企业宣传文案', '品牌升级方案', '短视频营销'],
+          '运营管理': ['团队效率提升', '绩效考核体系', '项目管理流程', '招聘计划'],
+          '分类经营': ['库存管理优化', '批发客户开发', '供应链管理', '成本控制方案', '产品迭代计划', '渠道拓展策略'],
+        };
       case '餐饮类':
         return {
           '经营数据': ['今日营收统计', '热销菜品排行', '外卖订单分析', '本周客流趋势'],
@@ -10067,13 +10108,6 @@ const MerchantAssistant = () => {
           '营销推广': ['服务推广话术', '会员储值活动', '引流方案设计', '朋友圈文案'],
           '运营管理': ['客户满意度提升', '员工排班管理', '绩效考核方案', '服务流程优化'],
           '分类经营': ['会员权益设计', '体验活动方案', '老客回访计划', '增值服务推荐', '合作渠道开发', '品牌故事撰写'],
-        };
-      case '企业类':
-        return {
-          '经营数据': ['今日销售业绩', '本月营收完成度', '客户转化率分析', '库存周转率'],
-          '营销推广': ['促销活动策划', '企业宣传文案', '品牌升级方案', '短视频营销'],
-          '运营管理': ['团队效率提升', '绩效考核体系', '项目管理流程', '招聘计划'],
-          '分类经营': ['库存管理优化', '批发客户开发', '供应链管理', '成本控制方案', '产品迭代计划', '渠道拓展策略'],
         };
       case '零售类':
         return {
@@ -10640,6 +10674,10 @@ ${businessContext}
 - 用"您"称呼商家，语气专业又亲切
 - 重点加粗、分点清晰、用数字和百分比说话`;
         reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
+        // 如果AI服务返回错误信息，使用本地fallback
+        if (reply && (reply.includes('连接失败') || reply.includes('超时') || reply.includes('未配置') || reply.includes('不可用'))) {
+          reply = generateLocalReply(text, industry, allData);
+        }
       }
       if (AbortControllerRef.current?.signal.aborted) {
         setLoading(false);
