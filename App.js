@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -3551,10 +3551,19 @@ const SettingDrawer = ({ visible, onClose }) => {
     const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
     dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
-    // 保存到 AsyncStorage，确保 AI 助手等其他组件能读取最新数据
+    // 立即保存到 AsyncStorage，确保下次加载能读取到最新数据
     try {
       await AsyncStorage.setItem('shopInfo', JSON.stringify(updatedShopInfo));
-    } catch (e) {}
+      // 立即同步保存 appData，防止重启后回退
+      const currentDataStr = await AsyncStorage.getItem('appData');
+      if (currentDataStr) {
+        const currentData = JSON.parse(currentDataStr);
+        currentData.shopInfo = updatedShopInfo;
+        await AsyncStorage.setItem('appData', JSON.stringify(currentData));
+      }
+    } catch (e) {
+      console.warn('保存失败', e);
+    }
     showToast(`门店信息已保存，类型：${industry}`);
   };
 
@@ -8937,11 +8946,11 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  // 从图片解析二维码（压缩+分块传输到WebView）
+  // 从图片解析二维码（压缩+顺序分块传输到WebView）
   const parseQRFromImage = async (imageUri) => {
     try {
       setImageProcessing(true);
-      // 步骤1: 压缩图片到最大800px，减少base64体积
+      // 步骤1: 压缩图片到最大800px
       const manipulated = await ImageManipulator.manipulateAsync(
         imageUri,
         [{ resize: { width: 800 } }],
@@ -8958,20 +8967,36 @@ const ScanQRCodeScreen = ({ navigation }) => {
       pendingBase64Ref.current = base64Data;
       
       if (webViewReadyRef.current && webViewRef.current) {
-        // 用 postMessage 分块传输，避免 injectJavaScript 大小限制
-        const chunkSize = 5000;
+        // 顺序分块传输，每块之间加延迟确保WebView能按顺序处理
+        const chunkSize = 3000;
         const chunks = [];
         for (let i = 0; i < base64Data.length; i += chunkSize) {
           chunks.push(base64Data.substring(i, i + chunkSize));
         }
-        // 发送开始信号
-        webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
-        // 依次发送各块
-        for (let i = 0; i < chunks.length; i++) {
-          webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
-        }
-        // 发送完成信号
-        webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
+        
+        const sendChunksSequentially = async () => {
+          try {
+            webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
+            // 顺序发送，每块之间加50ms延迟
+            for (let i = 0; i < chunks.length; i++) {
+              await new Promise(resolve => setTimeout(resolve, 50));
+              webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+            webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
+          } catch (e) {
+            setImageProcessing(false);
+            showToast('识别失败，请手动输入');
+          }
+        };
+        
+        sendChunksSequentially();
+        
+        // 10秒超时保护
+        setTimeout(() => {
+          setImageProcessing(false);
+          showToast('识别超时，请点击手动输入');
+        }, 10000);
       }
     } catch (error) {
       console.error('parseQRFromImage error:', error);
@@ -9447,21 +9472,23 @@ const ScanQRCodeScreen = ({ navigation }) => {
             </script>
             </body></html>`,
           }}
-          onLoad={() => {
+          onLoad={async () => {
             webViewReadyRef.current = true;
             if (pendingBase64Ref.current && webViewRef.current) {
               const b64 = pendingBase64Ref.current;
               pendingBase64Ref.current = null;
-              // 用分块方式发送待处理的数据
-              const chunkSize = 5000;
+              // 顺序分块发送待处理的数据（带延迟）
+              const chunkSize = 3000;
               const chunks = [];
               for (let i = 0; i < b64.length; i += chunkSize) {
                 chunks.push(b64.substring(i, i + chunkSize));
               }
               webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
               for (let i = 0; i < chunks.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 50));
                 webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
               }
+              await new Promise(resolve => setTimeout(resolve, 100));
               webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
             }
           }}
@@ -9490,7 +9517,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
           }}
           javaScriptEnabled={true}
           originWhitelist={['*']}
-          style={{ width: 600, height: 600 }}
+          style={{ width: 1, height: 1 }}
         />
       </View>
     </View>
@@ -10157,12 +10184,18 @@ const MerchantAssistant = () => {
   // 使用useMemo确保快捷短语响应行业变化
   const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
-  // 使用ref记录上一次的行业和店名，任一个变化都更新欢迎语
+  // 使用ref记录上一次的行业和店名，防止重复生成欢迎语
   const prevIndustry = useRef(industry);
   const prevShopNameRef = useRef(shopName);
+  const mountedRef = useRef(true);
   
   useEffect(() => {
-    // 只有当行业和店名都没变化时才跳过（防止重复生成）
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  
+  useEffect(() => {
+    // 防止循环：如果行业和店名都没变，跳过
     if (prevIndustry.current === industry && prevShopNameRef.current === shopName && messages.length > 0) {
       return;
     }
@@ -10171,66 +10204,52 @@ const MerchantAssistant = () => {
     prevIndustry.current = industry;
     prevShopNameRef.current = shopName;
     
+    // 辅助函数：安全派发
+    const safeDispatch = (action) => {
+      if (mountedRef.current) {
+        dispatch(action);
+      }
+    };
+    
     if (industry !== '待识别') {
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-      dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+      safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     } else if (shopName) {
-      AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
-        if (storedShopInfo) {
-          try {
-            const parsed = JSON.parse(storedShopInfo);
-            if (parsed.industry && parsed.industry !== '待识别') {
-              prevIndustry.current = parsed.industry;
-              prevShopNameRef.current = shopName;
-              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: parsed.industry } });
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${parsed.industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-              return;
-            }
-          } catch (e) {}
-        }
-        // 首次识别时使用关键词检测 + AI辅助
-        let detectedIndustry = detectIndustryFromName(shopName);
-        // 如果关键词检测不明确，用AI辅助判断
-        if (detectedIndustry === '餐饮类') {
-          const AbortController = new AbortController();
-          fetchZhipuChat([], `请根据店铺名称「${shopName}」判断商家类型，只能在以下类型中选择一个：${INDUSTRY_LIST.join('、')}。只需返回类型名称，不要包含其他文字。`, AbortController.signal)
-            .then(result => {
-              for (const type of INDUSTRY_LIST) {
-                if (result && result.includes(type)) {
-                  detectedIndustry = type;
-                  break;
-                }
+      // 直接用关键词检测行业，不再派发SET_SHOP_INFO（防止死循环）
+      let detectedIndustry = detectIndustryFromName(shopName);
+      
+      // 如果关键词检测不明确，尝试读取已保存的行业
+      if (detectedIndustry === '餐饮类') {
+        AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
+          if (!mountedRef.current) return;
+          if (storedShopInfo) {
+            try {
+              const parsed = JSON.parse(storedShopInfo);
+              if (parsed.industry && parsed.industry !== '待识别') {
+                detectedIndustry = parsed.industry;
               }
-              prevIndustry.current = detectedIndustry;
-              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-              try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-            })
-            .catch(() => {
-              const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-              dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-              try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
-              const welcomeMsg = [{ id: '1', text: `您好 ${userName}！已识别您的${detectedIndustry}店铺「${shopName}」。\n\n我可以帮您：\n📊 分析经营数据\n💡 提升利润建议\n📝 生成营销文案、海报\n📅 生成日报/周报/月报\n⚠️ 差评预警处理\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-              dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-            });
-        } else {
-          // 关键词已识别，直接保存
-          const newShopInfo = { ...state.shopInfo, industry: detectedIndustry };
-          dispatch({ type: 'SET_SHOP_INFO', payload: { industry: detectedIndustry } });
-          try { AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo)); } catch (e) {}
+            } catch (e) {}
+          }
+          prevIndustry.current = detectedIndustry;
           const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${detectedIndustry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-          dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-        }
-      }).catch(() => {
-        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手，您的店铺「${shopName}」的智能管家。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-        dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
-      });
+          safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+        }).catch(() => {
+          const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n我可以帮您分析经营数据、生成营销文案、回答经营问题。\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+          safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+        });
+      } else {
+        prevIndustry.current = detectedIndustry;
+        // 异步保存行业信息到AsyncStorage（不触发state更新，防止死循环）
+        try {
+          const newShopInfo = { ...(state.shopInfo || {}), industry: detectedIndustry };
+          AsyncStorage.setItem('shopInfo', JSON.stringify(newShopInfo));
+        } catch (e) {}
+        const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${detectedIndustry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
+        safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+      }
     } else {
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是经营宝AI助手。\n\n请先在设置中填写您的门店名称，我可以帮您：\n📊 分析经营数据\n💡 提供经营建议\n📝 生成营销文案、海报\n📅 生成各类报表\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
-      dispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
+      safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     }
   }, [industry, shopName, userName]);
 
@@ -11756,12 +11775,18 @@ const HomePage = () => {
           <View style={styles.cardBox}>
             <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>👋 欢迎，{(() => {
               const name = user?.name;
-              const shopName = state.shopInfo?.shopName;
-              // 如果 name 是有效的员工姓名且不等于店铺名，则显示 name
-              if (name && typeof name === 'string' && name.trim() && name !== shopName) {
+              // 员工端：总是显示员工自己的名字（非空时）
+              if (isEmployee) {
+                if (name && typeof name === 'string' && name.trim() && name !== '老板') {
+                  return name.trim();
+                }
+                return '员工';
+              }
+              // 商家端：显示商家名字或"老板"
+              if (name && typeof name === 'string' && name.trim() && name !== '老板') {
                 return name.trim();
               }
-              return isEmployee ? '员工' : '老板';
+              return '老板';
             })()}</Text>
             <Text style={{ color: TEXT_SECOND }}>店铺：{typeof (state.shopInfo || {}).shopName === 'string' && state.shopInfo.shopName ? state.shopInfo.shopName : '未加入店铺'}</Text>
             
