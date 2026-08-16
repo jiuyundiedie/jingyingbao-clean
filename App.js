@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -534,12 +534,12 @@ async function fetchZhipuChat(msgList, prompt, signal) {
         model: ZHIPU_MODEL || "glm-4-flash",
         messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 2000
       }),
     });
     
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('AI请求超时(15秒)')), 15000)
+      setTimeout(() => reject(new Error('AI请求超时(30秒)')), 30000)
     );
     
     const res = await Promise.race([fetchPromise, timeoutPromise]);
@@ -613,12 +613,12 @@ async function trySiliconFlowChat(msgList, prompt, signal) {
         model: "Qwen/Qwen2.5-7B-Instruct",
         messages: [{ role: "system", content: prompt }, ...msgList],
         temperature: 0.7,
-        max_tokens: 1000
+        max_tokens: 2000
       }),
     });
     
     const sfTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('硅基流动请求超时')), 15000)
+      setTimeout(() => reject(new Error('硅基流动请求超时')), 25000)
     );
     
     const sfRes = await Promise.race([sfFetchPromise, sfTimeoutPromise]);
@@ -7603,7 +7603,6 @@ const CustomerService = () => {
 // ================== 内部沟通列表（Tab 页）==================
 const InternalChatList = ({ navigation }) => {
   const { state, dispatch } = useApp();
-  const isEmployee = state.user?.role === '员工';
   const user = state.user;
 
   const [showMenu, setShowMenu] = useState(false);
@@ -7611,7 +7610,7 @@ const InternalChatList = ({ navigation }) => {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState([]);
 
-  // 私聊列表（与首页逻辑一致）
+  // 成员列表（用于创建群聊时选择成员）
   let chatStaffList = [];
   if (user?.role === '员工') {
     const myApplication = (state.staffMemberList || []).find(s => s.phone === user?.phone && s.status === 'approved');
@@ -7621,7 +7620,11 @@ const InternalChatList = ({ navigation }) => {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
 
-  const groupList = state.groupChatList || [];
+  const groupList = [...(state.groupChatList || [])].sort((a, b) => {
+    if (a.id === 'internal') return -1;
+    if (b.id === 'internal') return 1;
+    return 0;
+  });
 
   const toggleNewGroupMember = (staff) => {
     const exists = newGroupMembers.find(m => m.phone === staff.phone);
@@ -7665,8 +7668,6 @@ const InternalChatList = ({ navigation }) => {
     }
   };
 
-  const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
-
   const formatMsgTime = (timeStr) => {
     if (!timeStr) return '';
     const date = new Date(timeStr);
@@ -7703,12 +7704,8 @@ const InternalChatList = ({ navigation }) => {
         }
       />
       <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} colors={[PRIMARY_COLOR]} />}>
-        {/* ===== 群聊列表 ===== */}
+        {/* ===== 群聊列表（唯一区域，置顶） ===== */}
         <View style={{ marginTop: 20 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>👥 群聊</Text>
-            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{groupList.length}个</Text>
-          </View>
           <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
             {groupList.length === 0 ? (
               <View style={{ padding: 32, alignItems: 'center' }}>
@@ -7719,22 +7716,14 @@ const InternalChatList = ({ navigation }) => {
               groupList.map(g => {
                 const gMessages = (state.groupChatMessages || {})[g.id] || [];
                 const lastMessage = gMessages.length > 0 ? gMessages[gMessages.length - 1] : null;
-                const unreadCount = gMessages.filter(m => m.fromPhone !== state.user?.phone && !m.read).length;
                 return (
                   <TouchableOpacity
                     key={g.id}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
                     onPress={() => navigation.navigate('InternalChatRoom', { chatId: g.id })}
                   >
-                    <View style={{ position: 'relative' }}>
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="chatbubbles-outline" size={24} color={PRIMARY_COLOR} />
-                      </View>
-                      {unreadCount > 0 && (
-                        <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: DANGER_COLOR, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                        </View>
-                      )}
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="chatbubbles-outline" size={24} color={PRIMARY_COLOR} />
                     </View>
                     <View style={{ marginLeft: 14, flex: 1 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7742,54 +7731,6 @@ const InternalChatList = ({ navigation }) => {
                         <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatMsgTime(lastMessage?.time)}</Text>
                       </View>
                       <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }} numberOfLines={1}>{getPreviewText(lastMessage)}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-        {/* ===== 私聊列表 ===== */}
-        <View style={{ marginTop: 20 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{isEmployee ? '💬 消息通知' : '💬 员工私聊'}</Text>
-            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
-          </View>
-          <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
-            {chatStaffList.length === 0 ? (
-              <View style={{ padding: 32, alignItems: 'center' }}>
-                <Ionicons name="people-outline" size={40} color={TEXT_THIRD} />
-                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 10 }}>暂无联系人</Text>
-              </View>
-            ) : (
-              chatStaffList.map(staff => {
-                const staffMessages = (state.privateChatMessages || {})[staff.phone] || [];
-                const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
-                const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
-                const previewText = lastMessage ? (lastMessage.image ? '[图片]' : (lastMessage.text || '').substring(0, 30) + (lastMessage.text && lastMessage.text.length > 30 ? '...' : '')) : '暂无消息';
-                return (
-                  <TouchableOpacity
-                    key={staff.id}
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
-                    onPress={() => goToPrivateChat(staff)}
-                  >
-                    <View style={{ position: 'relative' }}>
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
-                        <Ionicons name="person-outline" size={24} color={PRIMARY_COLOR} />
-                      </View>
-                      {unreadCount > 0 && (
-                        <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: DANGER_COLOR, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={{ marginLeft: 14, flex: 1 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
-                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatMsgTime(lastMessage?.time)}</Text>
-                      </View>
-                      <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{previewText}</Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -9351,12 +9292,16 @@ const ScanQRCodeScreen = ({ navigation }) => {
         setScanResult(normalized);
         setShowConfirm(true);
         setSelectedImage(null);
-        return;
+        setShowManualInput(false);
+        setManualQRInput('');
+        setScanned(false);
+        return true;
       }
     } catch (e) {
       console.warn('handleManualQRInput 解析失败:', e);
     }
-    showToast('无效的二维码格式');
+    showToast('无效的二维码格式，请粘贴完整的二维码内容');
+    return false;
   };
 
   // 处理扫码结果
@@ -9749,11 +9694,6 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 onPress={() => {
                   if (!manualQRInput.trim()) { showToast('请输入内容'); return; }
                   handleManualQRInput(manualQRInput.trim());
-                  if (scanResult) {
-                    setShowManualInput(false);
-                    setManualQRInput('');
-                    setSelectedImage(null);
-                  }
                 }}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center' }}>
                 <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>确认</Text>
@@ -12206,13 +12146,14 @@ const HomePage = () => {
     if (!searchPhone.trim()) { showToast('请输入手机号'); return; }
     if (!/^1[3-9]\d{9}$/.test(searchPhone.trim())) { showToast('请输入正确的11位手机号'); return; }
     setSearching(true);
-    // 模拟延迟1秒查询
     await new Promise(r => setTimeout(r, 800));
-    // 查询Mock注册用户
     const found = MOCK_REGISTERED_USERS.find(u => u.phone === searchPhone.trim());
-    setSearchResult(found || null);
+    if (found) {
+      setSearchResult(found);
+    } else {
+      setSearchResult({ phone: searchPhone.trim(), name: '用户' + searchPhone.trim().slice(-4) });
+    }
     setSearching(false);
-    if (!found) showToast('该手机号未注册经营宝');
   };
 
   // 商家发起员工入职邀请（SEND_STAFF_APPLICATION）
