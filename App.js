@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -9070,19 +9070,40 @@ const ScanQRCodeScreen = ({ navigation }) => {
   };
 
   // 处理手动输入的二维码内容
-  // 归一化二维码数据：兼容简写字段(t/p/n/s)和长字段(type/phone/name/shopName)
+  // 归一化二维码数据：兼容3种格式
+  //   格式1（极简）：m_手机号_姓名_店名   e_手机号_姓名_店名
+  //   格式2（简写JSON）：{"t":"m","p":"13800000000","n":"张三","s":"门店"}
+  //   格式3（长JSON）：{"type":"merchant","phone":"13800000000","name":"张三","shopName":"门店"}
   const normalizeQRData = (data) => {
-    if (!data) return null;
-    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-    if (!parsed) return null;
-    // 兼容新旧格式
-    const type = parsed.t ? (parsed.t === 'm' ? 'merchant' : 'employee') : parsed.type;
-    return {
-      type,
-      phone: parsed.p || parsed.phone || '',
-      name: parsed.n || parsed.name || '',
-      shopName: parsed.s || parsed.shopName || '',
-    };
+    if (!data || typeof data !== 'string') return null;
+    const s = data.trim();
+    // 格式1：下划线分隔极简格式（最短、识别率最高）
+    if ((s.startsWith('m_') || s.startsWith('e_')) && s.split('_').length >= 2) {
+      const parts = s.split('_');
+      const type = parts[0] === 'm' ? 'merchant' : 'employee';
+      const phone = parts[1] || '';
+      const name = parts[2] || '';
+      const shopName = parts.slice(3).join('_') || '';
+      console.log('[扫码] 解析到极简格式:', { type, phone, name, shopName });
+      return { type, phone, name, shopName };
+    }
+    // 格式2/3：JSON
+    try {
+      const parsed = JSON.parse(s);
+      if (!parsed) return null;
+      const type = parsed.t ? (parsed.t === 'm' ? 'merchant' : 'employee') : parsed.type;
+      const result = {
+        type,
+        phone: parsed.p || parsed.phone || '',
+        name: parsed.n || parsed.name || '',
+        shopName: parsed.s || parsed.shopName || '',
+      };
+      console.log('[扫码] 解析到JSON格式:', result);
+      return result;
+    } catch (e) {
+      console.warn('[扫码] JSON解析失败:', s.substring(0, 100));
+      return null;
+    }
   };
 
   const handleManualQRInput = (data) => {
@@ -9102,6 +9123,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
 
   // 处理扫码结果
   const handleBarcodeScanned = ({ type, data }) => {
+    console.log('[扫码] CameraView触发回调 type=', type, 'data=', data ? data.substring(0, 200) : null);
     if (scanned) return;
     setScanned(true);
     try {
@@ -9115,8 +9137,8 @@ const ScanQRCodeScreen = ({ navigation }) => {
       console.warn('handleBarcodeScanned 解析失败:', e);
     }
     // 非二维码格式
-    showToast('无效的二维码，请扫描经营宝用户二维码');
-    setTimeout(() => setScanned(false), 1500);
+    showToast('无效的二维码，请扫描经营宝用户二维码（可手动输入兜底）');
+    setTimeout(() => setScanned(false), 3000);
   };
 
   // 确认处理扫码结果
@@ -9235,15 +9257,15 @@ const ScanQRCodeScreen = ({ navigation }) => {
       </View>
 
       {/* 相机预览 */}
-      <CameraView
-        style={{ flex: 1 }}
-        facing="back"
-        enableTorch={torchOn}
-        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39'],
-        }}
-      />
+        <CameraView
+          style={{ flex: 1 }}
+          facing="back"
+          enableTorch={torchOn}
+          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'aztec', 'datamatrix', 'pdf417', 'codabar', 'interleaved2of5', 'itf14', 'upc_a', 'upc_e'],
+          }}
+        />
 
       {/* 扫描遮罩层 */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -9437,12 +9459,39 @@ const ScanQRCodeScreen = ({ navigation }) => {
       <Modal visible={showManualInput} transparent animationType="fade" onRequestClose={() => setShowManualInput(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 }} onPress={() => setShowManualInput(false)}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: '#fff', borderRadius: 16, width: '100%', padding: 22 }} onPress={() => {}}>
-            <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 16, textAlign: 'center' }}>手动输入二维码内容</Text>
-            <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 12 }}>请输入二维码中的内容（如：{"{type:'merchant',phone:'...'}"}）</Text>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10, textAlign: 'center' }}>手动输入/粘贴二维码</Text>
+            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12, lineHeight: 18 }}>
+              支持3种格式：
+              {'\n'}① 极简：m_手机号_姓名_门店名   或  e_手机号_姓名_门店名
+              {'\n'}② 简写JSON：{"{\"t\":\"m\",\"p\":\"13800000000\",\"n\":\"张三\"}"}
+              {'\n'}③ 完整JSON：{"{\"type\":\"merchant\",\"phone\":\"138...\",\"name\":\"...\"}"}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const text = await Clipboard.getStringAsync();
+                    if (text && text.trim()) {
+                      setManualQRInput(text.trim());
+                      showToast('剪贴板内容已粘贴');
+                    } else {
+                      showToast('剪贴板为空');
+                    }
+                  } catch (e) {
+                    showToast('读取剪贴板失败');
+                  }
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F2F4FF', borderRadius: 8 }}
+              >
+                <Ionicons name="clipboard-outline" size={14} color={PRIMARY_COLOR} style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>从剪贴板粘贴</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput
               value={manualQRInput}
               onChangeText={setManualQRInput}
-              placeholder='{"type":"merchant","phone":"...","name":"..."}'
+              placeholder='如：m_13800000000_张三_我的店铺'
               placeholderTextColor="#ccc"
               multiline
               autoCapitalize="none"
@@ -9621,14 +9670,29 @@ const MyQRCodeScreen = ({ navigation }) => {
   const shopName = state.shopInfo?.shopName || '未设置';
   const isEmployee = state.user?.role === '员工';
 
-  // 生成二维码数据（精简字段，更小的二维码更容易识别）
-  const qrData = JSON.stringify({
-    t: isEmployee ? 'e' : 'm', // 简写type
-    p: user.phone || '',
-    n: user.name || '',
-    s: shopName,
+  // 生成二维码数据：使用极简下划线纯文本格式，二维码更简单、识别率显著更高
+  // 格式: m_手机号_姓名_门店名   e_手机号_姓名_门店名
+  const safeEncode = (s) => (s || '').toString().replace(/[_\\|]/g, '-').replace(/\s+/g, ' ');
+  const codeType = isEmployee ? 'e' : 'm';
+  const qrData = `${codeType}_${safeEncode(user.phone)}_${safeEncode(user.name)}_${safeEncode(shopName)}`;
+  console.log('[二维码] 极简格式数据:', qrData, '长度:', qrData.length);
+
+  // 备用JSON简写字段格式（如果扫码失败，让用户复制这个内容粘贴到"手动输入"）
+  const qrDataJson = JSON.stringify({
+    t: codeType,
+    p: safeEncode(user.phone),
+    n: safeEncode(user.name),
+    s: safeEncode(shopName),
   });
-  console.log('[二维码] 生成数据:', qrData, '长度:', qrData.length);
+
+  const copyQRContent = async () => {
+    try {
+      await Clipboard.setStringAsync(qrData);
+      showToast('二维码内容已复制，可粘贴到"手动输入"快速添加');
+    } catch (e) {
+      showToast('复制失败，请手动复制下方内容');
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#EDEDED' }}>
@@ -9639,7 +9703,7 @@ const MyQRCodeScreen = ({ navigation }) => {
         headerColor="#EDEDED"
         titleColor="#000"
       />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 40 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 40, paddingBottom: 40 }}>
         {/* 二维码卡片 */}
         <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 30, width: width - 64, alignItems: 'center', ...SHADOW }}>
           {/* 头像 */}
@@ -9649,28 +9713,65 @@ const MyQRCodeScreen = ({ navigation }) => {
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#000' }}>{user.name || '用户'}</Text>
           <Text style={{ fontSize: 14, color: '#888', marginTop: 4 }}>{isEmployee ? '员工' : '商家'} · {shopName}</Text>
           
-          {/* 真正的二维码 - 更大的二维码+足够留白，提升识别率 */}
+          {/* 真正的二维码 - 超大+高对比+厚静区，最大程度提升相机识别率 */}
           <View style={{
             marginTop: 24,
-            padding: 20,          // 四周留白（静区），扫码识别必须
-            backgroundColor: '#fff',
+            padding: 26,          // 四周厚留白（静区）
+            backgroundColor: '#ffffff',
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: '#E0E0E0'
+            borderColor: '#E0E0E0',
+            shadowColor: '#000',
+            shadowOpacity: 0.06,
+            shadowOffset: { width: 0, height: 2 },
           }}>
             <QRCode
               value={qrData}
-              size={190}            // 增大尺寸
-              color="#000000"        // 纯黑色，提升对比度
+              size={230}            // 进一步放大尺寸
+              color="#000000"        // 纯黑色
               backgroundColor="#ffffff"
               logoSize={0}
-              quietZone={12}         // 二维码静区（防止贴边）
+              quietZone={16}         // 加静区，避免贴边
+              enableLinearGradient={false}
             />
           </View>
           
           <Text style={{ fontSize: 13, color: '#999', marginTop: 16, textAlign: 'center' }}>
             {isEmployee ? '让商家扫描此二维码可快速加入店铺' : '让员工扫描此二维码可快速邀请入职'}
           </Text>
+
+          {/* 如果对方扫码失败 → 复制二维码内容 */}
+          <TouchableOpacity
+            onPress={copyQRContent}
+            style={{
+              marginTop: 18,
+              backgroundColor: '#F2F4FF',
+              borderRadius: 12,
+              paddingVertical: 10,
+              paddingHorizontal: 18,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="copy-outline" size={16} color={PRIMARY_COLOR} style={{ marginRight: 6 }} />
+            <Text style={{ color: PRIMARY_COLOR, fontSize: 13, fontWeight: '500' }}>扫码失败？复制二维码内容</Text>
+          </TouchableOpacity>
+
+          {/* 显示二维码明文内容（短），方便看或手动输入 */}
+          <View style={{
+            marginTop: 14,
+            backgroundColor: '#F7F8FA',
+            borderRadius: 10,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            width: '100%',
+          }}>
+            <Text style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>二维码内容（扫码失败时可用）：</Text>
+            <Text style={{ fontSize: 12, color: '#333', lineHeight: 18, fontFamily: 'monospace', wordBreak: 'break-all' }} selectable={true}>
+              {qrData}
+            </Text>
+          </View>
           
           {/* 手机号 */}
           <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -9683,8 +9784,8 @@ const MyQRCodeScreen = ({ navigation }) => {
         <View style={{ marginTop: 24, paddingHorizontal: 32 }}>
           <Text style={{ fontSize: 13, color: '#999', textAlign: 'center', lineHeight: 22 }}>
             {isEmployee 
-              ? '将此二维码展示给商家扫描，商家确认后即可加入店铺，自动进入内部群聊。'
-              : '将此二维码展示给员工扫描，员工确认后即可加入店铺，自动出现在员工列表和首页私聊中。'}
+              ? '将此二维码展示给商家扫描，商家确认后即可加入店铺，自动进入内部群聊。\n如果扫码失败，点"复制二维码内容"发给商家，商家在扫一扫页面点"手动输入"粘贴即可。'
+              : '将此二维码展示给员工扫描，员工确认后即可加入店铺，自动出现在员工列表和首页私聊中。\n如果扫码失败，点"复制二维码内容"发给员工，员工在扫一扫页面点"手动输入"粘贴即可。'}
           </Text>
         </View>
       </ScrollView>
@@ -15635,43 +15736,102 @@ export default function App() {
     if (!loading) { saveAllData(state); }
   }, [state, loading]);
 
-  // ===== 日报推送定时检查（前台时每分钟检查时间）=====
+  // ===== 日报推送定时检查（前台每分钟+APP启动+AppState前台恢复 三重检查，确保无论如何一定推送）=====
   const lastDailyReportKey = useRef('');
-  useEffect(() => {
-    if (!state.user || loading) return;
-    if (!state.dailyReportConfig?.enable) return;
-    
-    const checkDailyReport = () => {
-      const now = new Date();
-      const configTime = state.dailyReportConfig?.workTimeStart || '09:00';
-      const [h, m] = configTime.split(':').map(s => parseInt(s.trim()));
-      
-      // 用日期+时间作为唯一 key，确保每天只推送一次
-      const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
-      if (lastDailyReportKey.current === todayKey) return; // 今天已推送过
-      
-      if (now.getHours() === h && now.getMinutes() === m) {
-        lastDailyReportKey.current = todayKey;
-        // 立即发送日报通知
-        Notifications.scheduleNotificationAsync({
+  const SHOW_DAILY_REPORT_POPOVER_ACTION = 'SHOW_DAILY_REPORT_POPOVER_ACTION';
+
+  const triggerDailyReportPush = useCallback(async (reason) => {
+    if (!state.dailyReportConfig?.enable || !state.user) return;
+    const now = new Date();
+    const ymd = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
+    const todayStorageKey = `daily_report_pushed_${ymd}`;
+
+    // 持久化去重：AsyncStorage + 内存双保险
+    try {
+      const pushed = await AsyncStorage.getItem(todayStorageKey);
+      if (pushed === '1') {
+        console.log('[日报推送] 今日已推送过，跳过。原因=', reason);
+        return;
+      }
+    } catch (e) {}
+    if (lastDailyReportKey.current === ymd) return;
+    lastDailyReportKey.current = ymd;
+    try { await AsyncStorage.setItem(todayStorageKey, '1'); } catch (e) {}
+
+    const workTimeEnd = state.dailyReportConfig?.workTimeEnd || '18:00';
+    console.log(`[日报推送] 触发推送! 原因=${reason} 时间=${new Date().toLocaleString()} 下班时间=${workTimeEnd}`);
+
+    // --- 1) 发系统通知（如果有权限）---
+    try {
+      const perm = await Notifications.getPermissionsAsync();
+      if (perm.granted || perm.status === 'granted') {
+        await Notifications.scheduleNotificationAsync({
           content: {
-            title: '📊 经营宝日报',
-            body: `今日经营数据已生成，点击查看详情`,
+            title: '📊 经营宝日报已生成',
+            body: `今日经营数据已汇总（下班${workTimeEnd}），点此查看营收、订单、利润详情，即使没有核销订单也能查看数据`,
             data: { screen: 'dailyReport' },
             sound: 'default',
           },
           trigger: null, // 立即发送
-        }).catch(e => console.warn('日报通知发送失败', e));
-        console.log('日报推送已发送');
+        });
+      }
+    } catch (e) {
+      console.warn('[日报推送] 系统通知发送失败:', e);
+    }
+
+    // --- 2) 应用内兜底：无论系统通知是否成功，应用内一定弹横幅+Toast，并且直接跳到首页日报 ---
+    try {
+      showToast('📊 今日日报已生成，点击首页查看');
+      // 延迟1秒后导航到首页日报Tab
+      setTimeout(() => {
+        try {
+          if (navigationRef.current) {
+            navigationRef.current.navigate('MainTabs', { screen: '首页' });
+          }
+        } catch (e) { console.warn('[日报推送] 跳转首页失败', e); }
+      }, 600);
+    } catch (e) {}
+  }, [state.user, state.dailyReportConfig]);
+
+  useEffect(() => {
+    if (!state.user || loading) return;
+    if (!state.dailyReportConfig?.enable) return;
+
+    const checkDailyReport = () => {
+      const now = new Date();
+      // 关键：用 下班时间 workTimeEnd，不再用上班时间！
+      const configTime = state.dailyReportConfig?.workTimeEnd || '18:00';
+      const [h, m] = configTime.split(':').map(s => parseInt(s.trim()));
+      const curH = now.getHours();
+      const curM = now.getMinutes();
+
+      console.log(`[日报推送] 每分钟检查: 当前=${curH}:${curM} 目标下班=${h}:${m} enable=${state.dailyReportConfig?.enable}`);
+
+      // 放宽判断：到点 或者 已经过了下班时间1小时内都视为触发（避免错过时间）
+      const reachedTime = (curH === h && curM >= m) || (curH > h && (curH - h) * 60 + (curM - m) < 120);
+      if (reachedTime) {
+        triggerDailyReportPush(`时间到点/检查时已过: ${curH}:${curM} vs ${h}:${m}`);
       }
     };
-    
-    // 立即检查一次（防止启动时刚好到时间）
+
+    // 立即检查一次
     checkDailyReport();
-    // 每分钟检查
-    const interval = setInterval(checkDailyReport, 60000);
+    // 每 30 秒检查一次（比每分钟更及时）
+    const interval = setInterval(checkDailyReport, 30000);
     return () => clearInterval(interval);
-  }, [state.user, state.dailyReportConfig, loading]);
+  }, [state.user, state.dailyReportConfig, loading, triggerDailyReportPush]);
+
+  // AppState 切回前台时额外检查一次（确保用户回到APP时立即补推）
+  useEffect(() => {
+    if (!state.user || loading) return;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        console.log('[日报推送] App切回前台，立即检查日报');
+        triggerDailyReportPush('App回到前台active');
+      }
+    });
+    return () => { try { sub.remove(); } catch(e){} };
+  }, [triggerDailyReportPush, state.user, loading]);
 
   // 监听新消息，在后台时发送系统通知
   const lastMsgCountRef = useRef({ group: 0, private: 0, customer: 0 });
