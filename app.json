@@ -2,7 +2,7 @@
   "expo": {
     "name": "经营宝",
     "slug": "jingyingbao",
-    "version": "5.97.0",
+    "version": "5.98.0",
     "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.jingyingbao.app",
-      "versionCode": 188,
+      "versionCode": 189,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
@@ -61,7 +61,8 @@
         "expo-camera",
         {
           "cameraPermission": "允许访问相机以进行扫码和拍照",
-          "microphonePermission": "允许访问麦克风以进行视频通话"
+          "microphonePermission": "允许访问麦克风以进行视频通话",
+          "barcodeScannerEnabled": true
         }
       ],
       [

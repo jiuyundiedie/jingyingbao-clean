@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -7600,9 +7600,296 @@ const CustomerService = () => {
   );
 };
 
-// ================== 内部沟通（支持多群聊切换）==================
-const InternalChat = () => {
-  const navigation = useNavigation();
+// ================== 内部沟通列表（Tab 页）==================
+const InternalChatList = ({ navigation }) => {
+  const { state, dispatch } = useApp();
+  const isEmployee = state.user?.role === '员工';
+  const user = state.user;
+
+  const [showMenu, setShowMenu] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupMembers, setNewGroupMembers] = useState([]);
+
+  // 私聊列表（与首页逻辑一致）
+  let chatStaffList = [];
+  if (user?.role === '员工') {
+    const myApplication = (state.staffMemberList || []).find(s => s.phone === user?.phone && s.status === 'approved');
+    const bossPhone = state.shopInfo?.phone;
+    if (myApplication && bossPhone) chatStaffList = [{ id: 'boss', name: '老板', phone: bossPhone }];
+  } else {
+    chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
+  }
+
+  const groupList = state.groupChatList || [];
+
+  const toggleNewGroupMember = (staff) => {
+    const exists = newGroupMembers.find(m => m.phone === staff.phone);
+    if (exists) setNewGroupMembers(newGroupMembers.filter(m => m.phone !== staff.phone));
+    else setNewGroupMembers([...newGroupMembers, staff]);
+  };
+
+  const handleCreateGroupChat = () => {
+    if (!newGroupName.trim()) { showToast('请输入群聊名称'); return; }
+    if (newGroupMembers.length === 0) { showToast('请至少选择一位群成员'); return; }
+    const groupId = `group_${Date.now()}`;
+    const members = [state.user?.phone, ...newGroupMembers.map(m => m.phone)];
+    dispatch({
+      type: 'CREATE_GROUP_CHAT',
+      payload: {
+        groupId,
+        groupName: newGroupName.trim(),
+        memberPhones: members,
+        ownerPhone: state.user?.phone,
+      }
+    });
+    const welcome = {
+      id: `g_${Date.now()}`,
+      text: `👋 欢迎来到「${newGroupName.trim()}」群聊，群成员 ${members.length} 人`,
+      from: '系统', fromPhone: 'system', time: new Date().toISOString(), type: 'text'
+    };
+    dispatch({ type: 'ADD_GROUP_MESSAGE', payload: { chatId: groupId, message: welcome } });
+    showToast(`群聊「${newGroupName.trim()}」已创建`);
+    setNewGroupName('');
+    setNewGroupMembers([]);
+    setShowCreateGroupModal(false);
+    setShowMenu(false);
+  };
+
+  const handleMenuAction = (action) => {
+    setShowMenu(false);
+    if (action === 'scan') {
+      navigation.navigate('ScanQRCode');
+    } else if (action === 'create') {
+      setShowCreateGroupModal(true);
+    }
+  };
+
+  const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
+
+  const formatMsgTime = (timeStr) => {
+    if (!timeStr) return '';
+    const date = new Date(timeStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    if (hours < 1) return '刚刚';
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  };
+
+  const getPreviewText = (lastMessage) => {
+    if (!lastMessage) return '暂无消息';
+    if (lastMessage.image) return '[图片]';
+    if (lastMessage.type === 'file') return '[文件]';
+    const text = lastMessage.text || '';
+    return text.substring(0, 30) + (text.length > 30 ? '...' : '');
+  };
+
+  return (
+    <View style={styles.container}>
+      <CommonHeader
+        title="内部沟通"
+        rightComponent={
+          <TouchableOpacity
+            onPress={() => setShowMenu(true)}
+            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-outline" size={22} color={PRIMARY_COLOR} />
+          </TouchableOpacity>
+        }
+      />
+      <ScrollView style={{ flex: 1, paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={false} onRefresh={() => {}} colors={[PRIMARY_COLOR]} />}>
+        {/* ===== 群聊列表 ===== */}
+        <View style={{ marginTop: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>👥 群聊</Text>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{groupList.length}个</Text>
+          </View>
+          <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
+            {groupList.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Ionicons name="chatbubbles-outline" size={40} color={TEXT_THIRD} />
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 10 }}>暂无群聊，点击右上角+创建</Text>
+              </View>
+            ) : (
+              groupList.map(g => {
+                const gMessages = (state.groupChatMessages || {})[g.id] || [];
+                const lastMessage = gMessages.length > 0 ? gMessages[gMessages.length - 1] : null;
+                const unreadCount = gMessages.filter(m => m.fromPhone !== state.user?.phone && !m.read).length;
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
+                    onPress={() => navigation.navigate('InternalChatRoom', { chatId: g.id })}
+                  >
+                    <View style={{ position: 'relative' }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="chatbubbles-outline" size={24} color={PRIMARY_COLOR} />
+                      </View>
+                      {unreadCount > 0 && (
+                        <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: DANGER_COLOR, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ marginLeft: 14, flex: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{g.name || '群聊'}</Text>
+                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatMsgTime(lastMessage?.time)}</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }} numberOfLines={1}>{getPreviewText(lastMessage)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </View>
+
+        {/* ===== 私聊列表 ===== */}
+        <View style={{ marginTop: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{isEmployee ? '💬 消息通知' : '💬 员工私聊'}</Text>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{chatStaffList.length}人</Text>
+          </View>
+          <View style={{ backgroundColor: BG_CARD, borderRadius: 16, padding: 8, ...SHADOW }}>
+            {chatStaffList.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Ionicons name="people-outline" size={40} color={TEXT_THIRD} />
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 10 }}>暂无联系人</Text>
+              </View>
+            ) : (
+              chatStaffList.map(staff => {
+                const staffMessages = (state.privateChatMessages || {})[staff.phone] || [];
+                const lastMessage = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1] : null;
+                const unreadCount = staffMessages.filter(m => m.platform === 'private' && m.fromPhone !== user?.phone && !m.read).length;
+                const previewText = lastMessage ? (lastMessage.image ? '[图片]' : (lastMessage.text || '').substring(0, 30) + (lastMessage.text && lastMessage.text.length > 30 ? '...' : '')) : '暂无消息';
+                return (
+                  <TouchableOpacity
+                    key={staff.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12 }}
+                    onPress={() => goToPrivateChat(staff)}
+                  >
+                    <View style={{ position: 'relative' }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="person-outline" size={24} color={PRIMARY_COLOR} />
+                      </View>
+                      {unreadCount > 0 && (
+                        <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: DANGER_COLOR, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={{ marginLeft: 14, flex: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: TEXT_MAIN }}>{staff.name}</Text>
+                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{formatMsgTime(lastMessage?.time)}</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 2 }}>{previewText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ===== + 下拉菜单 ===== */}
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowMenu(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' }}>
+            <View style={{ position: 'absolute', top: 100, right: 16, backgroundColor: BG_CARD, borderRadius: 12, paddingVertical: 6, minWidth: 180, ...SHADOW }}>
+              <TouchableOpacity onPress={() => handleMenuAction('scan')} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+                <Ionicons name="scan-outline" size={20} color={TEXT_MAIN} />
+                <Text style={{ fontSize: 14, color: TEXT_MAIN, marginLeft: 12 }}>扫一扫加入群聊</Text>
+              </TouchableOpacity>
+              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: BG_BORDER, marginHorizontal: 12 }} />
+              <TouchableOpacity onPress={() => handleMenuAction('create')} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+                <Ionicons name="people-outline" size={20} color={TEXT_MAIN} />
+                <Text style={{ fontSize: 14, color: TEXT_MAIN, marginLeft: 12 }}>创建群聊</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ===== 创建群聊 Modal ===== */}
+      <Modal visible={showCreateGroupModal} transparent animationType="slide" onRequestClose={() => setShowCreateGroupModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: BG_CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: height * 0.85 }}>
+            <View style={{ alignItems: 'center', paddingTop: 10 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0' }} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT_MAIN }}>创建群聊</Text>
+              <TouchableOpacity onPress={() => setShowCreateGroupModal(false)}>
+                <Ionicons name="close-outline" size={26} color={TEXT_SECOND} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 6 }}>群聊名称</Text>
+                <TextInput
+                  value={newGroupName}
+                  onChangeText={setNewGroupName}
+                  placeholder="如：厨房工作群、前台收银群"
+                  placeholderTextColor={TEXT_THIRD}
+                  style={{ height: 46, backgroundColor: BG_WHITE, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, color: TEXT_MAIN, borderWidth: 1, borderColor: BG_BORDER }}
+                />
+              </View>
+              <View style={{ marginBottom: 14 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginBottom: 8 }}>选择成员（已选 {newGroupMembers.length} 人，自动包含您）</Text>
+                <View style={{ backgroundColor: BG_CARD, borderRadius: 14, padding: 6, ...SHADOW }}>
+                  {chatStaffList.length === 0 ? (
+                    <View style={{ padding: 30, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD }}>暂无可选成员</Text>
+                    </View>
+                  ) : (
+                    chatStaffList.map(staff => {
+                      const isSelected = !!newGroupMembers.find(m => m.phone === staff.phone);
+                      return (
+                        <TouchableOpacity
+                          key={staff.id}
+                          onPress={() => toggleNewGroupMember(staff)}
+                          style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10 }}
+                        >
+                          <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: isSelected ? PRIMARY_COLOR : '#ccc', justifyContent: 'center', alignItems: 'center', backgroundColor: isSelected ? PRIMARY_COLOR : '#fff' }}>
+                            {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
+                          </View>
+                          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: LIGHT_PRIMARY, justifyContent: 'center', alignItems: 'center', marginLeft: 12 }}>
+                            <Ionicons name="person-outline" size={20} color={PRIMARY_COLOR} />
+                          </View>
+                          <View style={{ marginLeft: 12, flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT_MAIN }}>{staff.name || '员工'}</Text>
+                            <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>{staff.phone || ''}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleCreateGroupChat}
+                style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>立即创建群聊</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+// ================== 内部沟通房间（支持多群聊切换）==================
+const InternalChatRoom = ({ route, navigation }) => {
   const { state, dispatch } = useApp();
   const isEmployee = state.user?.role === '员工';
   const myApplication = isEmployee ? (state.staffMemberList || []).find(s => s.phone === state.user?.phone) : null;
@@ -7626,15 +7913,11 @@ const InternalChat = () => {
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [showMentionList, setShowMentionList] = useState(false);
 
-  // ===== 多群聊支持：当前选中的chatId =====
+  // ===== 当前群聊 chatId（从路由参数读取）=====
   const groupList = state.groupChatList || [];
-  const [currentChatId, setCurrentChatId] = useState(groupList.length > 0 ? groupList[0].id : 'internal');
-  // 如果有群聊列表且当前chatId不在列表中，重置为第一个
+  const chatId = route.params?.chatId || 'internal';
+  // 兼容老数据：若没有任何群聊记录且有默认消息，创建默认'internal'记录
   useEffect(() => {
-    if (groupList.length > 0 && !groupList.find(g => g.id === currentChatId)) {
-      setCurrentChatId(groupList[0].id);
-    }
-    // 兼容老数据：若没有任何群聊记录且有默认消息，创建默认'internal'记录
     if (groupList.length === 0 && state.groupChatMessages && state.groupChatMessages['internal']) {
       const approvedStaffPhones = (state.staffMemberList || []).filter(s => s.status === 'approved').map(s => s.phone);
       dispatch({
@@ -7648,7 +7931,6 @@ const InternalChat = () => {
       });
     }
   }, [groupList]);
-  const chatId = currentChatId;
   // 当前群聊的信息
   const currentGroupInfo = groupList.find(g => g.id === chatId);
   const currentGroupName = currentGroupInfo?.name || '内部群聊';
@@ -7932,50 +8214,6 @@ const InternalChat = () => {
         navigation={navigation}
         rightComponent={<TouchableOpacity onPress={goToChatSettings}><Ionicons name="ellipsis-horizontal" size={24} color="#000" /></TouchableOpacity>}
       />
-      {/* ===== 多群聊切换 Tab栏 ===== */}
-      {groupList.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ backgroundColor: '#fff', borderBottomWidth: 0.5, borderColor: '#F0F0F5' }} contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 12, gap: 8 }}>
-          {groupList.map(g => {
-            const isActive = g.id === currentChatId;
-            // 群聊未读消息数
-            const gMessages = (state.groupChatMessages || {})[g.id] || [];
-            const unread = gMessages.filter(m => m.fromPhone !== state.user?.phone && !m.read).length;
-            return (
-              <TouchableOpacity 
-                key={g.id} 
-                onPress={() => setCurrentChatId(g.id)}
-                style={{ 
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  paddingHorizontal: 14, paddingVertical: 8, 
-                  borderRadius: 18,
-                  backgroundColor: isActive ? PRIMARY_COLOR : LIGHT_PRIMARY,
-                  shadowColor: isActive ? PRIMARY_COLOR : 'transparent',
-                  shadowOffset: { width: 0, height: 3 }, shadowOpacity: isActive ? 0.3 : 0, shadowRadius: 6,
-                  elevation: isActive ? 3 : 0,
-                }}>
-                <Ionicons name="chatbubbles-outline" size={14} color={isActive ? '#fff' : PRIMARY_COLOR} />
-                <Text style={{ 
-                  fontSize: 13, fontWeight: isActive ? '700' : '500', 
-                  color: isActive ? '#fff' : PRIMARY_COLOR,
-                  maxWidth: 120,
-                }} numberOfLines={1}>{g.name}</Text>
-                {unread > 0 && (
-                  <View style={{ 
-                    minWidth: 18, height: 18, borderRadius: 9, 
-                    backgroundColor: isActive ? '#fff' : DANGER_COLOR,
-                    paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center'
-                  }}>
-                    <Text style={{ 
-                      fontSize: 10, fontWeight: 'bold', 
-                      color: isActive ? DANGER_COLOR : '#fff' 
-                    }}>{unread > 99 ? '99+' : unread}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
         <View style={{ flex: 1, flexDirection: 'column', backgroundColor: chatBgColor }}>
           {chatBgImage && (
@@ -9261,9 +9499,12 @@ const ScanQRCodeScreen = ({ navigation }) => {
           style={{ flex: 1 }}
           facing="back"
           enableTorch={torchOn}
+          active={true}
+          onCameraReady={() => console.log('[扫码] Camera已就绪，开始扫码')}
+          onMountError={(error) => console.error('[扫码] Camera挂载失败:', JSON.stringify(error))}
           onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
           barcodeScannerSettings={{
-            barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'aztec', 'datamatrix', 'pdf417', 'codabar', 'interleaved2of5', 'itf14', 'upc_a', 'upc_e'],
+            barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'aztec', 'datamatrix', 'pdf417', 'codabar', 'itf14', 'upc_a', 'upc_e'],
           }}
         />
 
@@ -9671,19 +9912,28 @@ const MyQRCodeScreen = ({ navigation }) => {
   const isEmployee = state.user?.role === '员工';
 
   // 生成二维码数据：使用极简下划线纯文本格式，二维码更简单、识别率显著更高
-  // 格式: m_手机号_姓名_门店名   e_手机号_姓名_门店名
   const safeEncode = (s) => (s || '').toString().replace(/[_\\|]/g, '-').replace(/\s+/g, ' ');
   const codeType = isEmployee ? 'e' : 'm';
   const qrData = `${codeType}_${safeEncode(user.phone)}_${safeEncode(user.name)}_${safeEncode(shopName)}`;
   console.log('[二维码] 极简格式数据:', qrData, '长度:', qrData.length);
 
-  // 备用JSON简写字段格式（如果扫码失败，让用户复制这个内容粘贴到"手动输入"）
-  const qrDataJson = JSON.stringify({
-    t: codeType,
-    p: safeEncode(user.phone),
-    n: safeEncode(user.name),
-    s: safeEncode(shopName),
-  });
+  // WebView生成base64二维码图片，100%可靠（不依赖SVG原生渲染）
+  const [qrImageBase64, setQrImageBase64] = useState(null);
+  const [qrError, setQrError] = useState(false);
+
+  // SVG二维码作为fallback
+  const fallbackQRCode = (
+    <QRCode
+      value={qrData}
+      size={230}
+      color="#000000"
+      backgroundColor="#ffffff"
+      logoSize={0}
+      quietZone={16}
+      enableLinearGradient={false}
+      onError={(e) => { console.warn('[二维码] SVG渲染失败:', e); setQrError(true); }}
+    />
+  );
 
   const copyQRContent = async () => {
     try {
@@ -9713,10 +9963,10 @@ const MyQRCodeScreen = ({ navigation }) => {
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#000' }}>{user.name || '用户'}</Text>
           <Text style={{ fontSize: 14, color: '#888', marginTop: 4 }}>{isEmployee ? '员工' : '商家'} · {shopName}</Text>
           
-          {/* 真正的二维码 - 超大+高对比+厚静区，最大程度提升相机识别率 */}
+          {/* 二维码：优先用WebView canvas生成base64图片（100%可靠），fallback到SVG */}
           <View style={{
             marginTop: 24,
-            padding: 26,          // 四周厚留白（静区）
+            padding: 26,
             backgroundColor: '#ffffff',
             borderRadius: 16,
             borderWidth: 1,
@@ -9725,14 +9975,88 @@ const MyQRCodeScreen = ({ navigation }) => {
             shadowOpacity: 0.06,
             shadowOffset: { width: 0, height: 2 },
           }}>
-            <QRCode
-              value={qrData}
-              size={230}            // 进一步放大尺寸
-              color="#000000"        // 纯黑色
-              backgroundColor="#ffffff"
-              logoSize={0}
-              quietZone={16}         // 加静区，避免贴边
-              enableLinearGradient={false}
+            {qrImageBase64 ? (
+              <Image
+                source={{ uri: qrImageBase64 }}
+                style={{ width: 230, height: 230 }}
+                resizeMode="contain"
+              />
+            ) : qrError ? (
+              <View style={{ width: 230, height: 230, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: '#999' }}>二维码生成中...</Text>
+              </View>
+            ) : (
+              fallbackQRCode
+            )}
+          </View>
+
+          {/* 隐藏的WebView用于生成QR码base64图片 */}
+          <View style={{ position: 'absolute', left: -9999, top: 0, width: 1, height: 1 }}>
+            <WebView
+              key={qrData}
+              source={{
+                html: `<!DOCTYPE html><html><head><meta charset="utf-8">
+                <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+                </head><body>
+                <div id="qrcode"></div>
+                <script>
+                  function tryGenQR(attempt) {
+                    attempt = attempt || 0;
+                    if (typeof QRCode === 'undefined') {
+                      if (attempt < 50) { setTimeout(function(){ tryGenQR(attempt+1); }, 100); return; }
+                      window.ReactNativeWebView.postMessage(JSON.stringify({error:'QRCode lib加载超时'}));
+                      return;
+                    }
+                    try {
+                      var qr = document.getElementById('qrcode');
+                      qr.innerHTML = '';
+                      new QRCode(qr, {
+                        text: ${JSON.stringify(qrData)},
+                        width: 280,
+                        height: 280,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.M
+                      });
+                      setTimeout(function() {
+                        var canvas = qr.querySelector('canvas');
+                        if (canvas) {
+                          var dataURL = canvas.toDataURL('image/png');
+                          window.ReactNativeWebView.postMessage(JSON.stringify({success:true, base64:dataURL}));
+                        } else {
+                          var img = qr.querySelector('img');
+                          if (img && img.src) {
+                            window.ReactNativeWebView.postMessage(JSON.stringify({success:true, base64:img.src}));
+                          } else {
+                            window.ReactNativeWebView.postMessage(JSON.stringify({error:'canvas未生成'}));
+                          }
+                        }
+                      }, 200);
+                    } catch(e) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({error:e.message}));
+                    }
+                  }
+                  tryGenQR();
+                </script>
+                </body></html>`
+              }}
+              onMessage={(event) => {
+                try {
+                  const result = JSON.parse(event.nativeEvent.data);
+                  if (result.success && result.base64) {
+                    console.log('[二维码] WebView生成成功');
+                    setQrImageBase64(result.base64);
+                  } else if (result.error) {
+                    console.warn('[二维码] WebView生成失败:', result.error);
+                    // 失败时保持SVG fallback
+                  }
+                } catch (e) {
+                  console.warn('[二维码] WebView消息解析失败:', e);
+                }
+              }}
+              javaScriptEnabled={true}
+              originWhitelist={['*']}
+              style={{ width: 1, height: 1 }}
             />
           </View>
           
@@ -13206,14 +13530,20 @@ const PrivateChat = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      <CommonHeader 
-        title={name || '私聊'} 
+      <CommonHeader
+        title={
+          <>
+            <Text>{name || '私聊'}</Text>
+            {'\n'}
+            <Text style={{ fontSize: 11, color: TEXT_THIRD }}>{phone}</Text>
+          </>
+        }
         showBack={true}
         navigation={navigation}
         rightComponent={
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 11, color: TEXT_THIRD }}>{phone}</Text>
-          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('ChatSetting', { chatId: 'private_' + phone })}>
+            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+          </TouchableOpacity>
         }
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
@@ -14151,7 +14481,7 @@ const GuardedHomePage = withNoShopGuard(HomePage, '首页');
 const GuardedVerifyOrder = withNoShopGuard(VerifyOrder, '核销');
 const GuardedCustomerService = withNoShopGuard(CustomerService, '客服');
 const GuardedStockManage = withNoShopGuard(StockManage, '出入库');
-const GuardedInternalChat = withNoShopGuard(InternalChat, '内部');
+const GuardedInternalChat = withNoShopGuard(InternalChatList, '内部');
 const GuardedMerchantAssistant = withNoShopGuard(MerchantAssistant, 'AI助手');
 
 const Tab = createBottomTabNavigator();
@@ -15347,6 +15677,7 @@ function AppStack() {
       <Stack.Screen name="ProductOverview" component={ProductOverview} />
       <Stack.Screen name="StaffManage" component={StaffManage} />
       <Stack.Screen name="PrivateChat" component={PrivateChat} />
+      <Stack.Screen name="InternalChatRoom" component={InternalChatRoom} options={{ gestureEnabled: true }} />
       <Stack.Screen name="ChatSetting" component={ChatSettingScreen} options={{ gestureEnabled: true }} />
       <Stack.Screen name="SearchChatRecord" component={SearchChatRecordScreen} />
       <Stack.Screen name="MyQRCode" component={MyQRCodeScreen} options={{ gestureEnabled: true }} />

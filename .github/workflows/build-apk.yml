@@ -17,16 +17,15 @@ jobs:
         with:
           node-version: 22
 
-      - name: Cache npm dependencies
+      - name: Cache node_modules
         uses: actions/cache@v4
+        id: cache-npm
         with:
-          path: |
-            ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.cache-npm.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Setup JDK
@@ -41,7 +40,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/build.gradle', 'android/app/build.gradle') }}
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/build.gradle', 'android/app/build.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -57,23 +57,13 @@ jobs:
           echo "EXPO_PUBLIC_ALIBABA_API_KEY=${{ secrets.ALIBABA_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_DOUBAO_API_KEY=${{ secrets.DOUBAO_API_KEY }}" >> .env
 
-      - name: Prebuild Android (always rebuild for version updates)
-        run: |
-          npx expo prebuild --platform android --clean
-          echo "Prebuild completed successfully"
-
-      - name: Clear CMake cache (fixes multi-arch build conflicts)
-        run: |
-          find node_modules -type d -name ".cxx" -exec rm -rf {} + 2>/dev/null || true
-          rm -rf android/app/.cxx
-
-      - name: Build APK (arm64-v8a + armeabi-v7a for Google Play)
+      - name: Build APK (skip prebuild, build directly from committed android/ dir, arm64 only)
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew clean assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --stacktrace
+          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
       - name: Get version from app.json
         id: get_version
