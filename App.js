@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -2987,77 +2987,136 @@ const LoginScreen = () => {
         </View>
       </ScrollView>
 
-      {/* 首次启动 - 安居客样式隐私政策授权弹窗 */}
+      {/* 首次启动 - 隐私政策授权弹窗 */}
       <Modal
         visible={showPrivacyAuth}
         transparent
         animationType="fade"
         onRequestClose={() => { if (policyView !== 'home') setPolicyView('home'); }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
           <View style={{
             width: '100%',
             backgroundColor: '#FFFFFF',
-            borderRadius: 20,
+            borderRadius: 24,
             overflow: 'hidden',
             shadowColor: '#000',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.18,
-            shadowRadius: 20,
-            elevation: 12,
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.2,
+            shadowRadius: 24,
+            elevation: 14,
           }}>
-            {/* 弹窗头部 */}
-            <View style={{ paddingHorizontal: 24, paddingTop: 22, paddingBottom: 12, alignItems: 'center' }}>
+            {/* 弹窗头部 - 带Logo */}
+            <View style={{
+              paddingHorizontal: 24,
+              paddingTop: 28,
+              paddingBottom: 16,
+              alignItems: 'center',
+              backgroundColor: 'linear-gradient(180deg, #F0F3FF 0%, #FFFFFF 100%)',
+            }}>
               {policyView !== 'home' ? (
-                <TouchableOpacity style={{ position: 'absolute', left: 16, top: 18, padding: 6 }} onPress={() => setPolicyView('home')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity style={{ position: 'absolute', left: 16, top: 20, padding: 6 }} onPress={() => setPolicyView('home')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name="arrow-back" size={22} color={TEXT_MAIN} />
                 </TouchableOpacity>
               ) : null}
-              <Text style={{ fontSize: 19, fontWeight: '700', color: TEXT_MAIN }}>
-                {policyView === 'privacy' ? '经营宝隐私政策' : policyView === 'agreement' ? '经营宝用户服务协议' : '隐私政策授权提示'}
+              {policyView === 'home' && (
+                <Image source={require('./assets/icon.png')} style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 14 }} resizeMode="cover" />
+              )}
+              <Text style={{ fontSize: 19, fontWeight: '700', color: TEXT_MAIN, letterSpacing: 0.5 }}>
+                {policyView === 'privacy' ? '经营宝隐私政策' : policyView === 'agreement' ? '经营宝用户服务协议' : '欢迎使用经营宝'}
               </Text>
-              {policyView !== 'home' && (
+              {policyView === 'home' ? (
+                <Text style={{ fontSize: 13, color: TEXT_SECOND, marginTop: 6, textAlign: 'center' }}>
+                  您的专属店铺经营管理助手
+                </Text>
+              ) : (
                 <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>更新日期：2026年7月31日</Text>
               )}
             </View>
 
             {/* 内容区域 - 可滚动 */}
             <ScrollView
-              style={{ maxHeight: 320, paddingHorizontal: 24 }}
-              showsVerticalScrollIndicator={true}
+              style={{ maxHeight: 340, paddingHorizontal: 24 }}
+              showsVerticalScrollIndicator={false}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingTop: 8, paddingBottom: 4 }}
             >
               {policyView === 'home' ? (
                 // ========== 首页内容 ==========
                 <View>
-                  <Text style={{ fontSize: 15, color: TEXT_MAIN, lineHeight: 24, marginBottom: 12, textAlign: 'center' }}>
-                    欢迎下载并使用经营宝APP！
+                  <Text style={{ fontSize: 14, color: TEXT_SECOND, lineHeight: 23, textAlign: 'center', marginBottom: 16 }}>
+                    为保障您的个人信息及合法权益，
+                    {'\n'}请您先阅读并同意以下协议后再使用
                   </Text>
 
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginBottom: 14 }}>
-                    为保障您的个人信息及合法权益，请在使用前认真阅读
-                  </Text>
-
-                  {/* 可点击的协议链接 */}
-                  <TouchableOpacity onPress={() => setPolicyView('agreement')} style={{ paddingVertical: 8 }}>
-                    <Text style={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 15 }}>《经营宝用户服务协议》</Text>
+                  {/* 可点击的协议链接卡片 */}
+                  <TouchableOpacity
+                    onPress={() => setPolicyView('agreement')}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#F7F8FC',
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      marginBottom: 10,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#EAF0FF', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                      <Ionicons name="document-text-outline" size={18} color={PRIMARY_COLOR} />
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: TEXT_MAIN }}>《经营宝用户服务协议》</Text>
+                    <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setPolicyView('privacy')} style={{ paddingVertical: 8 }}>
-                    <Text style={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 15 }}>《经营宝隐私政策》</Text>
+
+                  <TouchableOpacity
+                    onPress={() => setPolicyView('privacy')}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#F7F8FC',
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      marginBottom: 16,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E6FBF2', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color="#00B578" />
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: TEXT_MAIN }}>《经营宝隐私政策》</Text>
+                    <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />
                   </TouchableOpacity>
 
-                  <Text style={{ fontSize: 13, color: TEXT_SECOND, lineHeight: 22, marginTop: 8, marginBottom: 12 }}>
-                    我们将严格按照协议为您提供安全、可靠的服务。
-                  </Text>
-
-                  <View style={{ backgroundColor: '#F5F7FA', padding: 14, borderRadius: 10, marginBottom: 4 }}>
-                    <Text style={{ fontSize: 13, color: TEXT_MAIN, fontWeight: '600', marginBottom: 6 }}>【重点提示】</Text>
-                    <Text style={{ fontSize: 12, color: TEXT_SECOND, lineHeight: 20 }}>
-                      {'\n'}1、我们仅会在必要场景下申请相关权限（如存储、相机、相册等）；
-                      {'\n'}2、未经您同意，我们不会向任意第三方共享您的个人信息；
-                      {'\n'}3、您可以在"我的 - 设置"中随时查询、更正或删除您的个人信息。
-                    </Text>
+                  {/* 重点提示卡片 */}
+                  <View style={{
+                    backgroundColor: '#FFF9EC',
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: '#FFE8B8',
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <Ionicons name="information-circle" size={18} color="#F59E0B" style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400E' }}>重点提示</Text>
+                    </View>
+                    <View style={{ marginLeft: 2 }}>
+                      <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, width: 18 }}>1、</Text>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, flex: 1 }}>仅在必要场景申请权限（相机、存储、通知）</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, width: 18 }}>2、</Text>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, flex: 1 }}>未经您同意，不会向第三方共享个人信息</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row' }}>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, width: 18 }}>3、</Text>
+                        <Text style={{ fontSize: 12, color: '#B45309', lineHeight: 19, flex: 1 }}>可在"设置"中随时查询、更正或删除信息</Text>
+                      </View>
+                    </View>
                   </View>
                 </View>
               ) : policyView === 'privacy' ? (
@@ -3174,15 +3233,20 @@ const LoginScreen = () => {
 
             {/* 弹窗底部按钮区 */}
             {policyView === 'home' ? (
-              <View style={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+              <View style={{ paddingHorizontal: 24, paddingTop: 18, paddingBottom: 22 }}>
                 <TouchableOpacity
                   onPress={handlePrivacyAgree}
                   style={{
-                    backgroundColor: '#00B578',
-                    borderRadius: 26,
-                    paddingVertical: 14,
+                    backgroundColor: PRIMARY_COLOR,
+                    borderRadius: 28,
+                    paddingVertical: 15,
                     alignItems: 'center',
                     marginBottom: 10,
+                    shadowColor: PRIMARY_COLOR,
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.25,
+                    shadowRadius: 10,
+                    elevation: 6,
                   }}
                 >
                   <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>同意并继续</Text>
@@ -3195,17 +3259,17 @@ const LoginScreen = () => {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' }}>
+              <View style={{ paddingHorizontal: 24, paddingTop: 14, paddingBottom: 22, borderTopWidth: 1, borderTopColor: '#F0F2F5' }}>
                 <TouchableOpacity
                   onPress={() => setPolicyView('home')}
                   style={{
-                    backgroundColor: '#F5F7FA',
-                    borderRadius: 26,
+                    backgroundColor: PRIMARY_COLOR,
+                    borderRadius: 28,
                     paddingVertical: 14,
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={{ color: TEXT_MAIN, fontSize: 16, fontWeight: '600' }}>返回</Text>
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>我已知晓</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -3570,10 +3634,10 @@ const SettingDrawer = ({ visible, onClose }) => {
   const saveEmployeeDailyReportConfig = () => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
-    // 调度日报推送通知
+    // 调度日报推送通知（下班时间推送）
     if (dailyReportEnable) {
-      const [h, m] = workTimeStart.split(':');
-      scheduleDailyReportNotification(h, m);
+      const [h, m] = workTimeEnd.split(':');
+      scheduleDailyReportNotification(h, m, workTimeEnd);
     }
     showToast('日报推送设置已保存');
     setShowTimePicker(false);
@@ -3583,18 +3647,18 @@ const SettingDrawer = ({ visible, onClose }) => {
     const config = { enable: dailyReportEnable, workTimeStart, workTimeEnd };
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: config });
     if (dailyReportEnable) {
-      const [h, m] = workTimeStart.split(':');
-      scheduleDailyReportNotification(h, m);
+      const [h, m] = workTimeEnd.split(':');
+      scheduleDailyReportNotification(h, m, workTimeEnd);
       // 10秒后发送测试通知，让用户验证通知是否正常
       Notifications.scheduleNotificationAsync({
         content: {
           title: '📊 日报推送测试',
-          body: `日报推送已设置为每天 ${workTimeStart}，这是一条测试通知`,
+          body: `日报推送已设置为每天 ${workTimeEnd} 下班后，这是一条测试通知`,
           data: { screen: 'dailyReport' },
           sound: 'default',
         },
         trigger: { seconds: 10 },
-      }).catch(() => {});
+      }).catch((e) => console.warn('测试通知发送失败', e));
     } else {
       Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
@@ -3607,8 +3671,8 @@ const SettingDrawer = ({ visible, onClose }) => {
     setDailyReportEnable(newEnable);
     dispatch({ type: 'SET_DAILY_REPORT_CONFIG', payload: { enable: newEnable, workTimeStart, workTimeEnd } });
     if (newEnable) {
-      const [h, m] = workTimeStart.split(':');
-      scheduleDailyReportNotification(h, m);
+      const [h, m] = workTimeEnd.split(':');
+      scheduleDailyReportNotification(h, m, workTimeEnd);
     } else {
       Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
@@ -9006,16 +9070,33 @@ const ScanQRCodeScreen = ({ navigation }) => {
   };
 
   // 处理手动输入的二维码内容
+  // 归一化二维码数据：兼容简写字段(t/p/n/s)和长字段(type/phone/name/shopName)
+  const normalizeQRData = (data) => {
+    if (!data) return null;
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    if (!parsed) return null;
+    // 兼容新旧格式
+    const type = parsed.t ? (parsed.t === 'm' ? 'merchant' : 'employee') : parsed.type;
+    return {
+      type,
+      phone: parsed.p || parsed.phone || '',
+      name: parsed.n || parsed.name || '',
+      shopName: parsed.s || parsed.shopName || '',
+    };
+  };
+
   const handleManualQRInput = (data) => {
     try {
-      const parsed = JSON.parse(data);
-      if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
-        setScanResult(parsed);
+      const normalized = normalizeQRData(data);
+      if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
+        setScanResult(normalized);
         setShowConfirm(true);
         setSelectedImage(null);
         return;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('handleManualQRInput 解析失败:', e);
+    }
     showToast('无效的二维码格式');
   };
 
@@ -9024,13 +9105,15 @@ const ScanQRCodeScreen = ({ navigation }) => {
     if (scanned) return;
     setScanned(true);
     try {
-      const parsed = JSON.parse(data);
-      if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
-        setScanResult(parsed);
+      const normalized = normalizeQRData(data);
+      if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
+        setScanResult(normalized);
         setShowConfirm(true);
         return;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('handleBarcodeScanned 解析失败:', e);
+    }
     // 非二维码格式
     showToast('无效的二维码，请扫描经营宝用户二维码');
     setTimeout(() => setScanned(false), 1500);
@@ -9499,21 +9582,28 @@ const ScanQRCodeScreen = ({ navigation }) => {
               
               setImageProcessing(false);
               if (result.success && result.data) {
+                console.log('[WebView] 识别到内容:', result.data.substring(0, 100));
                 try {
-                  const parsed = JSON.parse(result.data);
-                  if (parsed && (parsed.type === 'merchant' || parsed.type === 'employee')) {
-                    setScanResult(parsed);
+                  // 先尝试归一化处理（兼容简写字段和长字段）
+                  const normalized = normalizeQRData(result.data);
+                  if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
+                    setScanResult(normalized);
                     setShowConfirm(true);
                     setSelectedImage(null);
                     return;
                   }
-                } catch (e) {}
+                } catch (e) {
+                  console.warn('[WebView] 归一化失败，尝试直接handleManualQRInput');
+                }
                 handleManualQRInput(result.data);
                 setSelectedImage(null);
               } else {
+                console.warn('[WebView] 识别失败:', result.error);
                 showToast(result.error || '未识别到二维码，请确保图片清晰或手动输入');
               }
-            } catch (e) {}
+            } catch (e) {
+              console.warn('[WebView] onMessage解析异常:', e);
+            }
           }}
           javaScriptEnabled={true}
           originWhitelist={['*']}
@@ -9531,14 +9621,14 @@ const MyQRCodeScreen = ({ navigation }) => {
   const shopName = state.shopInfo?.shopName || '未设置';
   const isEmployee = state.user?.role === '员工';
 
-  // 生成二维码数据（JSON格式）
+  // 生成二维码数据（精简字段，更小的二维码更容易识别）
   const qrData = JSON.stringify({
-    type: isEmployee ? 'employee' : 'merchant',
-    phone: user.phone || '',
-    name: user.name || '',
-    shopName: shopName,
-    timestamp: Date.now(),
+    t: isEmployee ? 'e' : 'm', // 简写type
+    p: user.phone || '',
+    n: user.name || '',
+    s: shopName,
   });
+  console.log('[二维码] 生成数据:', qrData, '长度:', qrData.length);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#EDEDED' }}>
@@ -9559,14 +9649,22 @@ const MyQRCodeScreen = ({ navigation }) => {
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#000' }}>{user.name || '用户'}</Text>
           <Text style={{ fontSize: 14, color: '#888', marginTop: 4 }}>{isEmployee ? '员工' : '商家'} · {shopName}</Text>
           
-          {/* 真正的二维码 */}
-          <View style={{ marginTop: 24, width: 200, height: 200, backgroundColor: '#fff', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' }}>
+          {/* 真正的二维码 - 更大的二维码+足够留白，提升识别率 */}
+          <View style={{
+            marginTop: 24,
+            padding: 20,          // 四周留白（静区），扫码识别必须
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: '#E0E0E0'
+          }}>
             <QRCode
               value={qrData}
-              size={170}
-              color="#333"
-              backgroundColor="#fff"
+              size={190}            // 增大尺寸
+              color="#000000"        // 纯黑色，提升对比度
+              backgroundColor="#ffffff"
               logoSize={0}
+              quietZone={12}         // 二维码静区（防止贴边）
             />
           </View>
           
@@ -10043,6 +10141,7 @@ const MerchantAssistant = () => {
   const industry = state.shopInfo?.industry || '待识别';
   const shopName = state.shopInfo?.shopName || '我的门店';
   const userName = state.user?.name || '老板';
+  console.log('[AI助手] shopInfo:', JSON.stringify(state.shopInfo), 'industry var:', industry);
 
   // 收集软件全局所有数据
   const collectAllBusinessData = () => {
@@ -10112,7 +10211,12 @@ const MerchantAssistant = () => {
   };
 
   const getQuickReplies = () => {
-    const currentIndustry = industry || detectIndustryFromName(shopName);
+    // 优先使用state中的industry字段，其次从shopName智能识别
+    let currentIndustry = industry;
+    if (!currentIndustry || currentIndustry === '待识别' || !INDUSTRY_LIST.includes(currentIndustry)) {
+      currentIndustry = detectIndustryFromName(shopName);
+    }
+    console.log('[AI助手] getQuickReplies 使用行业:', currentIndustry);
     
     switch (currentIndustry) {
       case '企业类':
@@ -15302,25 +15406,34 @@ async function sendLocalNotification(title, body, data = {}) {
 }
 
 // 调度每日日报推送通知
-async function scheduleDailyReportNotification(hour, minute) {
+async function scheduleDailyReportNotification(hour, minute, timeStr) {
   try {
     try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.cancelScheduledNotificationAsync('daily-report');
     } catch (e) {
-      console.warn('取消旧通知失败(忽略)', e);
+      console.warn('取消旧日报通知失败(忽略)', e);
     }
+    try {
+      // 同时取消所有其他调度，防止重复
+      const all = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(all.map(n => {
+        if (n.identifier !== 'daily-report') {
+          return Notifications.cancelScheduledNotificationAsync(n.identifier);
+        }
+      }));
+    } catch (e) {}
     
     const h = parseInt(hour);
     const m = parseInt(minute);
-    
-    console.log(`日报推送：设置每天 ${h}:${m}`);
+    const displayTime = timeStr || `${h}:${m < 10 ? '0'+m : m}`;
+    console.log(`[日报推送] 设置每天下班时间 ${displayTime} 调度日报通知`);
     
     // 用 DailyTriggerInput 格式，每天重复
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily-report',
       content: {
-        title: '📊 经营宝日报',
-        body: '今日经营数据已生成，点击查看详情',
+        title: '📊 经营宝日报已生成',
+        body: `今日经营数据已汇总，点击查看当日营收、订单、利润等详情（${displayTime} 下班推送）`,
         data: { screen: 'dailyReport' },
         sound: 'default',
       },
@@ -15331,9 +15444,18 @@ async function scheduleDailyReportNotification(hour, minute) {
       },
     });
     
-    console.log('日报推送调度成功');
+    console.log(`[日报推送] 调度成功，每天 ${h}:${m} 推送`);
+    
+    // 打印所有调度的通知用于调试
+    try {
+      const all = await Notifications.getAllScheduledNotificationsAsync();
+      console.log('[日报推送] 当前所有调度通知:', JSON.stringify(all.map(n => ({
+        id: n.identifier,
+        trigger: n.trigger,
+      }))));
+    } catch (e) {}
   } catch (e) {
-    console.warn('设置日报推送失败', e);
+    console.warn('[日报推送] 设置日报推送失败', e);
   }
 }
 
@@ -15418,11 +15540,11 @@ export default function App() {
         console.warn('通知权限未授予');
       }
       
-      // App 启动时，如果已配置日报推送，则重新调度
-      if (state.dailyReportConfig?.enable && state.dailyReportConfig?.workTimeStart) {
-        const [h, m] = state.dailyReportConfig.workTimeStart.split(':');
+      // App 启动时，如果已配置日报推送，则重新调度（使用下班时间 workTimeEnd）
+      if (state.dailyReportConfig?.enable && state.dailyReportConfig?.workTimeEnd) {
+        const [h, m] = state.dailyReportConfig.workTimeEnd.split(':');
         if (h && m) {
-          scheduleDailyReportNotification(h, m);
+          scheduleDailyReportNotification(h, m, state.dailyReportConfig.workTimeEnd);
         }
       }
     })();
