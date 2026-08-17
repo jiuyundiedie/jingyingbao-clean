@@ -536,6 +536,7 @@ async function fetchZhipuChat(msgList, prompt, signal) {
         temperature: 0.7,
         max_tokens: 2000
       }),
+      signal: signal || undefined,
     });
     
     const timeoutPromise = new Promise((_, reject) => 
@@ -9525,7 +9526,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
               style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
               <Ionicons name="create-outline" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>输入</Text>
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>手机号</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -9641,48 +9642,24 @@ const ScanQRCodeScreen = ({ navigation }) => {
         </Modal>
       )}
 
-      {/* 手动输入二维码内容弹窗 */}
+      {/* 手动输入手机号弹窗 */}
       <Modal visible={showManualInput} transparent animationType="fade" onRequestClose={() => setShowManualInput(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 }} onPress={() => setShowManualInput(false)}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: '#fff', borderRadius: 16, width: '100%', padding: 22 }} onPress={() => {}}>
-            <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10, textAlign: 'center' }}>手动输入/粘贴二维码</Text>
-            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12, lineHeight: 18 }}>
-              支持3种格式：
-              {'\n'}① 极简：m_手机号_姓名_门店名   或  e_手机号_姓名_门店名
-              {'\n'}② 简写JSON：{"{\"t\":\"m\",\"p\":\"13800000000\",\"n\":\"张三\"}"}
-              {'\n'}③ 完整JSON：{"{\"type\":\"merchant\",\"phone\":\"138...\",\"name\":\"...\"}"}
+            <Text style={{ fontSize: 17, fontWeight: '600', color: TEXT_MAIN, marginBottom: 6, textAlign: 'center' }}>输入手机号添加</Text>
+            <Text style={{ fontSize: 13, color: TEXT_THIRD, marginBottom: 16, textAlign: 'center' }}>
+              {isEmployee ? '输入商家手机号申请加入店铺' : '输入员工手机号发送入职邀请'}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity
-                onPress={async () => {
-                  try {
-                    const text = await Clipboard.getStringAsync();
-                    if (text && text.trim()) {
-                      setManualQRInput(text.trim());
-                      showToast('剪贴板内容已粘贴');
-                    } else {
-                      showToast('剪贴板为空');
-                    }
-                  } catch (e) {
-                    showToast('读取剪贴板失败');
-                  }
-                }}
-                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F2F4FF', borderRadius: 8 }}
-              >
-                <Ionicons name="clipboard-outline" size={14} color={PRIMARY_COLOR} style={{ marginRight: 4 }} />
-                <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>从剪贴板粘贴</Text>
-              </TouchableOpacity>
-            </View>
             <TextInput
               value={manualQRInput}
               onChangeText={setManualQRInput}
-              placeholder='如：m_13800000000_张三_我的店铺'
+              placeholder='请输入对方手机号'
               placeholderTextColor="#ccc"
-              multiline
+              keyboardType="phone-pad"
+              maxLength={11}
               autoCapitalize="none"
               autoCorrect={false}
-              style={{ minHeight: 80, borderWidth: 1, borderColor: BG_BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT_MAIN, textAlignVertical: 'top', marginBottom: 16 }}
+              style={{ height: 48, borderWidth: 1, borderColor: BG_BORDER, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, color: TEXT_MAIN, marginBottom: 16 }}
             />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
@@ -9692,11 +9669,23 @@ const ScanQRCodeScreen = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
-                  if (!manualQRInput.trim()) { showToast('请输入内容'); return; }
-                  handleManualQRInput(manualQRInput.trim());
+                  const input = manualQRInput.trim();
+                  if (!input) { showToast('请输入手机号'); return; }
+                  if (/^1[3-9]\d{9}$/.test(input)) {
+                    const result = isEmployee
+                      ? { type: 'merchant', phone: input, name: '', shopName: '' }
+                      : { type: 'employee', phone: input, name: '用户' + input.slice(-4), shopName: '' };
+                    setScanResult(result);
+                    setShowConfirm(true);
+                    setShowManualInput(false);
+                    setManualQRInput('');
+                    setScanned(false);
+                  } else {
+                    showToast('请输入正确的11位手机号');
+                  }
                 }}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>确认</Text>
+                <Text style={{ fontSize: 16, color: '#fff', fontWeight: '600' }}>确认添加</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -10328,10 +10317,12 @@ ${businessContext}
         AbortControllerRef.current = null;
         return;
       }
+      const finalReply = (!reply || reply.includes('连接失败') || reply.includes('超时') || reply.includes('未配置') || reply.includes('不可用') || reply.includes('为空') || reply.includes('错误'))
+        ? '网络连接不稳定，请稍后重试' : reply;
 
       const aiMsg = {
         id: (Date.now()+1).toString(),
-        text: reply,
+        text: finalReply,
         from: 'ai',
         time: new Date().toISOString(),
       };
@@ -11162,8 +11153,7 @@ ${businessContext}
 - 用"您"称呼商家，语气专业又亲切
 - 重点加粗、分点清晰、用数字和百分比说话`;
         reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
-        // 如果AI服务返回错误信息，使用本地fallback
-        if (reply && (reply.includes('连接失败') || reply.includes('超时') || reply.includes('未配置') || reply.includes('不可用'))) {
+        if (!reply || (reply.includes('连接失败') || reply.includes('超时') || reply.includes('未配置') || reply.includes('不可用') || reply.includes('为空') || reply.includes('错误'))) {
           reply = generateLocalReply(text, industry, allData);
         }
       }
@@ -11740,10 +11730,12 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
       const systemPrompt = `你是「${shopName}」${industry}店铺的专属智能助手，服务商家${userName}。店铺实时数据：${businessContext}。回答要简洁直接、基于真实数据、用"您"称呼商家。`;
       const reply = await fetchZhipuChat(msgList, systemPrompt, AbortControllerRef.current.signal);
       if (AbortControllerRef.current?.signal.aborted) { setLoading(false); return; }
+      const finalReply = (!reply || reply.includes('连接失败') || reply.includes('超时') || reply.includes('未配置') || reply.includes('不可用') || reply.includes('为空') || reply.includes('错误'))
+        ? '网络连接不稳定，请稍后重试' : reply;
 
-      const aiMsg = { id: (Date.now()+1).toString(), text: reply, from: 'ai', time: new Date().toISOString() };
+      const aiMsg = { id: (Date.now()+1).toString(), text: finalReply, from: 'ai', time: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
-      speakText(reply);
+      speakText(finalReply);
       setLoading(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) { if (e.name !== 'AbortError') showToast('发送失败'); setLoading(false); }
