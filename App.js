@@ -1664,7 +1664,7 @@ function appReducer(state, action) {
         const merchantShopInfo = state.shopInfo || {};
         const updatedShopInfo = {
           shopName: approvedStaff.shopName || merchantShopInfo.shopName || '',
-          phone: merchantShopInfo.phone || '',
+          phone: approvedStaff.shopPhone || merchantShopInfo.phone || '',
           industry: merchantShopInfo.industry || '餐饮类',
           ownerName: state.user?.name || '老板',
         };
@@ -1685,7 +1685,7 @@ function appReducer(state, action) {
     case 'ADD_STAFF_APPLICATION': {
       const exists = (state.staffMemberList || []).find(item => item.phone === action.payload.phone);
       if (exists) return state;
-      return { ...state, staffMemberList: [...(state.staffMemberList || []), { ...action.payload, status: 'pending', id: Date.now().toString() }] };
+      return { ...state, staffMemberList: [...(state.staffMemberList || []), { ...action.payload, status: 'pending', sentBy: action.payload.sentBy || 'employee', id: Date.now().toString() }] };
     }
     case 'SET_NIGHT_MODE':
       return { ...state, nightMode: action.payload };
@@ -2611,6 +2611,7 @@ const LoginScreen = () => {
           shopName: shopInfo.shopName,
           status: 'pending',
           role: '员工',
+          sentBy: 'employee',
         }});
         showToast('入职申请已发送，请等待商家审核');
       } else if (role === '员工' && !userShopName) {
@@ -9146,13 +9147,10 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [manualQRInput, setManualQRInput] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
-  const [scannerClosed, setScannerClosed] = useState(false);
   const scannedRef = useRef(false);
-  const scannerListenerRef = useRef(null);
 
   const user = state.user || {};
   const isEmployee = state.user?.role === '员工';
-  const modernScannerAvailable = CameraView.isModernBarcodeScannerAvailable;
 
   // 从相册选择图片并使用原生scanFromURLAsync识别二维码（替代WebView+jsQR）
   const pickFromAlbum = async () => {
@@ -9199,54 +9197,6 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  // 启动原生扫码器（Google ML Kit，与微信相同的技术方案）
-  const launchNativeScanner = async () => {
-    try {
-      setScannerClosed(false);
-      scannedRef.current = false;
-      setScanned(false);
-      await CameraView.launchScanner({ barcodeTypes: ['qr'] });
-    } catch (e) {
-      console.warn('[扫码] launchScanner失败:', e);
-    } finally {
-      setScannerClosed(true);
-    }
-  };
-
-  // 组件挂载时注册原生扫码监听并自动启动
-  useEffect(() => {
-    if (!permission?.granted || !modernScannerAvailable) return;
-
-    const subscription = CameraView.onModernBarcodeScanned((event) => {
-      console.log('[扫码] 原生扫码器识别结果:', event.data?.substring(0, 200));
-      if (scannedRef.current) return;
-      scannedRef.current = true;
-      setScanned(true);
-      try {
-        const normalized = normalizeQRData(event.data);
-        if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
-          setScanResult(normalized);
-          setShowConfirm(true);
-          return;
-        }
-      } catch (e) {
-        console.warn('[扫码] 解析失败:', e);
-      }
-      showToast('无效的二维码，请扫描经营宝用户二维码');
-      setTimeout(() => { scannedRef.current = false; setScanned(false); }, 3000);
-    });
-    scannerListenerRef.current = subscription;
-
-    const timer = setTimeout(() => launchNativeScanner(), 300);
-
-    return () => {
-      clearTimeout(timer);
-      if (scannerListenerRef.current) {
-        scannerListenerRef.current.remove();
-      }
-    };
-  }, [permission?.granted, modernScannerAvailable]);
-
   // 处理手动输入的二维码内容
   // 归一化二维码数据：兼容3种格式
   //   格式1（极简）：m_手机号_姓名_店名   e_手机号_姓名_店名
@@ -9284,7 +9234,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  // 处理CameraView扫码结果（fallback模式，当launchScanner不可用时使用）
+  // 处理CameraView扫码结果
   const handleBarcodeScanned = ({ type, data }) => {
     console.log('[扫码] CameraView触发回调 type=', type, 'data=', data ? data.substring(0, 200) : null);
     if (scannedRef.current) return;
@@ -9326,7 +9276,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
           // 同时模拟商家端收到申请（Mock环境，双方为同一设备时）
           dispatch({
             type: 'ADD_STAFF_APPLICATION',
-            payload: { phone: user?.phone, name: user?.name || '新员工', shopName: shopName || '门店' }
+            payload: { phone: user?.phone, name: user?.name || '新员工', shopName: shopName || '门店', sentBy: 'employee' }
           });
           showToast(`已向「${shopName || '门店'}」发起入职申请`);
         }
@@ -9343,7 +9293,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
           else if (exists.status === 'approved') showToast('该员工已加入店铺');
           else showToast('该员工已被您拒绝过，可先移除再申请');
         } else {
-          dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone, name: name || '新员工' } });
+          dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone, name: name || '新员工', sentBy: 'merchant', shopName: state.shopInfo?.shopName || '门店', shopPhone: state.user?.phone || '' } });
           dispatch({ type: 'SEND_STAFF_APPLICATION', payload: { phone, name: name || '新员工' } });
           showToast(`已向 ${name || '员工'}(${phone}) 发送入职邀请`);
         }
@@ -9419,70 +9369,41 @@ const ScanQRCodeScreen = ({ navigation }) => {
         </SafeAreaView>
       </View>
 
-      {/* 扫码区域：优先使用原生Google ML Kit扫码器（与微信相同），不可用时回退到CameraView */}
-      {modernScannerAvailable ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          {scannerClosed ? (
-            <View style={{ alignItems: 'center', paddingHorizontal: 40 }}>
-              <Ionicons name="scan-outline" size={80} color="#fff" style={{ opacity: 0.6 }} />
-              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 24 }}>
-                {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
-              </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginTop: 10, textAlign: 'center' }}>
-                点击下方按钮启动扫码器{'\n'}将二维码对准相机即可自动识别
-              </Text>
-              <TouchableOpacity
-                onPress={launchNativeScanner}
-                style={{ marginTop: 36, backgroundColor: PRIMARY_COLOR, borderRadius: 24, paddingVertical: 14, paddingHorizontal: 48 }}>
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>开始扫码</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={{ alignItems: 'center' }}>
-              <ActivityIndicator color="#fff" size="large" />
-              <Text style={{ color: '#fff', fontSize: 15, marginTop: 16 }}>正在启动扫码器...</Text>
-            </View>
-          )}
-        </View>
-      ) : (
-        <>
-          {/* CameraView fallback（当原生扫码器不可用时） */}
-          <CameraView
-            style={{ flex: 1 }}
-            facing="back"
-            enableTorch={torchOn}
-            active={true}
-            onCameraReady={() => console.log('[扫码] Camera已就绪，开始扫码')}
-            onMountError={(error) => console.error('[扫码] Camera挂载失败:', JSON.stringify(error))}
-            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-            barcodeScannerSettings={{
-              barcodeTypes: ['qr'],
-            }}
-          />
+      {/* 相机预览 + 实时扫码 */}
+      <CameraView
+        style={{ flex: 1 }}
+        facing="back"
+        enableTorch={torchOn}
+        active={true}
+        onCameraReady={() => console.log('[扫码] Camera已就绪，开始扫码')}
+        onMountError={(error) => console.error('[扫码] Camera挂载失败:', JSON.stringify(error))}
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
+        }}
+      />
 
-          {/* 扫描遮罩层 */}
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-            <View style={{ flexDirection: 'row', height: width * 0.62 }}>
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-              <View style={{ width: width * 0.62, position: 'relative' }}>
-                <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
-                <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
-                <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
-                <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
-                <View style={{ position: 'absolute', left: 4, right: 4, top: 0, height: 2, backgroundColor: PRIMARY_COLOR, opacity: 0.9 }} />
-              </View>
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-            </View>
-            <View style={{ flex: 1.3, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', paddingTop: 24 }}>
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>
-                {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
-              </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 }}>将二维码放入框内，自动识别</Text>
-            </View>
+      {/* 扫描遮罩层 */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+        <View style={{ flexDirection: 'row', height: width * 0.62 }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+          <View style={{ width: width * 0.62, position: 'relative' }}>
+            <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+            <View style={{ position: 'absolute', left: 4, right: 4, top: 0, height: 2, backgroundColor: PRIMARY_COLOR, opacity: 0.9 }} />
           </View>
-        </>
-      )}
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+        </View>
+        <View style={{ flex: 1.3, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', paddingTop: 24 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>
+            {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 }}>将二维码放入框内，自动识别</Text>
+        </View>
+      </View>
 
       {/* 底部操作按钮 */}
       <SafeAreaView style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} pointerEvents="box-none">
@@ -9497,28 +9418,18 @@ const ScanQRCodeScreen = ({ navigation }) => {
             <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>相册</Text>
           </View>
 
-          {/* 闪光灯（仅fallback模式显示） */}
-          {!modernScannerAvailable && (
-            <View style={{ width: 56, alignItems: 'center' }}>
-              <TouchableOpacity
-                onPress={() => { setTorchOn(v => !v); }}
-                style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
-              </TouchableOpacity>
-              <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>{torchOn ? '关灯' : '开灯'}</Text>
-            </View>
-          )}
-
-          {/* 中心：重新扫码（原生模式）或占位（fallback模式） */}
-          {modernScannerAvailable ? (
+          {/* 闪光灯 */}
+          <View style={{ width: 56, alignItems: 'center' }}>
             <TouchableOpacity
-              onPress={launchNativeScanner}
-              style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name="scan" size={32} color="#fff" />
+              onPress={() => { setTorchOn(v => !v); }}
+              style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
             </TouchableOpacity>
-          ) : (
-            <View style={{ width: 72, height: 72 }} />
-          )}
+            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>{torchOn ? '关灯' : '开灯'}</Text>
+          </View>
+
+          {/* 中心占位 */}
+          <View style={{ width: 72, height: 72 }} />
 
           {/* 我的二维码 */}
           <TouchableOpacity
@@ -11886,8 +11797,8 @@ const HomePage = () => {
       return count;
     }
     if (key === 'StaffManage' && !isEmployee) {
-      // 员工管理（商家）：待审核的入职申请 + 待处理的离职申请（未查看）
-      const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && !s.viewed).length;
+      // 员工管理（商家）：待审核的入职申请（仅员工发起的）+ 待处理的离职申请（未查看）
+      const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && !s.viewed && s.sentBy !== 'merchant').length;
       const pendingRes = (state.resignationApplications || []).filter(a => a.status === 'pending' && !a.viewed).length;
       return pendingStaff + pendingRes;
     }
@@ -11945,7 +11856,8 @@ const HomePage = () => {
   } else {
     chatStaffList = (state.staffMemberList || []).filter(s => s.status === 'approved' && s.phone !== user?.phone);
   }
-  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && s.shopName === state.shopInfo?.shopName);
+  // 商家端首页只显示员工主动申请的（sentBy != merchant），不显示商家自己发出的邀请
+  const pendingStaff = (state.staffMemberList || []).filter(s => s.status === 'pending' && s.sentBy !== 'merchant' && s.shopName === state.shopInfo?.shopName);
 
   const goToPrivateChat = (staff) => navigation.navigate('PrivateChat', { phone: staff.phone, name: staff.name });
 
@@ -11987,6 +11899,26 @@ const HomePage = () => {
     try {
       dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
       showToast('已拒绝');
+    } catch (error) { showToast('操作失败'); }
+  };
+
+  // ===== 员工端：同意/拒绝商家发来的入职邀请 =====
+  const pendingInvitations = (state.staffMemberList || []).filter(s => s.status === 'pending' && s.sentBy === 'merchant' && s.phone === user?.phone);
+  const handleEmployeeApprove = (phone) => {
+    try {
+      dispatch({ type: 'APPROVE_STAFF_APPLICATION', payload: { phone } });
+      // 将自己加入internal群聊
+      const staff = (state.staffMemberList || []).find(s => s.phone === phone);
+      if (staff) {
+        dispatch({ type: 'ADD_GROUP_MEMBER', payload: { groupId: 'internal', phone: staff.phone, name: staff.name } });
+      }
+      showToast('已同意入职，欢迎加入店铺！');
+    } catch (error) { showToast('操作失败'); }
+  };
+  const handleEmployeeReject = (phone) => {
+    try {
+      dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: { phone } });
+      showToast('已拒绝入职邀请');
     } catch (error) { showToast('操作失败'); }
   };
 
@@ -12036,8 +11968,8 @@ const HomePage = () => {
       else showToast('该员工已被您拒绝过，可先移除再申请');
       return;
     }
-    // 1. 加到员工列表，状态pending（显示入职申请）
-    dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone: searchResult.phone, name: searchResult.name } });
+    // 1. 加到员工列表，状态pending（员工端显示入职邀请）
+    dispatch({ type: 'ADD_STAFF_APPLICATION', payload: { phone: searchResult.phone, name: searchResult.name, sentBy: 'merchant', shopName: state.shopInfo?.shopName || '门店', shopPhone: state.user?.phone || '' } });
     // 2. 记录该员工申请，用于员工端审核
     dispatch({ type: 'SEND_STAFF_APPLICATION', payload: { phone: searchResult.phone, name: searchResult.name } });
     showToast(`已向 ${searchResult.name}(${searchResult.phone}) 发送入职邀请`);
@@ -12160,6 +12092,31 @@ const HomePage = () => {
               </View>
             )}
           </View>
+
+          {/* 员工端：收到商家的入职邀请 */}
+          {isEmployee && pendingInvitations.length > 0 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 8 }}>📩 入职邀请</Text>
+              {pendingInvitations.map(staff => (
+                <View key={staff.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 14, marginBottom: 8, ...SHADOW }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{staff.shopName || '门店'} 邀请您加入</Text>
+                  <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>点击同意即可加入店铺，解锁全部功能</Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => handleEmployeeApprove(staff.phone)}
+                      style={{ flex: 1, backgroundColor: '#4CAF50', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>同意入职</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleEmployeeReject(staff.phone)}
+                      style={{ flex: 1, backgroundColor: '#F44336', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>拒绝</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
             <View style={{ width: (width - 44) / 2, backgroundColor: BG_CARD, padding: 16, borderRadius: 14, ...SHADOW }}>
@@ -13971,7 +13928,10 @@ const StaffManage = () => {
   const [selectedStaff, setSelectedStaff] = useState(null);
 
   const staffMemberList = state.staffMemberList || [];
-  const pendingList = staffMemberList.filter(s => s.status === 'pending');
+  // 商家端只显示员工主动申请的（sentBy=employee），不显示商家自己发出的邀请
+  const pendingList = staffMemberList.filter(s => s.status === 'pending' && s.sentBy !== 'merchant');
+  // 商家已发出的邀请（等待员工同意）
+  const sentInvitations = staffMemberList.filter(s => s.status === 'pending' && s.sentBy === 'merchant');
   const approvedList = staffMemberList.filter(s => s.status === 'approved');
   // 待处理离职申请
   const resignationList = (state.resignationApplications || []).filter(a => a.status === 'pending');
@@ -14115,6 +14075,24 @@ const StaffManage = () => {
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: SUCCESS_COLOR }]} onPress={() => handleApprove(staff)}><Text style={styles.sendTxt}>同意</Text></TouchableOpacity>
                   <TouchableOpacity style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]} onPress={() => handleReject(staff)}><Text style={styles.sendTxt}>拒绝</Text></TouchableOpacity>
                 </View>
+              </View>
+            ))}
+          </View>
+        )}
+        {sentInvitations.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN, marginBottom: 10 }}>📤 已发送邀请 ({sentInvitations.length})</Text>
+            {sentInvitations.map(staff => (
+              <View key={staff.phone} style={[styles.listItem, { borderLeftWidth: 3, borderLeftColor: PRIMARY_COLOR }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: TEXT_MAIN }}>{staff.name}</Text>
+                  <Text style={{ fontSize: 12, color: TEXT_THIRD }}>{staff.phone} | 等待对方同意</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.miniBlueBtn, { backgroundColor: DANGER_COLOR }]}
+                  onPress={() => { dispatch({ type: 'REJECT_STAFF_APPLICATION', payload: staff.phone }); showToast('已撤回邀请'); }}>
+                  <Text style={styles.sendTxt}>撤回</Text>
+                </TouchableOpacity>
               </View>
             ))}
           </View>
