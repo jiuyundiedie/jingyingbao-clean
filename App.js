@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -14,7 +14,7 @@ const navigationRef = createNavigationContainerRef();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { CameraView, CameraType, useCameraPermissions, scanFromURLAsync } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
@@ -26,7 +26,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import jsQR from 'jsqr';
 import QRCode from 'react-native-qrcode-svg';
 import { WebView } from 'react-native-webview';
 import { BACKEND_URL, API, apiUrl, apiFetch, getMode } from './config';
@@ -3650,16 +3649,6 @@ const SettingDrawer = ({ visible, onClose }) => {
     if (dailyReportEnable) {
       const [h, m] = workTimeEnd.split(':');
       scheduleDailyReportNotification(h, m, workTimeEnd);
-      // 10秒后发送测试通知，让用户验证通知是否正常
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: '📊 日报推送测试',
-          body: `日报推送已设置为每天 ${workTimeEnd} 下班后，这是一条测试通知`,
-          data: { screen: 'dailyReport' },
-          sound: 'default',
-        },
-        trigger: { seconds: 10 },
-      }).catch((e) => console.warn('测试通知发送失败', e));
     } else {
       Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
     }
@@ -9157,15 +9146,15 @@ const ScanQRCodeScreen = ({ navigation }) => {
   const [imageProcessing, setImageProcessing] = useState(false);
   const [manualQRInput, setManualQRInput] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
-  const webViewRef = useRef(null);
-  const webViewReadyRef = useRef(false);
-  const pendingBase64Ref = useRef(null);
-  const facingRef = useRef('back');
+  const [scannerClosed, setScannerClosed] = useState(false);
+  const scannedRef = useRef(false);
+  const scannerListenerRef = useRef(null);
 
   const user = state.user || {};
   const isEmployee = state.user?.role === '员工';
+  const modernScannerAvailable = CameraView.isModernBarcodeScannerAvailable;
 
-  // 从相册选择图片
+  // 从相册选择图片并使用原生scanFromURLAsync识别二维码（替代WebView+jsQR）
   const pickFromAlbum = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -9182,72 +9171,81 @@ const ScanQRCodeScreen = ({ navigation }) => {
         const asset = result.assets[0];
         setSelectedImage(asset.uri);
         setImageProcessing(true);
-        // 尝试自动识别
-        await parseQRFromImage(asset.uri);
+        try {
+          const scanResults = await scanFromURLAsync(asset.uri, ['qr']);
+          setImageProcessing(false);
+          if (scanResults && scanResults.length > 0) {
+            const data = scanResults[0].data;
+            console.log('[相册识别] scanFromURLAsync结果:', data?.substring(0, 200));
+            const normalized = normalizeQRData(data);
+            if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
+              setScanResult(normalized);
+              setShowConfirm(true);
+              setSelectedImage(null);
+              return;
+            }
+            showToast('未识别到经营宝二维码，请手动输入手机号');
+          } else {
+            showToast('未识别到二维码，请确保图片清晰或手动输入');
+          }
+        } catch (e) {
+          console.error('[相册识别] scanFromURLAsync失败:', e);
+          setImageProcessing(false);
+          showToast('图片识别失败，请手动输入手机号');
+        }
       }
     } catch (error) {
       showToast('选择图片失败');
     }
   };
 
-  // 从图片解析二维码（压缩+顺序分块传输到WebView）
-  const parseQRFromImage = async (imageUri) => {
+  // 启动原生扫码器（Google ML Kit，与微信相同的技术方案）
+  const launchNativeScanner = async () => {
     try {
-      setImageProcessing(true);
-      // 步骤1: 压缩图片到最大800px
-      const manipulated = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{ resize: { width: 800 } }],
-        { base64: true, format: 'png' }
-      );
-      
-      if (!manipulated.base64) {
-        setImageProcessing(false);
-        showToast('图片处理失败');
-        return;
-      }
-      
-      const base64Data = manipulated.base64;
-      pendingBase64Ref.current = base64Data;
-      
-      if (webViewReadyRef.current && webViewRef.current) {
-        // 顺序分块传输，每块之间加延迟确保WebView能按顺序处理
-        const chunkSize = 3000;
-        const chunks = [];
-        for (let i = 0; i < base64Data.length; i += chunkSize) {
-          chunks.push(base64Data.substring(i, i + chunkSize));
-        }
-        
-        const sendChunksSequentially = async () => {
-          try {
-            webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
-            // 顺序发送，每块之间加50ms延迟
-            for (let i = 0; i < chunks.length; i++) {
-              await new Promise(resolve => setTimeout(resolve, 50));
-              webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
-            }
-            await new Promise(resolve => setTimeout(resolve, 100));
-            webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
-          } catch (e) {
-            setImageProcessing(false);
-            showToast('识别失败，请手动输入');
-          }
-        };
-        
-        sendChunksSequentially();
-        
-        // 10秒超时保护
-        setTimeout(() => {
-          setImageProcessing(false);
-          showToast('识别超时，请点击手动输入');
-        }, 10000);
-      }
-    } catch (error) {
-      console.error('parseQRFromImage error:', error);
-      setImageProcessing(false);
-      showToast('图片解析失败，请手动输入');
+      setScannerClosed(false);
+      scannedRef.current = false;
+      setScanned(false);
+      await CameraView.launchScanner({ barcodeTypes: ['qr'] });
+    } catch (e) {
+      console.warn('[扫码] launchScanner失败:', e);
+    } finally {
+      setScannerClosed(true);
     }
   };
+
+  // 组件挂载时注册原生扫码监听并自动启动
+  useEffect(() => {
+    if (!permission?.granted || !modernScannerAvailable) return;
+
+    const subscription = CameraView.onModernBarcodeScanned((event) => {
+      console.log('[扫码] 原生扫码器识别结果:', event.data?.substring(0, 200));
+      if (scannedRef.current) return;
+      scannedRef.current = true;
+      setScanned(true);
+      try {
+        const normalized = normalizeQRData(event.data);
+        if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
+          setScanResult(normalized);
+          setShowConfirm(true);
+          return;
+        }
+      } catch (e) {
+        console.warn('[扫码] 解析失败:', e);
+      }
+      showToast('无效的二维码，请扫描经营宝用户二维码');
+      setTimeout(() => { scannedRef.current = false; setScanned(false); }, 3000);
+    });
+    scannerListenerRef.current = subscription;
+
+    const timer = setTimeout(() => launchNativeScanner(), 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (scannerListenerRef.current) {
+        scannerListenerRef.current.remove();
+      }
+    };
+  }, [permission?.granted, modernScannerAvailable]);
 
   // 处理手动输入的二维码内容
   // 归一化二维码数据：兼容3种格式
@@ -9286,29 +9284,11 @@ const ScanQRCodeScreen = ({ navigation }) => {
     }
   };
 
-  const handleManualQRInput = (data) => {
-    try {
-      const normalized = normalizeQRData(data);
-      if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
-        setScanResult(normalized);
-        setShowConfirm(true);
-        setSelectedImage(null);
-        setShowManualInput(false);
-        setManualQRInput('');
-        setScanned(false);
-        return true;
-      }
-    } catch (e) {
-      console.warn('handleManualQRInput 解析失败:', e);
-    }
-    showToast('无效的二维码格式，请粘贴完整的二维码内容');
-    return false;
-  };
-
-  // 处理扫码结果
+  // 处理CameraView扫码结果（fallback模式，当launchScanner不可用时使用）
   const handleBarcodeScanned = ({ type, data }) => {
     console.log('[扫码] CameraView触发回调 type=', type, 'data=', data ? data.substring(0, 200) : null);
-    if (scanned) return;
+    if (scannedRef.current) return;
+    scannedRef.current = true;
     setScanned(true);
     try {
       const normalized = normalizeQRData(data);
@@ -9320,9 +9300,8 @@ const ScanQRCodeScreen = ({ navigation }) => {
     } catch (e) {
       console.warn('handleBarcodeScanned 解析失败:', e);
     }
-    // 非二维码格式
-    showToast('无效的二维码，请扫描经营宝用户二维码（可手动输入兜底）');
-    setTimeout(() => setScanned(false), 3000);
+    showToast('无效的二维码，请扫描经营宝用户二维码');
+    setTimeout(() => { scannedRef.current = false; setScanned(false); }, 3000);
   };
 
   // 确认处理扫码结果
@@ -9440,46 +9419,70 @@ const ScanQRCodeScreen = ({ navigation }) => {
         </SafeAreaView>
       </View>
 
-      {/* 相机预览 */}
-        <CameraView
-          style={{ flex: 1 }}
-          facing="back"
-          enableTorch={torchOn}
-          active={true}
-          onCameraReady={() => console.log('[扫码] Camera已就绪，开始扫码')}
-          onMountError={(error) => console.error('[扫码] Camera挂载失败:', JSON.stringify(error))}
-          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'aztec', 'datamatrix', 'pdf417', 'codabar', 'itf14', 'upc_a', 'upc_e'],
-          }}
-        />
+      {/* 扫码区域：优先使用原生Google ML Kit扫码器（与微信相同），不可用时回退到CameraView */}
+      {modernScannerAvailable ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          {scannerClosed ? (
+            <View style={{ alignItems: 'center', paddingHorizontal: 40 }}>
+              <Ionicons name="scan-outline" size={80} color="#fff" style={{ opacity: 0.6 }} />
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 24 }}>
+                {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginTop: 10, textAlign: 'center' }}>
+                点击下方按钮启动扫码器{'\n'}将二维码对准相机即可自动识别
+              </Text>
+              <TouchableOpacity
+                onPress={launchNativeScanner}
+                style={{ marginTop: 36, backgroundColor: PRIMARY_COLOR, borderRadius: 24, paddingVertical: 14, paddingHorizontal: 48 }}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>开始扫码</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center' }}>
+              <ActivityIndicator color="#fff" size="large" />
+              <Text style={{ color: '#fff', fontSize: 15, marginTop: 16 }}>正在启动扫码器...</Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <>
+          {/* CameraView fallback（当原生扫码器不可用时） */}
+          <CameraView
+            style={{ flex: 1 }}
+            facing="back"
+            enableTorch={torchOn}
+            active={true}
+            onCameraReady={() => console.log('[扫码] Camera已就绪，开始扫码')}
+            onMountError={(error) => console.error('[扫码] Camera挂载失败:', JSON.stringify(error))}
+            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
+            }}
+          />
 
-      {/* 扫描遮罩层 */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {/* 顶部暗色区 */}
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-        {/* 中间扫描区 */}
-        <View style={{ flexDirection: 'row', height: width * 0.62 }}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-          <View style={{ width: width * 0.62, position: 'relative' }}>
-            {/* 四角 */}
-            <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
-            <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
-            <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
-            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
-            {/* 扫描线动画（简化版） */}
-            <View style={{ position: 'absolute', left: 4, right: 4, top: 0, height: 2, backgroundColor: PRIMARY_COLOR, opacity: 0.9 }} />
+          {/* 扫描遮罩层 */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+            <View style={{ flexDirection: 'row', height: width * 0.62 }}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+              <View style={{ width: width * 0.62, position: 'relative' }}>
+                <View style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, borderTopWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+                <View style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, borderTopWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+                <View style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, borderBottomWidth: 3, borderLeftWidth: 3, borderColor: PRIMARY_COLOR }} />
+                <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderBottomWidth: 3, borderRightWidth: 3, borderColor: PRIMARY_COLOR }} />
+                <View style={{ position: 'absolute', left: 4, right: 4, top: 0, height: 2, backgroundColor: PRIMARY_COLOR, opacity: 0.9 }} />
+              </View>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
+            </View>
+            <View style={{ flex: 1.3, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', paddingTop: 24 }}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>
+                {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 }}>将二维码放入框内，自动识别</Text>
+            </View>
           </View>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} />
-        </View>
-        {/* 底部暗色区 */}
-        <View style={{ flex: 1.3, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', paddingTop: 24 }}>
-          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '500' }}>
-            {isEmployee ? '扫描商家二维码加入店铺' : '扫描员工二维码邀请入职'}
-          </Text>
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6 }}>将二维码放入框内，自动识别</Text>
-        </View>
-      </View>
+        </>
+      )}
 
       {/* 底部操作按钮 */}
       <SafeAreaView style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} pointerEvents="box-none">
@@ -9494,18 +9497,28 @@ const ScanQRCodeScreen = ({ navigation }) => {
             <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>相册</Text>
           </View>
 
-          {/* 闪光灯 */}
-          <View style={{ width: 56, alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => { setTorchOn(v => !v); }}
-              style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
-            </TouchableOpacity>
-            <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>{torchOn ? '关灯' : '开灯'}</Text>
-          </View>
+          {/* 闪光灯（仅fallback模式显示） */}
+          {!modernScannerAvailable && (
+            <View style={{ width: 56, alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={() => { setTorchOn(v => !v); }}
+                style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name={torchOn ? 'flashlight' : 'flashlight-outline'} size={24} color={torchOn ? '#FFD700' : '#fff'} />
+              </TouchableOpacity>
+              <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>{torchOn ? '关灯' : '开灯'}</Text>
+            </View>
+          )}
 
-          {/* 中心扫码图标 */}
-          <View style={{ width: 72, height: 72 }} />
+          {/* 中心：重新扫码（原生模式）或占位（fallback模式） */}
+          {modernScannerAvailable ? (
+            <TouchableOpacity
+              onPress={launchNativeScanner}
+              style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="scan" size={32} color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 72, height: 72 }} />
+          )}
 
           {/* 我的二维码 */}
           <TouchableOpacity
@@ -9519,7 +9532,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
             <Text style={{ color: '#fff', fontSize: 12, marginTop: 8, opacity: 0.8 }}>我的码</Text>
           </TouchableOpacity>
 
-          {/* 手动输入 */}
+          {/* 手机号手动输入 */}
           <View style={{ width: 56, alignItems: 'center' }}>
             <TouchableOpacity
               onPress={() => { setManualQRInput(''); setShowManualInput(true); }}
@@ -9534,10 +9547,10 @@ const ScanQRCodeScreen = ({ navigation }) => {
       {/* 结果确认弹窗 */}
       {showConfirm && scanResult && (
         <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => {
-          setShowConfirm(false); setScanResult(null); setScanned(false);
+          setShowConfirm(false); setScanResult(null); scannedRef.current = false; setScanned(false);
         }}>
           <TouchableWithoutFeedback onPress={() => {
-            setShowConfirm(false); setScanResult(null); setScanned(false);
+            setShowConfirm(false); setScanResult(null); scannedRef.current = false; setScanned(false);
           }}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
               <TouchableWithoutFeedback>
@@ -9569,7 +9582,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
                   </View>
                   <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: BG_BORDER }}>
                     <TouchableOpacity
-                      onPress={() => { setShowConfirm(false); setScanResult(null); setScanned(false); }}
+                      onPress={() => { setShowConfirm(false); setScanResult(null); scannedRef.current = false; setScanned(false); }}
                       style={{ flex: 1, paddingVertical: 16, alignItems: 'center' }}>
                       <Text style={{ fontSize: 16, color: TEXT_SECOND }}>取消</Text>
                     </TouchableOpacity>
@@ -9618,7 +9631,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
               )}
               {!imageProcessing && (
                 <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 16, textAlign: 'center' }}>
-                  若自动识别失败，请点击下方手动输入二维码内容
+                  若自动识别失败，请点击下方手动输入手机号
                 </Text>
               )}
             </View>
@@ -9629,7 +9642,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
                 <TouchableOpacity
                   onPress={() => setShowManualInput(true)}
                   style={{ backgroundColor: PRIMARY_COLOR, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 }}>
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>手动输入二维码内容</Text>
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>手动输入手机号</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setSelectedImage(null)}
@@ -9679,6 +9692,7 @@ const ScanQRCodeScreen = ({ navigation }) => {
                     setShowConfirm(true);
                     setShowManualInput(false);
                     setManualQRInput('');
+                    scannedRef.current = false;
                     setScanned(false);
                   } else {
                     showToast('请输入正确的11位手机号');
@@ -9692,143 +9706,6 @@ const ScanQRCodeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* 隐藏的 WebView 用于解析图片中的二维码 */}
-      <View style={{ position: 'absolute', left: -2000, top: 0, width: 600, height: 600 }}>
-        <WebView
-          ref={webViewRef}
-          source={{
-            html: `<!DOCTYPE html>
-            <html><head><meta charset="utf-8">
-            <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-            </head><body>
-            <canvas id="c" width="1000" height="1000"></canvas>
-            <script>
-              var _chunks = [];
-              var _totalChunks = 0;
-              
-              function waitForJsQR(callback, attempts) {
-                attempts = attempts || 0;
-                if (typeof jsQR !== 'undefined') {
-                  callback();
-                } else if (attempts < 100) {
-                  setTimeout(function() { waitForJsQR(callback, attempts + 1); }, 100);
-                } else {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: 'jsQR加载超时' }));
-                }
-              }
-              
-              function decodeBase64(base64) {
-                waitForJsQR(function() {
-                  try {
-                    var img = new Image();
-                    img.onload = function() {
-                      try {
-                        var canvas = document.getElementById('c');
-                        var ctx = canvas.getContext('2d');
-                        var maxSize = 1000;
-                        var scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-                        canvas.width = Math.floor(img.width * scale);
-                        canvas.height = Math.floor(img.height * scale);
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        var code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-                        if (code && code.data) {
-                          window.ReactNativeWebView.postMessage(JSON.stringify({ success: true, data: code.data }));
-                        } else {
-                          window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '未识别到二维码，请确保图片清晰' }));
-                        }
-                      } catch(e) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析异常' }));
-                      }
-                    };
-                    img.onerror = function() {
-                      window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '图片加载失败' }));
-                    };
-                    img.src = 'data:image/png;base64,' + base64;
-                  } catch(e) {
-                    window.ReactNativeWebView.postMessage(JSON.stringify({ success: false, error: '解析失败' }));
-                  }
-                });
-              }
-              
-              // 分块消息处理
-              window.addEventListener('message', function(event) {
-                try {
-                  var data = JSON.parse(event.data);
-                  if (data.action === 'chunkStart') {
-                    _chunks = [];
-                    _totalChunks = data.totalChunks;
-                  } else if (data.action === 'chunk') {
-                    _chunks[data.index] = data.data;
-                  } else if (data.action === 'chunkEnd') {
-                    // 合并所有块并解码
-                    var fullBase64 = _chunks.join('');
-                    decodeBase64(fullBase64);
-                    _chunks = [];
-                    _totalChunks = 0;
-                  }
-                } catch(e) {}
-              });
-              
-              window.ReactNativeWebView.postMessage(JSON.stringify({ status: 'ready' }));
-            </script>
-            </body></html>`,
-          }}
-          onLoad={async () => {
-            webViewReadyRef.current = true;
-            if (pendingBase64Ref.current && webViewRef.current) {
-              const b64 = pendingBase64Ref.current;
-              pendingBase64Ref.current = null;
-              // 顺序分块发送待处理的数据（带延迟）
-              const chunkSize = 3000;
-              const chunks = [];
-              for (let i = 0; i < b64.length; i += chunkSize) {
-                chunks.push(b64.substring(i, i + chunkSize));
-              }
-              webViewRef.current.postMessage(JSON.stringify({ action: 'chunkStart', totalChunks: chunks.length }));
-              for (let i = 0; i < chunks.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, 50));
-                webViewRef.current.postMessage(JSON.stringify({ action: 'chunk', index: i, data: chunks[i] }));
-              }
-              await new Promise(resolve => setTimeout(resolve, 100));
-              webViewRef.current.postMessage(JSON.stringify({ action: 'chunkEnd' }));
-            }
-          }}
-          onMessage={(event) => {
-            try {
-              const result = JSON.parse(event.nativeEvent.data);
-              if (result.status === 'ready') return;
-              
-              setImageProcessing(false);
-              if (result.success && result.data) {
-                console.log('[WebView] 识别到内容:', result.data.substring(0, 100));
-                try {
-                  // 先尝试归一化处理（兼容简写字段和长字段）
-                  const normalized = normalizeQRData(result.data);
-                  if (normalized && (normalized.type === 'merchant' || normalized.type === 'employee')) {
-                    setScanResult(normalized);
-                    setShowConfirm(true);
-                    setSelectedImage(null);
-                    return;
-                  }
-                } catch (e) {
-                  console.warn('[WebView] 归一化失败，尝试直接handleManualQRInput');
-                }
-                handleManualQRInput(result.data);
-                setSelectedImage(null);
-              } else {
-                console.warn('[WebView] 识别失败:', result.error);
-                showToast(result.error || '未识别到二维码，请确保图片清晰或手动输入');
-              }
-            } catch (e) {
-              console.warn('[WebView] onMessage解析异常:', e);
-            }
-          }}
-          javaScriptEnabled={true}
-          originWhitelist={['*']}
-          style={{ width: 1, height: 1 }}
-        />
-      </View>
     </View>
   );
 };
@@ -16010,6 +15887,16 @@ export default function App() {
     const ymd = `${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
     const todayStorageKey = `daily_report_pushed_${ymd}`;
 
+    // 时间检查：只有当前时间到达下班时间才推送，模拟时间无参考意义
+    const workTimeEnd = state.dailyReportConfig?.workTimeEnd || '18:00';
+    const [endH, endM] = workTimeEnd.split(':').map(s => parseInt(s.trim()));
+    const curMinutes = now.getHours() * 60 + now.getMinutes();
+    const endMinutes = endH * 60 + endM;
+    if (curMinutes < endMinutes) {
+      console.log(`[日报推送] 当前${now.getHours()}:${now.getMinutes()} 早于下班${workTimeEnd}，不推送。原因=${reason}`);
+      return;
+    }
+
     // 持久化去重：AsyncStorage + 内存双保险
     try {
       const pushed = await AsyncStorage.getItem(todayStorageKey);
@@ -16022,7 +15909,6 @@ export default function App() {
     lastDailyReportKey.current = ymd;
     try { await AsyncStorage.setItem(todayStorageKey, '1'); } catch (e) {}
 
-    const workTimeEnd = state.dailyReportConfig?.workTimeEnd || '18:00';
     console.log(`[日报推送] 触发推送! 原因=${reason} 时间=${new Date().toLocaleString()} 下班时间=${workTimeEnd}`);
 
     // --- 1) 发系统通知（如果有权限）---
@@ -16063,18 +15949,13 @@ export default function App() {
 
     const checkDailyReport = () => {
       const now = new Date();
-      // 关键：用 下班时间 workTimeEnd，不再用上班时间！
       const configTime = state.dailyReportConfig?.workTimeEnd || '18:00';
       const [h, m] = configTime.split(':').map(s => parseInt(s.trim()));
-      const curH = now.getHours();
-      const curM = now.getMinutes();
+      const curTotalMin = now.getHours() * 60 + now.getMinutes();
+      const endTotalMin = h * 60 + m;
 
-      console.log(`[日报推送] 每分钟检查: 当前=${curH}:${curM} 目标下班=${h}:${m} enable=${state.dailyReportConfig?.enable}`);
-
-      // 放宽判断：到点 或者 已经过了下班时间1小时内都视为触发（避免错过时间）
-      const reachedTime = (curH === h && curM >= m) || (curH > h && (curH - h) * 60 + (curM - m) < 120);
-      if (reachedTime) {
-        triggerDailyReportPush(`时间到点/检查时已过: ${curH}:${curM} vs ${h}:${m}`);
+      if (curTotalMin >= endTotalMin) {
+        triggerDailyReportPush(`定时检查: ${now.getHours()}:${now.getMinutes()} >= ${configTime}`);
       }
     };
 
@@ -16085,13 +15966,12 @@ export default function App() {
     return () => clearInterval(interval);
   }, [state.user, state.dailyReportConfig, loading, triggerDailyReportPush]);
 
-  // AppState 切回前台时额外检查一次（确保用户回到APP时立即补推）
+  // AppState 切回前台时检查日报（triggerDailyReportPush内部会判断是否到达下班时间）
   useEffect(() => {
     if (!state.user || loading) return;
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
-        console.log('[日报推送] App切回前台，立即检查日报');
-        triggerDailyReportPush('App回到前台active');
+        triggerDailyReportPush('App回到前台');
       }
     });
     return () => { try { sub.remove(); } catch(e){} };
