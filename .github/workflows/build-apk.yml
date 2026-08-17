@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -33,22 +34,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            android/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/build.gradle', 'android/app/build.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Delete .expo directory
-        run: rm -rf .expo
-
-      - name: Create .env file with environment variables
+      - name: Create .env file
         run: |
           echo "EXPO_PUBLIC_BAIDU_API_KEY=${{ secrets.BAIDU_API_KEY }}" > .env
           echo "EXPO_PUBLIC_BAIDU_SECRET_KEY=${{ secrets.BAIDU_SECRET_KEY }}" >> .env
@@ -57,13 +45,14 @@ jobs:
           echo "EXPO_PUBLIC_ALIBABA_API_KEY=${{ secrets.ALIBABA_API_KEY }}" >> .env
           echo "EXPO_PUBLIC_DOUBAO_API_KEY=${{ secrets.DOUBAO_API_KEY }}" >> .env
 
-      - name: Build APK (skip prebuild, build directly from committed android/ dir, arm64 only)
+      - name: Build APK
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          GRADLE_OPTS: -Dorg.gradle.caching=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=2 -Dorg.gradle.jvmargs="-Xmx4096m"
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+          ./gradlew assembleRelease --no-daemon --warning-mode summary
 
       - name: Get version from app.json
         id: get_version
@@ -77,3 +66,4 @@ jobs:
         with:
           name: app-release-v${{ steps.get_version.outputs.VERSION }}
           path: android/app/build/outputs/apk/release/*.apk
+          compression-level: 0
