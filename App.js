@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -5742,17 +5742,24 @@ const StockManage = () => {
   const [pickingDate, setPickingDate] = useState({ year: 2026, month: 1, day: 1 });
 
   const openExpiryPicker = () => {
-    // 根据当前expiryDate初始化，如果没有则默认3个月后
+    // 根据当前expiryDate初始化；如果没有则智能推荐或默认3个月后
     if (expiryDate) {
       const parts = expiryDate.split('-');
       if (parts.length === 3) {
         setPickingDate({ year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) });
+        setShowExpiryPicker(true);
+        return;
       }
-    } else {
-      const d = new Date();
-      d.setMonth(d.getMonth() + 3);
-      setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
     }
+    // 优先智能推荐
+    const targetName = selectedGoodsId
+      ? (state.goodsList || []).find(g => g.id === selectedGoodsId)?.name || manualProductName
+      : manualProductName;
+    const days = suggestExpiryByProductName(targetName);
+    const d = new Date();
+    if (days > 0) d.setDate(d.getDate() + days);
+    else d.setMonth(d.getMonth() + 3);
+    setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
     setShowExpiryPicker(true);
   };
 
@@ -5770,16 +5777,49 @@ const StockManage = () => {
     setShowExpiryPicker(false);
   };
 
+  // 根据商品名称关键词自动推荐保质期（0表示不推荐）
+  const suggestExpiryByProductName = (name) => {
+    if (!name) return 0;
+    const n = name;
+    // 乳制品 / 冷鲜 → 7天
+    if (/牛奶|酸奶|鲜奶|奶酪|芝士|黄油|奶油|冷藏|冷链|鲜奶昔/.test(n)) return 7;
+    // 面包 / 烘焙 → 3天
+    if (/面包|蛋糕|糕点|月饼|蛋挞|泡芙|面包片|吐司/.test(n)) return 3;
+    // 熟食 / 即食 → 2天
+    if (/熟食|卤味|烤鸭|烧鸡|凉菜|即食|现做|快餐|便当/.test(n)) return 2;
+    // 生鲜 / 肉类 / 海鲜 → 2天
+    if (/生鲜|肉|排骨|牛肉|猪肉|鸡肉|鱼|虾|蟹|海鲜|贝类|切片|冷鲜/.test(n)) return 2;
+    // 蔬果 → 5天
+    if (/苹果|香蕉|橙|橘|葡萄|西瓜|草莓|蓝莓|芒果|梨|桃|蔬菜|青菜|白菜|番茄|土豆|萝卜|葱|姜|蒜|辣椒|菇|瓜|豆/.test(n)) return 5;
+    // 零食 / 预包装 → 180天
+    if (/薯片|饼干|巧克力|糖果|坚果|膨化|辣条|泡面|方便面|预包装|袋装|罐装|零食|海苔|瓜子/.test(n)) return 180;
+    // 饮料 / 水 → 365天
+    if (/饮料|可乐|雪碧|果汁|咖啡|茶|矿泉水|纯净水|桶装水|罐装|瓶装/.test(n)) return 365;
+    // 干货 / 调料 / 米面 → 365天
+    if (/米|面|粉|调料|酱油|醋|盐|糖|干货|木耳|香菇|红枣|枸杞|桂圆|花椒|八角|大料/.test(n)) return 365;
+    // 默认 → 90天
+    return 90;
+  };
+
   // 快捷设置保质期日期
-  const setQuickExpiry = (type) => {
+  const setQuickExpiry = (quickType) => {
     const d = new Date();
-    switch (type) {
+    switch (quickType) {
       case 'today': break;
       case '7day': d.setDate(d.getDate() + 7); break;
       case '1month': d.setMonth(d.getMonth() + 1); break;
       case '3month': d.setMonth(d.getMonth() + 3); break;
       case '6month': d.setMonth(d.getMonth() + 6); break;
       case '1year': d.setFullYear(d.getFullYear() + 1); break;
+      case 'suggest': {
+        // 根据当前商品自动推荐
+        const targetName = selectedGoodsId
+          ? (state.goodsList || []).find(g => g.id === selectedGoodsId)?.name || manualProductName
+          : manualProductName;
+        const days = suggestExpiryByProductName(targetName);
+        if (days > 0) d.setDate(d.getDate() + days);
+        break;
+      }
     }
     setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
   };
@@ -5839,6 +5879,13 @@ const StockManage = () => {
   const [aiGoodsPhoto, setAiGoodsPhoto] = useState(null);
   const [aiGoodsResult, setAiGoodsResult] = useState(null);
   const [aiGoodsLoading, setAiGoodsLoading] = useState(false);
+
+  // ========== 批量入库状态 ==========
+  const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [batchItems, setBatchItems] = useState([]); // [{goodsId, name, barcode, quantity, expiryDate}]
+  const [batchCarryExpiry, setBatchCarryExpiry] = useState(true); // 同上次保质期
+  const [batchSearch, setBatchSearch] = useState('');
+  const [batchLastExpiry, setBatchLastExpiry] = useState('');
 
   const goodsOptions = (state.goodsList || []).map(g => ({ label: g.name, value: g.id }));
   
@@ -6003,6 +6050,134 @@ const StockManage = () => {
     setOutModalGoods(goods);
   };
 
+  // ========== 批量入库核心函数 ==========
+  // 根据商品名/ID获取智能推荐保质期
+  const getAutoExpiryForGoods = (goodsId, fallbackName) => {
+    const target = goodsId
+      ? (state.goodsList || []).find(g => g.id === goodsId)
+      : null;
+    const existing = target?.expiryDate;
+    if (existing) return existing; // 商品已有保质期则沿用
+    const days = suggestExpiryByProductName(target?.name || fallbackName);
+    if (!days) return '';
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  // 添加一项到批量队列
+  const addToBatch = ({ goodsId, name, barcode, quantity, expiryDate }) => {
+    const finalQty = parseInt(quantity) || 1;
+    // 保质期优先级: 手动传 > 同上次保质期 > 智能推荐 > 商品已有
+    let finalExpiry = expiryDate || '';
+    if (!finalExpiry && batchCarryExpiry && batchLastExpiry) {
+      finalExpiry = batchLastExpiry;
+    }
+    if (!finalExpiry) {
+      finalExpiry = getAutoExpiryForGoods(goodsId, name);
+    }
+    // 如果队列中已有同商品则累加数量
+    setBatchItems(prev => {
+      const existIdx = prev.findIndex(b => b.goodsId && b.goodsId === goodsId);
+      if (existIdx >= 0) {
+        const newList = [...prev];
+        newList[existIdx] = {
+          ...newList[existIdx],
+          quantity: (newList[existIdx].quantity || 0) + finalQty,
+          expiryDate: finalExpiry || newList[existIdx].expiryDate,
+        };
+        return newList;
+      }
+      return [...prev, { goodsId: goodsId || null, name: name || '未识别商品', barcode: barcode || '', quantity: finalQty, expiryDate: finalExpiry || null }];
+    });
+    if (finalExpiry) setBatchLastExpiry(finalExpiry);
+    showToast(`+ ${quantity} × ${name || '商品'}`);
+  };
+
+  // 修改队列项数量
+  const updateBatchQty = (idx, delta) => {
+    setBatchItems(prev => {
+      const next = [...prev];
+      const n = (next[idx].quantity || 0) + delta;
+      if (n <= 0) next.splice(idx, 1);
+      else next[idx] = { ...next[idx], quantity: n };
+      return next;
+    });
+  };
+
+  // 批量扫码处理（与单条不同，连续扫码累加）
+  const handleBatchScan = async () => {
+    try {
+      if (!cameraPermission?.granted) {
+        const permissionResult = await requestCameraPermission();
+        if (!permissionResult.granted) { showToast('需要相机权限'); return; }
+      }
+      setScanning(true);
+    } catch (error) { showToast('扫码失败'); }
+  };
+
+  const handleBatchBarCodeScanned = ({ data }) => {
+    if (!data) return;
+    setScanning(false);
+    const matched = (state.goodsList || []).find(g => g.code === data);
+    if (matched) {
+      addToBatch({ goodsId: matched.id, name: matched.name, barcode: data, quantity: 1, expiryDate: '' });
+      // 继续扫描
+      setTimeout(() => setScanning(true), 300);
+    } else {
+      Alert.alert('扫码结果', `条码：${data}\n未找到商品，请手动输入`, [
+        { text: '继续扫', onPress: () => setTimeout(() => setScanning(true), 200) },
+        { text: '关闭' }
+      ]);
+    }
+  };
+
+  // 提交全部批量入库
+  const submitAllBatch = () => {
+    if (batchItems.length === 0) { showToast('队列为空'); return; }
+    const now = new Date().toISOString();
+    let updatedGoods = [...(state.goodsList || [])];
+    const newRecords = [];
+    let newlyCreated = 0;
+    batchItems.forEach(item => {
+      let goods;
+      if (item.goodsId) {
+        goods = updatedGoods.find(g => g.id === item.goodsId);
+      }
+      if (goods) {
+        goods.stock = (goods.stock || 0) + item.quantity;
+        if (item.expiryDate) goods.expiryDate = item.expiryDate;
+      } else {
+        goods = {
+          id: item.goodsId || `batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+          name: item.name,
+          stock: item.quantity,
+          platform: '通用',
+          code: item.barcode || '',
+          createdAt: now,
+          expiryDate: item.expiryDate || null,
+        };
+        updatedGoods.push(goods);
+        newlyCreated++;
+      }
+      newRecords.push({
+        id: `rec_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+        type: '入库',
+        productName: item.name,
+        quantity: item.quantity,
+        reason: '批量入库',
+        time: now,
+        photo: null,
+        expiryDate: item.expiryDate || null,
+      });
+    });
+    dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
+    newRecords.forEach(r => dispatch({ type: 'ADD_STOCK_RECORD', payload: r }));
+    showToast(`✅ 批量入库完成：${batchItems.length}种商品 ${batchItems.reduce((s,i)=>s+i.quantity,0)}件${newlyCreated?`（新增${newlyCreated}种）`:''}`);
+    setBatchItems([]);
+    setBatchModalVisible(false);
+  };
+
   const confirmQuickOut = () => {
     if (!outModalGoods) return;
     const qty = parseInt(outQuantity);
@@ -6148,12 +6323,10 @@ const StockManage = () => {
   };
 
   const handleAICount = async () => {
-    console.log('[新版点数神器] handleAICount triggered - 新版代码已生效');
-    Alert.alert('调试信息', '新版点数神器代码已生效！');
     setAiCountPhotos([]);
     setAiCountResult(null);
     setAiCountModalVisible(true);
-    showToast('✅ 新版点数神器已启动！');
+    showToast('AI智能计数已启动');
   };
 
   const handleAIGoodsRecognition = async () => {
@@ -6601,6 +6774,10 @@ const StockManage = () => {
           <Ionicons name="pencil" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#E63946' }]} onPress={() => { setBatchItems([]); setBatchLastExpiry(''); setBatchSearch(''); setBatchModalVisible(true); }}>
+          <Ionicons name="layers-outline" size={20} color="#fff" />
+          <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>批量入库</Text>
+        </TouchableOpacity>
       </View>
       
       <View style={{ padding: 16 }}>
@@ -6815,6 +6992,7 @@ const StockManage = () => {
             {/* 快捷选择按钮 */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14, justifyContent: 'center' }}>
               {[
+                { label: '✨智能推荐', value: 'suggest', highlight: true },
                 { label: '今天', value: 'today' },
                 { label: '+7天', value: '7day' },
                 { label: '+1月', value: '1month' },
@@ -6825,9 +7003,9 @@ const StockManage = () => {
                 <TouchableOpacity
                   key={btn.value}
                   onPress={() => setQuickExpiry(btn.value)}
-                  style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 16, borderWidth: 1, borderColor: PRIMARY_COLOR + '30' }}
+                  style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: btn.highlight ? PRIMARY_COLOR : LIGHT_PRIMARY, borderRadius: 16, borderWidth: 1, borderColor: btn.highlight ? PRIMARY_COLOR : PRIMARY_COLOR + '30' }}
                 >
-                  <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>{btn.label}</Text>
+                  <Text style={{ fontSize: 12, color: btn.highlight ? '#fff' : PRIMARY_COLOR, fontWeight: '600' }}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -7250,11 +7428,181 @@ const StockManage = () => {
           </View>
         </View>
       </Modal>
+      {/* ========== 批量入库 Modal ========== */}
+      <Modal visible={batchModalVisible} transparent animationType="slide" onRequestClose={() => setBatchModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%' }}>
+            {/* 头部 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }}>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>📥 批量入库</Text>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>扫码/搜索/手动 快速加入队列，一次性提交</Text>
+              </View>
+              <TouchableOpacity onPress={() => setBatchModalVisible(false)} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={28} color={TEXT_THIRD} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 扫描视图（批量模式） */}
+            {scanning ? (
+              <View style={{ height: 260, backgroundColor: '#000' }}>
+                <CameraView
+                  facing="back"
+                  onBarcodeScanned={handleBatchBarCodeScanned}
+                  style={{ flex: 1 }}
+                  barcodeScannerSettings={{ barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'] }}
+                />
+                <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>🔄 连续扫描 · 扫完自动累计</Text>
+                </View>
+                <TouchableOpacity style={{ position: 'absolute', bottom: 16, left: 16, right: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={() => setScanning(false)}>
+                  <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>完成扫码（{batchItems.length}种）</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {/* 操作行 */}
+            {!scanning && (
+              <View style={{ padding: 12, gap: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F7FA', borderRadius: 10, paddingHorizontal: 12 }}>
+                    <Ionicons name="search-outline" size={18} color={TEXT_THIRD} />
+                    <TextInput
+                      style={{ flex: 1, paddingVertical: 10, marginLeft: 6, fontSize: 14 }}
+                      placeholder="搜索商品名/条码..."
+                      value={batchSearch}
+                      onChangeText={setBatchSearch}
+                      placeholderTextColor={TEXT_THIRD}
+                    />
+                    {batchSearch ? <TouchableOpacity onPress={() => setBatchSearch('')}><Ionicons name="close-circle" size={16} color={TEXT_THIRD} /></TouchableOpacity> : null}
+                  </View>
+                  <TouchableOpacity style={{ paddingHorizontal: 14, backgroundColor: PRIMARY_COLOR, borderRadius: 10, justifyContent: 'center', alignItems: 'center' }} onPress={handleBatchScan}>
+                    <Ionicons name="qr-code-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* 同上次保质期开关 + 清空 */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setBatchCarryExpiry(!batchCarryExpiry)}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: batchCarryExpiry ? PRIMARY_COLOR : TEXT_THIRD, justifyContent: 'center', alignItems: 'center', marginRight: 6 }}>
+                      {batchCarryExpiry && <Ionicons name="checkmark" size={14} color={PRIMARY_COLOR} />}
+                    </View>
+                    <Text style={{ fontSize: 13, color: TEXT_MAIN }}>同上次保质期</Text>
+                  </TouchableOpacity>
+                  {batchItems.length > 0 && (
+                    <TouchableOpacity onPress={() => { Alert.alert('清空队列', '确认清空所有待入库商品？', [{ text: '取消' }, { text: '清空', style: 'destructive', onPress: () => setBatchItems([]) }]); }}>
+                      <Text style={{ fontSize: 13, color: DANGER_COLOR }}>🗑 清空队列</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* 搜索匹配的库存商品快速添加 */}
+                {batchSearch && (() => {
+                  const matched = (state.goodsList || []).filter(g =>
+                    g.name.includes(batchSearch) || (g.code && g.code.includes(batchSearch))
+                  ).slice(0, 6);
+                  if (matched.length === 0) return (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD }}>未找到库存商品</Text>
+                      <TouchableOpacity style={{ marginTop: 6, padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={() => {
+                        addToBatch({ goodsId: null, name: batchSearch, barcode: '', quantity: 1, expiryDate: '' });
+                        setBatchSearch('');
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 13 }}>➕ 添加"{batchSearch}"为新商品</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                  return (
+                    <View style={{ maxHeight: 180 }}>
+                      {matched.map(g => (
+                        <TouchableOpacity key={g.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }} onPress={() => {
+                          addToBatch({ goodsId: g.id, name: g.name, barcode: g.code || '', quantity: 1, expiryDate: '' });
+                          setBatchSearch('');
+                        }}>
+                          <View>
+                            <Text style={{ fontSize: 14, fontWeight: '500' }}>{g.name}</Text>
+                            <Text style={{ fontSize: 11, color: TEXT_THIRD }}>库存 {g.stock} · {g.expiryDate ? `保质期 ${g.expiryDate}` : '无保质期'}</Text>
+                          </View>
+                          <Ionicons name="add-circle" size={22} color={PRIMARY_COLOR} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
+
+            {/* 队列列表 */}
+            <ScrollView style={{ maxHeight: 280, paddingHorizontal: 12 }}>
+              {batchItems.length === 0 ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <Ionicons name="basket-outline" size={48} color={TEXT_THIRD} />
+                  <Text style={{ fontSize: 14, color: TEXT_THIRD, marginTop: 10 }}>队列空 · 扫码/搜索/手动添加商品</Text>
+                </View>
+              ) : batchItems.map((item, idx) => (
+                <View key={`${item.goodsId || item.name}_${idx}`} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '500' }}>{item.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                      <Ionicons name="time-outline" size={12} color={item.expiryDate ? SUCCESS_COLOR : TEXT_THIRD} />
+                      <Text style={{ fontSize: 11, color: item.expiryDate ? SUCCESS_COLOR : TEXT_THIRD }}>
+                        {item.expiryDate || '待填保质期'}
+                      </Text>
+                      {item.expiryDate && item.goodsId && (() => {
+                        const days = Math.ceil((new Date(item.expiryDate) - new Date()) / 86400000);
+                        const tag = days < 0 ? '已过期' : days <= 30 ? `${days}天到期` : `${days}天后`;
+                        return <Text style={{ fontSize: 10, color: days < 0 ? DANGER_COLOR : days <= 30 ? '#FF8C00' : TEXT_THIRD }}>· {tag}</Text>;
+                      })()}
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <TouchableOpacity onPress={() => updateBatchQty(idx, -10)} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, color: TEXT_MAIN }}>-10</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => updateBatchQty(idx, -1)} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="remove" size={14} color={TEXT_MAIN} />
+                    </TouchableOpacity>
+                    <Text style={{ minWidth: 40, textAlign: 'center', fontSize: 18, fontWeight: 'bold', color: PRIMARY_COLOR }}>{item.quantity}</Text>
+                    <TouchableOpacity onPress={() => updateBatchQty(idx, 1)} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: PRIMARY_COLOR, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="add" size={14} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => updateBatchQty(idx, 10)} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#E0E7FF', justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, color: PRIMARY_COLOR }}>+10</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setBatchItems(prev => prev.filter((_, i) => i !== idx))} style={{ marginLeft: 6, padding: 4 }}>
+                      <Ionicons name="trash-outline" size={18} color={DANGER_COLOR} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* 底部 */}
+            <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: BORDER_COLOR }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={{ fontSize: 13, color: TEXT_SECOND }}>
+                  合计：<Text style={{ fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR }}>{batchItems.length}</Text> 种 · <Text style={{ fontSize: 16, fontWeight: 'bold', color: DANGER_COLOR }}>{batchItems.reduce((s,i) => s + (i.quantity || 0), 0)}</Text> 件
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F0F0F0', borderRadius: 10 }} onPress={() => setBatchModalVisible(false)}>
+                  <Text style={{ textAlign: 'center', color: TEXT_MAIN, fontWeight: '500' }}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[{ flex: 2, padding: 14, borderRadius: 10, backgroundColor: batchItems.length > 0 ? '#E63946' : '#ccc' }]}
+                  onPress={submitAllBatch}
+                  disabled={batchItems.length === 0}
+                >
+                  <Text style={{ textAlign: 'center', color: '#fff', fontWeight: 'bold', fontSize: 15 }}>📦 提交全部入库</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
-
-// ================== 顾客客服（AI暂停功能保留） ==================
 const CustomerService = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
