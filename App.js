@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -5882,6 +5882,7 @@ const StockManage = () => {
 
   // ========== 批量入库状态 ==========
   const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [batchScanning, setBatchScanning] = useState(false); // 独立于单条扫码，避免early return冲突
   const [batchItems, setBatchItems] = useState([]); // [{goodsId, name, barcode, quantity, expiryDate}]
   const [batchCarryExpiry, setBatchCarryExpiry] = useState(true); // 同上次保质期
   const [batchSearch, setBatchSearch] = useState('');
@@ -6112,21 +6113,21 @@ const StockManage = () => {
         const permissionResult = await requestCameraPermission();
         if (!permissionResult.granted) { showToast('需要相机权限'); return; }
       }
-      setScanning(true);
+      setBatchScanning(true);
     } catch (error) { showToast('扫码失败'); }
   };
 
   const handleBatchBarCodeScanned = ({ data }) => {
     if (!data) return;
-    setScanning(false);
+    setBatchScanning(false);
     const matched = (state.goodsList || []).find(g => g.code === data);
     if (matched) {
       addToBatch({ goodsId: matched.id, name: matched.name, barcode: data, quantity: 1, expiryDate: '' });
       // 继续扫描
-      setTimeout(() => setScanning(true), 300);
+      setTimeout(() => setBatchScanning(true), 300);
     } else {
       Alert.alert('扫码结果', `条码：${data}\n未找到商品，请手动输入`, [
-        { text: '继续扫', onPress: () => setTimeout(() => setScanning(true), 200) },
+        { text: '继续扫', onPress: () => setTimeout(() => setBatchScanning(true), 200) },
         { text: '关闭' }
       ]);
     }
@@ -6175,6 +6176,7 @@ const StockManage = () => {
     newRecords.forEach(r => dispatch({ type: 'ADD_STOCK_RECORD', payload: r }));
     showToast(`✅ 批量入库完成：${batchItems.length}种商品 ${batchItems.reduce((s,i)=>s+i.quantity,0)}件${newlyCreated?`（新增${newlyCreated}种）`:''}`);
     setBatchItems([]);
+    setBatchScanning(false);
     setBatchModalVisible(false);
   };
 
@@ -6691,7 +6693,7 @@ const StockManage = () => {
     }
   };
 
-  if (scanning) {
+  if (scanning && !batchModalVisible) {
     if (!cameraPermission) {
       return (
         <View style={[styles.scannerContainer, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -6774,7 +6776,7 @@ const StockManage = () => {
           <Ionicons name="pencil" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>手动录入</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#E63946' }]} onPress={() => { setBatchItems([]); setBatchLastExpiry(''); setBatchSearch(''); setBatchModalVisible(true); }}>
+        <TouchableOpacity style={[styles.miniBtnWithIcon, { backgroundColor: '#E63946' }]} onPress={() => { setBatchItems([]); setBatchLastExpiry(''); setBatchSearch(''); setBatchScanning(false); setBatchModalVisible(true); }}>
           <Ionicons name="layers-outline" size={20} color="#fff" />
           <Text style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>批量入库</Text>
         </TouchableOpacity>
@@ -7429,7 +7431,7 @@ const StockManage = () => {
         </View>
       </Modal>
       {/* ========== 批量入库 Modal ========== */}
-      <Modal visible={batchModalVisible} transparent animationType="slide" onRequestClose={() => setBatchModalVisible(false)}>
+      <Modal visible={batchModalVisible} transparent animationType="slide" onRequestClose={() => { setBatchScanning(false); setBatchModalVisible(false); }}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%' }}>
             {/* 头部 */}
@@ -7438,13 +7440,13 @@ const StockManage = () => {
                 <Text style={{ fontSize: 18, fontWeight: 'bold', color: TEXT_MAIN }}>📥 批量入库</Text>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 2 }}>扫码/搜索/手动 快速加入队列，一次性提交</Text>
               </View>
-              <TouchableOpacity onPress={() => setBatchModalVisible(false)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={() => { setBatchScanning(false); setBatchModalVisible(false); }} style={{ padding: 4 }}>
                 <Ionicons name="close-circle" size={28} color={TEXT_THIRD} />
               </TouchableOpacity>
             </View>
 
             {/* 扫描视图（批量模式） */}
-            {scanning ? (
+            {batchScanning ? (
               <View style={{ height: 260, backgroundColor: '#000' }}>
                 <CameraView
                   facing="back"
@@ -7455,14 +7457,14 @@ const StockManage = () => {
                 <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
                   <Text style={{ color: '#fff', fontSize: 12 }}>🔄 连续扫描 · 扫完自动累计</Text>
                 </View>
-                <TouchableOpacity style={{ position: 'absolute', bottom: 16, left: 16, right: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={() => setScanning(false)}>
+                <TouchableOpacity style={{ position: 'absolute', bottom: 16, left: 16, right: 16, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={() => setBatchScanning(false)}>
                   <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>完成扫码（{batchItems.length}种）</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
 
             {/* 操作行 */}
-            {!scanning && (
+            {!batchScanning && (
               <View style={{ padding: 12, gap: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F7FA', borderRadius: 10, paddingHorizontal: 12 }}>
@@ -7585,7 +7587,7 @@ const StockManage = () => {
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F0F0F0', borderRadius: 10 }} onPress={() => setBatchModalVisible(false)}>
+                <TouchableOpacity style={{ flex: 1, padding: 14, backgroundColor: '#F0F0F0', borderRadius: 10 }} onPress={() => { setBatchScanning(false); setBatchModalVisible(false); }}>
                   <Text style={{ textAlign: 'center', color: TEXT_MAIN, fontWeight: '500' }}>取消</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
