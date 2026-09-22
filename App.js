@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -24,7 +24,7 @@ import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { WebView } from 'react-native-webview';
@@ -120,28 +120,32 @@ const INDUSTRY_LIST = ['餐饮类', '服务类', '企业类', '零售类', '教�
 
 // 关键词映射表（用于从店名自动识别行业类型）
 const INDUSTRY_KEYWORDS = {
-  '数码电子类': ['手机','数码','电子','电脑','笔记本','平板','相机','摄像头','耳机','音响','配件','华为','苹果','小米','OPPO','vivo','荣耀','三星','iPhone','安卓','充电宝','数据线','充电器','通讯','5G','营业厅','家电维修','手机店','电脑城','数码城','旗舰店','大疆','联想','华硕','惠普','戴尔','游戏机','PS5','Switch','VR','智能手表','手环','维修'],
-  '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','牛排'],
-  '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','会所','宠物','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家'],
-  '企业类': ['公司','企业','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','平台','策划','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储','科技','智能','技术','信息','数据'],
-  '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品','零食店','水果店','生鲜'],
-  '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','幼儿园','小学','中学','大学','辅导班','培训班'],
-  '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','医美','整形','牙科','体检中心','康复'],
-  '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','自媒体']
+  '数码电子类': ['手机','数码','电子','电脑','笔记本','平板','相机','摄像头','耳机','音响','配件','华为','苹果','小米','OPPO','vivo','荣耀','三星','iPhone','安卓','充电宝','数据线','充电器','通讯','5G','营业厅','家电维修','手机店','电脑城','数码城','旗舰店','大疆','联想','华硕','惠普','戴尔','游戏机','PS5','Switch','VR','智能手表','手环','维修','路由器','显示器','键盘','鼠标','机顶盒','对讲机','导航仪','行车记录仪','智能门锁','安防','监控','芯片','半导体','集成电路','主板','显卡','内存','硬盘','U盘','存储','服务器','运营商','移动','联通','电信','铁塔','广播电视'],
+  '餐饮类': ['餐厅','饭店','小吃','饮品','咖啡','奶茶','火锅','烧烤','烘焙','面包','蛋糕','零食','快餐','料理','美食','菜馆','酒楼','烧烤店','串吧','寿司','披萨','汉堡','炸鸡','烤鸭','面馆','水饺','馄饨','包子','粥','早餐','夜宵','饮品店','甜品','冷饮','牛排','食堂','排挡','大排档','私房菜','农家乐','风味','小吃店','粉店','米粉','螺蛳粉','麻辣烫','冒菜','卤味','熟食','糕点','月饼','汤圆','元宵','烧烤摊','烤鱼','烤肉','海鲜','日料','韩餐','西餐','中餐','粤菜','川菜','湘菜','鲁菜','浙菜','闽菜','徽菜','苏菜','清真','素食','轻食','沙拉','健康餐','减脂餐','亲子餐厅','主题餐厅','音乐餐厅','啤酒屋','精酿','酒馆','茶馆','茶楼','茶室','凉茶','豆花','豆脑','油条','煎饼','手抓饼','肉夹馍','羊肉汤','牛肉面','热干面','小笼包','生煎','锅贴','馅饼','烧饼','馕','麻辣香锅','干锅','焖面','炒面','炒饭','煲仔饭','黄焖鸡','酸菜鱼','水煮鱼','毛血旺','冷锅串串','钵钵鸡','网红食品'],
+  '服务类': ['美容','美发','健身','洗浴','按摩','SPA','美甲','纹绣','理发','足浴','网咖','网吧','影院','电影院','酒吧','KTV','会所','宠物','鲜花','摄影','婚庆','开锁','干洗','家政','保洁','汽修','汽配','广告','装饰','装修','房产','中介','旅游','酒店','宾馆','住宿','民宿','快递','物流','搬家','洗车','租车','驾校','刻章','复印','打印','照相','证件照','婚介','相亲','心理咨询','法律咨询','财务咨询','税务咨询','工商注册','代理记账','商标','专利','资质','认证','检测','检验','翻译','速记','庆典','礼仪','演艺','乐队','主持','摄像','跟拍','直播','代驾','跑腿','外卖','配送','安装','维修','保养','清洗','疏通','货运','快递代收','洗衣','洗鞋','改衣','裁缝','配钥匙','换锁','修锁','安防安装','门禁','车辆年检','过户','上牌','违章代缴','社保代缴','医疗陪护','月嫂','育婴','保姆','护工','钟点工','托管','寄养','宠物美容','宠物医院','宠物寄养','宠物训练','宠物食品','宠物用品','花艺','插花','盆栽','绿植','园林','景观','广告制作','喷绘','雕刻','标识','标牌','灯箱','LED','显示屏','展览展示','活动策划','会议','会务','团建','拓展','研学','月子中心','产后恢复','塑形','减肥','瘦身','中医推拿','针灸','拔罐','刮痧','艾灸','足疗','采耳','头疗','水疗','汗蒸','桑拿','温泉','洗浴中心','浴场'],
+  '企业类': ['公司','企业','咨询','贸易','批发','制造','工厂','集团','有限','责任','股份','投资','金融','保险','证券','律所','律师','会计','审计','设计','开发','软件','网络','平台','策划','工程','建筑','能源','电力','环保','农业','养殖','种植','物业','管理','仓储','科技','智能','技术','信息','数据','事务所','工作室','研究院','研究所','实验室','协会','商会','联盟','基金会','合作社','联社','总公司','分公司','子公司','控股','实业','发展','建设','工程局','工程公司','商贸','建材','化工','冶金','矿业','钢铁','水泥','玻璃','陶瓷','塑料','橡胶','纺织','印染','出版','印刷','包装','造纸','木材','家具','家居','五金','工具','机械','设备','电气','通讯','通信','广播电视','卫星','航天','航空','船舶','车辆','汽车','摩托车','自行车','电动车','新能源','新材料','节能','水务','热力','燃气','供应','排水','污水处理','垃圾处理','废品','回收','再生','循环','生态','绿色','低碳','可持续发展','乡村振兴','公益','慈善','社区','养老','康复','殡葬'],
+  '零售类': ['服装','服饰','鞋店','箱包','珠宝','眼镜','钟表','书店','文具','礼品','玩具','母婴','童装','家具','建材','五金','灯具','窗帘','布艺','百货','超市','便利店','眼镜店','化妆品','美妆','日化','母婴用品','玩具店','花店','文具店','办公用品','零食店','水果店','生鲜','批发市场','小商品','饰品','工艺品','礼品店','纪念品','体育用品','户外','运动','渔具','宠物用品','观赏鱼','花卉','盆栽','绿植','种子','农药','化肥','饲料','兽药','农机','农具','粮油','副食','烟酒','茶叶','干货','调料','调味品','罐头','饮料','乳制品','肉制品','豆制品','蛋品','蜂蜜','山货','土特产','进口食品','休闲食品','保健食品','婴幼儿食品','膳食','营养','滋补品','中药材','参茸','燕窝','阿胶','冬虫夏草','西洋参','海参','鲍鱼','干贝','海带','紫菜','海苔','海蜇','皮革','毛皮','裘皮','皮草'],
+  '教育类': ['教育','培训','课程','学校','学院','学习','辅导','家教','培训中心','教育咨询','课堂','教学','补习','网课','幼儿园','小学','中学','大学','辅导班','培训班','早教','托育','托管','研学','夏令营','冬令营','亲子','感统','蒙氏','思维训练','注意力','记忆力','阅读','作文','数学','英语','语文','物理','化学','生物','音乐','美术','舞蹈','书法','围棋','象棋','编程','机器人','创客','STEM','STEAM','科学','实验','体育','游泳','篮球','足球','乒乓球','羽毛球','网球','武术','跆拳道','柔道','拳击','击剑','马术','高尔夫','滑雪','滑冰','轮滑','攀岩','射箭','射击','无人机','航模','车模','船模','3D打印','木工','金工','电工','物联网','人工智能','大数据','云计算','区块链','心理','营养','康复','养生','保健','化妆','造型','形象','礼仪','模特','表演','播音','主持','配音','朗诵','演讲','辩论','口才','写作','国学','国画','油画','水彩','素描','速写','版画','雕塑','陶艺','手工','剪纸','编织','刺绣','烘焙','烹饪','面点','调酒','咖啡','茶艺','花艺','香道','园艺','盆景','多肉','摄影','摄像','剪辑','动画','漫画','插画','游戏','桌游','魔术'],
+  '医疗类': ['医院','诊所','药房','药店','医疗','体检','保健','口腔','眼科','中医','理疗','门诊','卫生院','医美','整形','牙科','体检中心','康复','社区卫生','卫生站','卫生室','医疗美容','皮肤科','妇科','儿科','内科','外科','骨科','泌尿','肛肠','耳鼻喉','神经','精神','心理','肿瘤','心血管','内分泌','呼吸','消化','肝病','肾病','糖尿病','高血压','中风','偏瘫','截瘫','面瘫','失眠','焦虑','抑郁','强迫','恐惧','神经衰弱','更年期','月经','痛经','闭经','不孕','不育','前列腺','性功能','性障碍','性病','梅毒','淋病','艾滋病','HIV','避孕','流产','引产','分娩','剖腹产','顺产','无痛','激光','微波','射频','超声','X光','CT','核磁','MRI','B超','彩超','心电图','脑电图','胃镜','肠镜','腹腔镜','整形','美容','植发','纹绣','护肤','祛斑','祛痘','祛疤','祛痣','祛疣','纹身','洗纹身','脱毛','美白','嫩肤','紧致','抗衰','除皱','瘦脸','瘦腿','瘦身','减肥','抽脂','溶脂','艾灸','针灸','推拿','按摩','拔罐','刮痧','火针','水针','穴位','经络','耳穴','足疗','足底','反射','气血','阴阳','五行','脏腑','舌诊','脉诊','面诊','手诊','骨密度','微量元素','维生素','矿物质','氨基酸','蛋白质','膳食纤维','益生菌','营养','滋补','养颜','排毒','护肝','护心','护脑','护眼','护牙','护发','护肤','护甲'],
+  '休闲娱乐': ['短剧','直播','短视频','KTV','娱乐','影院','网咖','网吧','酒吧','休闲','会所','密室','剧本杀','游戏','电竞','温泉','洗浴','娱乐城','游乐场','乐园','演艺','剧场','文化','影视','传媒','自媒体','轰趴','棋牌','麻将','桌游','电玩','街机','抓娃娃','投篮','赛车','射击','跳舞','电玩城','游戏厅','儿童乐园','蹦床','密室逃脱','真人CS','卡丁车','蹦极','滑草','滑雪场','溜冰场','游泳馆','健身房','瑜伽','舞蹈室','音乐吧','Livehouse','酒吧街','美食街','步行街','商业街','夜市','庙会','灯会','花展','车展','漫展','艺术节','音乐节','啤酒节','美食节','旅游','度假','温泉度假','采摘','垂钓','烧烤','露营','徒步','骑行','漂流','攀岩','潜水','冲浪','帆船','游艇','观光','旅行社','导游','景区','景点','门票','度假村','山庄','古镇','博物馆','美术馆','展览馆','科技馆','水族馆','动植物园','主题公园','水上乐园','冰雪世界','VR体验','轰趴馆','清吧','音乐餐厅','舞蹈俱乐部','武术馆','台球厅','保龄球','高尔夫','射击场','热气球','滑翔伞','跳伞','手办','周边','盲盒','扭蛋','卡牌','收藏','展览','会议','论坛','沙龙','讲座','婚庆','摄影','摄像','微电影','纪录片','宣传片','MV','动画','特效','剪辑','配音','配乐','音效','混音','录音'],
 };
 
 // 通用/需排除的关键词（同时在多个行业出现，不应单独作为判定依据）
-const GENERIC_KEYWORDS = ['科技', '智能', '电子', '设计', '开发', '软件', '网络', '平台', '数据'];
+const GENERIC_KEYWORDS = ['科技', '智能', '电子', '设计', '开发', '软件', '网络', '平台', '数据', '维修', '服务', '中心', '经营', '管理', '技术', '信息'];
 
 // 统一的行业识别函数：从店名智能识别行业类型
 const detectIndustryFromName = (name) => {
   if (!name) return '餐饮类';
   const lowerName = String(name).toLowerCase();
-  
-  // 公司后缀优先判定为企业类
-  const companySuffixes = ['公司', '有限', '集团', '股份', '责任', '合伙企业'];
+
+  // 公司/企业后缀：出现这些词强烈暗示为企业类
+  const companySuffixes = ['有限公司', '有限责任公司', '股份有限公司', '集团', '合伙企业', '总公司', '分公司', '子公司', '公司', '有限', '股份', '责任'];
   const hasCompanySuffix = companySuffixes.some(s => lowerName.includes(s.toLowerCase()));
-  
+
+  // 机构/组织后缀：也倾向为企业类
+  const orgSuffixes = ['事务所', '工作室', '研究院', '研究所', '实验室', '协会', '商会', '联盟', '基金会', '合作社', '联社', '中心', '事务所', '委员会', '联合会', '促进会', '学会', '研究会', '管委会'];
+  const hasOrgSuffix = orgSuffixes.some(s => lowerName.includes(s.toLowerCase()));
+
   // 计算每个行业的关键词匹配数量
   const scores = {};
   for (const [industry, keywords] of Object.entries(INDUSTRY_KEYWORDS)) {
@@ -158,12 +162,22 @@ const detectIndustryFromName = (name) => {
     }
     scores[industry] = score;
   }
-  
-  // 如果有公司后缀，给企业类额外加分
+
+  // 如果有公司后缀或机构后缀，给企业类额外加分
   if (hasCompanySuffix) {
+    scores['企业类'] = (scores['企业类'] || 0) + 5;
+  }
+  if (hasOrgSuffix) {
     scores['企业类'] = (scores['企业类'] || 0) + 3;
   }
-  
+
+  // 如果包含"科技""技术""智能""信息""数据"等词且有公司后缀，强烈判定为企业类
+  const techKeywords = ['科技', '技术', '智能', '信息', '数据', '网络', '软件', '开发', '互联网'];
+  const hasTechKeyword = techKeywords.some(kw => lowerName.includes(kw));
+  if (hasCompanySuffix && hasTechKeyword) {
+    scores['企业类'] = (scores['企业类'] || 0) + 4;
+  }
+
   // 选择得分最高的行业
   let bestIndustry = '餐饮类';
   let bestScore = 0;
@@ -173,7 +187,7 @@ const detectIndustryFromName = (name) => {
       bestIndustry = industry;
     }
   }
-  
+
   return bestScore > 0 ? bestIndustry : '餐饮类';
 };
 
@@ -3611,11 +3625,15 @@ const SettingDrawer = ({ visible, onClose }) => {
     return detectIndustryFromName(name);
   };
 
-  const saveShop = async () => {
-    const industry = selectedIndustry;
-    const updatedShopInfo = { ...shopInfo, shopName, phone, industry };
+  const saveShop = async (overrideName, overrideIndustry) => {
+    const finalShopName = overrideName !== undefined ? overrideName : shopName;
+    const finalIndustry = overrideIndustry !== undefined ? overrideIndustry : selectedIndustry;
+    const updatedShopInfo = { ...shopInfo, shopName: finalShopName, phone, industry: finalIndustry };
     dispatch({ type: 'UPDATE_SHOP_INFO', payload: updatedShopInfo });
-    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName, industry } });
+    dispatch({ type: 'SET_SHOP_CONFIG', payload: { shopName: finalShopName, industry: finalIndustry } });
+    // 重置AI助手欢迎语标记，确保下次进入AI助手时同步更新
+    aiWelcomeIndustry = null;
+    aiWelcomeShopName = null;
     // 立即保存到 AsyncStorage，确保下次加载能读取到最新数据
     try {
       await AsyncStorage.setItem('shopInfo', JSON.stringify(updatedShopInfo));
@@ -3629,7 +3647,7 @@ const SettingDrawer = ({ visible, onClose }) => {
     } catch (e) {
       console.warn('保存失败', e);
     }
-    showToast(`门店信息已保存，类型：${industry}`);
+    showToast(`门店信息已保存，类型：${finalIndustry}`);
   };
 
   const saveEmployeeDailyReportConfig = () => {
@@ -3973,7 +3991,7 @@ const SettingDrawer = ({ visible, onClose }) => {
         onSave={(name, industry) => {
           setShopName(name);
           setSelectedIndustry(industry);
-          saveShop();
+          saveShop(name, industry);
         }} 
       />
     )}
@@ -5716,7 +5734,21 @@ const StockManage = () => {
   const [type, setType] = useState('入库');
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
+
+  // 快捷保质期选项计算
+  const getQuickExpiry = (months) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().split('T')[0];
+  };
+  const quickExpiryOptions = [
+    { label: '1个月', months: 1 },
+    { label: '3个月', months: 3 },
+    { label: '6个月', months: 6 },
+    { label: '1年', months: 12 },
+  ];
   const [scanning, setScanning] = useState(false);
   const [photoUris, setPhotoUris] = useState([]);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -5760,6 +5792,7 @@ const StockManage = () => {
     if (voiceText.trim()) {
       setManualProductName(voiceText.trim());
       setShowManualInput(true);
+      setExpiryDate('');
       setModalVisible(true);
       setVoiceModalVisible(false);
       setVoiceText('');
@@ -5772,6 +5805,16 @@ const StockManage = () => {
     if (!manualProductName.trim()) { showToast('请输入商品名称'); return; }
     const qty = parseInt(quantity);
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
+    // 验证保质期格式（如果填写了）
+    let validExpiryDate = '';
+    if (expiryDate.trim()) {
+      const d = new Date(expiryDate.trim());
+      if (isNaN(d.getTime())) {
+        showToast('保质期格式不正确，请使用 YYYY-MM-DD 格式');
+        return;
+      }
+      validExpiryDate = expiryDate.trim();
+    }
     let existing = (state.goodsList || []).find(g => g.name === manualProductName.trim());
     if (existing) {
       let newStock = existing.stock;
@@ -5781,7 +5824,7 @@ const StockManage = () => {
         newStock -= qty;
       }
       const updatedGoods = (state.goodsList || []).map(g =>
-        g.id === existing.id ? { ...g, stock: newStock } : g
+        g.id === existing.id ? { ...g, stock: newStock, expiryDate: validExpiryDate || g.expiryDate } : g
       );
       dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
       const record = {
@@ -5792,6 +5835,7 @@ const StockManage = () => {
         reason: reason.trim() || '无备注',
         time: new Date().toISOString(),
         photo: photoUris.length > 0 ? photoUris[0] : null,
+        expiryDate: validExpiryDate || null,
       };
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
       showToast(`${type}成功: ${existing.name} ×${qty}`);
@@ -5803,6 +5847,7 @@ const StockManage = () => {
         platform: '通用',
         code: scannedBarcode || '',
         createdAt: new Date().toISOString(),
+        expiryDate: validExpiryDate || null,
       };
       dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
       const record = {
@@ -5813,6 +5858,7 @@ const StockManage = () => {
         reason: reason.trim() || '无备注',
         time: new Date().toISOString(),
         photo: photoUris.length > 0 ? photoUris[0] : null,
+        expiryDate: validExpiryDate || null,
       };
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
       showToast(`新增商品并${type}成功: ${newItem.name} ×${qty}`);
@@ -5826,6 +5872,7 @@ const StockManage = () => {
     setManualPlatform('通用');
     setShowManualInput(false);
     setScannedBarcode('');
+    setExpiryDate('');
   };
 
   const handleSubmit = () => {
@@ -5834,6 +5881,16 @@ const StockManage = () => {
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
     const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
     if (!goods) { showToast('商品不存在'); return; }
+    // 验证保质期格式（入库时如果填写了）
+    let validExpiryDate = '';
+    if (type === '入库' && expiryDate.trim()) {
+      const d = new Date(expiryDate.trim());
+      if (isNaN(d.getTime())) {
+        showToast('保质期格式不正确，请使用 YYYY-MM-DD 格式');
+        return;
+      }
+      validExpiryDate = expiryDate.trim();
+    }
     let newStock = goods.stock;
     if (type === '入库') newStock += qty;
     else {
@@ -5841,7 +5898,7 @@ const StockManage = () => {
       newStock -= qty;
     }
     const updatedGoods = (state.goodsList || []).map(g =>
-      g.id === selectedGoodsId ? { ...g, stock: newStock } : g
+      g.id === selectedGoodsId ? { ...g, stock: newStock, expiryDate: validExpiryDate || g.expiryDate } : g
     );
     dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
     const record = {
@@ -5852,6 +5909,7 @@ const StockManage = () => {
       reason: reason.trim() || '无备注',
       time: new Date().toISOString(),
       photo: photoUris.length > 0 ? photoUris[0] : null,
+      expiryDate: validExpiryDate || null,
     };
     dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
     showToast(`${type}成功: ${goods.name} ×${qty}`);
@@ -5860,6 +5918,7 @@ const StockManage = () => {
     setReason('');
     setSelectedGoodsId(null);
     setPhotoUris([]);
+    setExpiryDate('');
   };
 
   const [outQuantity, setOutQuantity] = useState('');
@@ -5936,6 +5995,7 @@ const StockManage = () => {
           setQuantity('1');
           setReason('扫码入库');
           setShowManualInput(false);
+          setExpiryDate('');
           setModalVisible(true);
           showToast(`扫描到商品：${matched.name}，请确认入库`);
         } else {
@@ -5950,6 +6010,7 @@ const StockManage = () => {
         if (type === '入库') {
           setShowManualInput(true);
           setManualProductName('');
+          setExpiryDate('');
           setModalVisible(true);
           showToast('未找到商品，请输入名称');
         } else {
@@ -5985,6 +6046,7 @@ const StockManage = () => {
             setModalVisible(true);
             setManualProductName('');
             setQuantity('');
+            setExpiryDate('');
           } else {
             if (!modalVisible) setModalVisible(true);
           }
@@ -6006,6 +6068,7 @@ const StockManage = () => {
             setModalVisible(true);
             setManualProductName('');
             setQuantity('');
+            setExpiryDate('');
           } else {
             if (!modalVisible) setModalVisible(true);
           }
@@ -6096,6 +6159,7 @@ const StockManage = () => {
     setAiGoodsModalVisible(false);
     setAiGoodsPhoto(null);
     setAiGoodsResult(null);
+    setExpiryDate('');
     setModalVisible(true);
     showToast(`已识别：${aiGoodsResult.name}，数量：${aiGoodsResult.count}`);
   };
@@ -6430,7 +6494,7 @@ const StockManage = () => {
         title="出入库管理" 
         showBack={true}
         navigation={navigation}
-        rightComponent={<TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); setManualProductName(''); }}>
+        rightComponent={<TouchableOpacity onPress={() => { setType('入库'); setSelectedGoodsId(null); setQuantity(''); setReason(''); setPhotoUris([]); setExpiryDate(''); setModalVisible(true); setShowManualInput(false); setManualProductName(''); }}>
           <Ionicons name="add-outline" size={24} color={PRIMARY_COLOR} />
         </TouchableOpacity>}
       />
@@ -6513,7 +6577,7 @@ const StockManage = () => {
                 </View>
               </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setModalVisible(true); setShowManualInput(false); }}>
+                <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1 }]} onPress={() => { setType('入库'); setSelectedGoodsId(g.id); setQuantity(''); setReason(''); setPhotoUris([]); setExpiryDate(''); setModalVisible(true); setShowManualInput(false); }}>
                   <Text style={styles.sendTxt}>📥 入库</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.miniBlueBtn, { flex: 1, backgroundColor: DANGER_COLOR }]} onPress={() => handleQuickOut(g)}>
@@ -6545,6 +6609,29 @@ const StockManage = () => {
                 <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
                 <Text style={styles.label}>备注</Text>
                 <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+                {type === '入库' && (
+                  <>
+                    <Text style={styles.label}>保质期（过期日期）</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={expiryDate}
+                      onChangeText={setExpiryDate}
+                      placeholder="例如：2025-12-31（选填）"
+                      keyboardType="numbers-and-punctuation"
+                    />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 }}>
+                      {quickExpiryOptions.map(opt => (
+                        <TouchableOpacity
+                          key={opt.months}
+                          style={[styles.tagNormal, expiryDate === getQuickExpiry(opt.months) && styles.tagActive]}
+                          onPress={() => setExpiryDate(getQuickExpiry(opt.months))}
+                        >
+                          <Text style={{ fontSize: 12, color: expiryDate === getQuickExpiry(opt.months) ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
                 {photoUris.length > 0 && (
                   <View style={{ marginVertical: 8 }}>
                     <ScrollView horizontal>
@@ -6575,6 +6662,29 @@ const StockManage = () => {
                 <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
                 <Text style={styles.label}>备注</Text>
                 <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+                {type === '入库' && (
+                  <>
+                    <Text style={styles.label}>保质期（过期日期）</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={expiryDate}
+                      onChangeText={setExpiryDate}
+                      placeholder="例如：2025-12-31（选填）"
+                      keyboardType="numbers-and-punctuation"
+                    />
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 }}>
+                      {quickExpiryOptions.map(opt => (
+                        <TouchableOpacity
+                          key={opt.months}
+                          style={[styles.tagNormal, expiryDate === getQuickExpiry(opt.months) && styles.tagActive]}
+                          onPress={() => setExpiryDate(getQuickExpiry(opt.months))}
+                        >
+                          <Text style={{ fontSize: 12, color: expiryDate === getQuickExpiry(opt.months) ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
                 {photoUris.length > 0 && (
                   <View style={{ marginVertical: 8 }}>
                     <ScrollView horizontal>
@@ -10026,18 +10136,79 @@ const VoiceAssistant = () => {
     };
   }, []);
 
-  // 语音识别 - 使用Alert提示，expo-speech-recognition与SDK57不兼容已禁用
+  // 语音识别 - 使用 expo-speech-recognition 原生语音识别
   const startVoice = async () => {
-    Alert.alert(
-      '语音输入',
-      '语音识别功能正在升级维护中，请使用文字输入。\n\n您的问题描述越详细，AI回复越精准！',
-      [{ text: '知道了', style: 'default' }]
-    );
+    try {
+      // 请求权限
+      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('权限不足', '请在系统设置中授予麦克风和语音识别权限');
+        return;
+      }
+      setRecording(true);
+      setRecognizing(false);
+      // 清空临时识别文本
+      recognitionRef.current = '';
+      // 启动语音识别
+      ExpoSpeechRecognitionModule.start({
+        lang: 'zh-CN',
+        interimResults: true,
+        continuous: false,
+        maxAlternatives: 1,
+        androidIntentOptions: {
+          EXTRA_LANGUAGE_MODEL: 'free_form',
+          EXTRA_PARTIAL_RESULTS: true,
+        },
+      });
+    } catch (error) {
+      console.error('启动语音识别失败:', error);
+      setRecording(false);
+      Alert.alert('语音识别启动失败', error.message || '请检查麦克风权限后重试');
+    }
   };
 
   const stopVoice = async () => {
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (e) {}
     setRecording(false);
+    setRecognizing(false);
   };
+
+  // 监听语音识别结果
+  useSpeechRecognitionEvent('result', (event) => {
+    if (!event.results || event.results.length === 0) return;
+    const transcript = event.results[0].transcript || '';
+    recognitionRef.current = transcript;
+    setRecognizing(true);
+    setInputText(transcript);
+    // 如果是最终结果，自动发送
+    if (event.isFinal && transcript.trim()) {
+      setRecording(false);
+      setRecognizing(false);
+    }
+  });
+
+  // 监听语音识别错误
+  useSpeechRecognitionEvent('error', (event) => {
+    console.warn('语音识别错误:', event.error, event.message);
+    setRecording(false);
+    setRecognizing(false);
+    if (event.error === 'no-speech' || event.error === 'speech-timeout') {
+      // 没检测到语音，静默处理
+    } else if (event.error === 'not-allowed') {
+      Alert.alert('权限不足', '请在系统设置中授予麦克风和语音识别权限');
+    } else if (event.error === 'network') {
+      Alert.alert('网络错误', '语音识别需要网络连接，请检查网络后重试');
+    } else if (event.error === 'language-not-supported') {
+      Alert.alert('不支持的语言', '当前设备不支持中文语音识别');
+    }
+  });
+
+  // 监听语音识别开始
+  useSpeechRecognitionEvent('start', () => {
+    setRecording(true);
+  });
 
   // 语音播报回复
   const speakText = (text) => {
@@ -10222,6 +10393,10 @@ ${businessContext}
 };
 
 // ================== AI助手（快捷话术 + 停止 + 行业识别） ==================
+// 模块级变量：记录AI助手上次生成欢迎语时使用的行业和店名，跨组件挂载持久化
+let aiWelcomeIndustry = null;
+let aiWelcomeShopName = null;
+
 const MerchantAssistant = () => {
   const navigation = useNavigation();
   const { state, dispatch } = useApp();
@@ -10432,40 +10607,38 @@ const MerchantAssistant = () => {
   // 使用useMemo确保快捷短语响应行业变化
   const quickReplies = useMemo(() => getQuickReplies(), [industry]);
 
-  // 使用ref记录上一次的行业和店名，防止重复生成欢迎语
-  const prevIndustry = useRef(industry);
-  const prevShopNameRef = useRef(shopName);
+  // 使用模块级变量记录上次生成欢迎语时的行业和店名（跨组件挂载持久化，防止tab切换后不更新）
   const mountedRef = useRef(true);
-  
+
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
-  
+
   useEffect(() => {
-    // 防止循环：如果行业和店名都没变，跳过
-    if (prevIndustry.current === industry && prevShopNameRef.current === shopName && messages.length > 0) {
+    // 使用模块级变量判断：如果行业或店名变了，或者还没生成过欢迎语，就重新生成
+    if (aiWelcomeIndustry === industry && aiWelcomeShopName === shopName && messages.length > 0) {
       return;
     }
-    
-    // 更新记录
-    prevIndustry.current = industry;
-    prevShopNameRef.current = shopName;
-    
+
+    // 更新模块级记录
+    aiWelcomeIndustry = industry;
+    aiWelcomeShopName = shopName;
+
     // 辅助函数：安全派发
     const safeDispatch = (action) => {
       if (mountedRef.current) {
         dispatch(action);
       }
     };
-    
+
     if (industry !== '待识别') {
       const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${industry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
       safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
     } else if (shopName) {
       // 直接用关键词检测行业，不再派发SET_SHOP_INFO（防止死循环）
       let detectedIndustry = detectIndustryFromName(shopName);
-      
+
       // 如果关键词检测不明确，尝试读取已保存的行业
       if (detectedIndustry === '餐饮类') {
         AsyncStorage.getItem('shopInfo').then(storedShopInfo => {
@@ -10478,7 +10651,7 @@ const MerchantAssistant = () => {
               }
             } catch (e) {}
           }
-          prevIndustry.current = detectedIndustry;
+          aiWelcomeIndustry = detectedIndustry;
           const welcomeMsg = [{ id: '1', text: `您好 ${userName}！我是您的${detectedIndustry}店铺「${shopName}」智能管家。\n\n我可以帮您：\n📊 实时分析经营数据\n💡 提供利润提升建议\n📝 生成营销文案/海报/广告语\n📅 自动生成日报/周报/月报\n⚠️ 差评预警识别\n\n请直接输入您的问题！`, from: 'ai', time: new Date().toISOString() }];
           safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
         }).catch(() => {
@@ -10486,7 +10659,7 @@ const MerchantAssistant = () => {
           safeDispatch({ type: 'SET_AI_MESSAGES', payload: welcomeMsg });
         });
       } else {
-        prevIndustry.current = detectedIndustry;
+        aiWelcomeIndustry = detectedIndustry;
         // 异步保存行业信息到AsyncStorage（不触发state更新，防止死循环）
         try {
           const newShopInfo = { ...(state.shopInfo || {}), industry: detectedIndustry };
@@ -11448,19 +11621,65 @@ const HomeVoiceAssistant = ({ visible, onClose }) => {
     };
   }, []);
 
-  // 语音识别 - 使用Alert提示，expo-speech-recognition与SDK57不兼容已禁用
+  // 语音识别 - 使用 expo-speech-recognition 原生语音识别
   const startVoice = async () => {
-    Alert.alert(
-      '语音输入',
-      '语音识别功能正在升级维护中，请使用文字输入。\n\n您的问题描述越详细，AI回复越精准！',
-      [{ text: '知道了', style: 'default' }]
-    );
-    setVoiceMode(false);
+    try {
+      const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('权限不足', '请在系统设置中授予麦克风和语音识别权限');
+        return;
+      }
+      setRecording(true);
+      recognitionRef.current = '';
+      ExpoSpeechRecognitionModule.start({
+        lang: 'zh-CN',
+        interimResults: true,
+        continuous: false,
+        maxAlternatives: 1,
+        androidIntentOptions: {
+          EXTRA_LANGUAGE_MODEL: 'free_form',
+          EXTRA_PARTIAL_RESULTS: true,
+        },
+      });
+    } catch (error) {
+      console.error('启动语音识别失败:', error);
+      setRecording(false);
+      Alert.alert('语音识别启动失败', error.message || '请检查麦克风权限后重试');
+    }
   };
 
   const stopVoice = async () => {
+    try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
     setRecording(false);
   };
+
+  // 监听语音识别结果
+  useSpeechRecognitionEvent('result', (event) => {
+    if (!event.results || event.results.length === 0) return;
+    const transcript = event.results[0].transcript || '';
+    recognitionRef.current = transcript;
+    setInputText(transcript);
+    if (event.isFinal && transcript.trim()) {
+      setRecording(false);
+    }
+  });
+
+  // 监听语音识别错误
+  useSpeechRecognitionEvent('error', (event) => {
+    console.warn('语音识别错误:', event.error);
+    setRecording(false);
+    if (event.error === 'no-speech' || event.error === 'speech-timeout') {
+      // 静默处理
+    } else if (event.error === 'not-allowed') {
+      Alert.alert('权限不足', '请在系统设置中授予麦克风和语音识别权限');
+    } else if (event.error === 'network') {
+      Alert.alert('网络错误', '语音识别需要网络连接');
+    }
+  });
+
+  useSpeechRecognitionEvent('start', () => {
+    setRecording(true);
+  });
 
   const speakText = (text) => {
     try {
@@ -15273,6 +15492,7 @@ const StockAlertScreen = ({ navigation }) => {
   const goodsList = state.goodsList || [];
   const stockAlerts = state.stockAlerts || {};
   const stockRecords = state.globalStockRecord || [];
+  const [alertTab, setAlertTab] = useState('stock'); // 'stock' | 'expiry'
 
   // 计算每个商品当前库存（兼容productName和goodsName两种字段名）
   const getStockCount = (goods) => {
@@ -15290,76 +15510,236 @@ const StockAlertScreen = ({ navigation }) => {
     return count;
   };
 
+  // 计算距离过期的天数（正数表示还有几天过期，负数表示已过期）
+  const getDaysUntilExpiry = (expiryDateStr) => {
+    if (!expiryDateStr) return null;
+    const expiry = new Date(expiryDateStr);
+    if (isNaN(expiry.getTime())) return null;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diffMs = expiry.getTime() - now.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  // 获取过期预警等级
+  // 'normal' - 超过1个月,不需要提醒
+  // 'weekly' - 1个月到1周之间,每周提醒
+  // 'daily' - 不到1周,每天提醒
+  // 'expired' - 已过期
+  const getExpiryAlertLevel = (days) => {
+    if (days === null) return 'none';
+    if (days < 0) return 'expired';
+    if (days <= 7) return 'daily';
+    if (days <= 30) return 'weekly';
+    return 'normal';
+  };
+
   const lowStockGoods = goodsList.filter(g => {
     const threshold = stockAlerts[g.id] || 10;
     return getStockCount(g) <= threshold;
   });
 
+  // 所有设置了保质期的商品
+  const expiryGoods = goodsList.filter(g => g.expiryDate);
+  // 需要预警的保质期商品（过期前1个月内）
+  const expiryAlertGoods = expiryGoods.filter(g => {
+    const days = getDaysUntilExpiry(g.expiryDate);
+    return days !== null && days <= 30;
+  });
+
+  // 已过期商品
+  const expiredGoods = expiryGoods.filter(g => {
+    const days = getDaysUntilExpiry(g.expiryDate);
+    return days !== null && days < 0;
+  });
+
+  // 临期商品（1周内）
+  const urgentExpiryGoods = expiryGoods.filter(g => {
+    const days = getDaysUntilExpiry(g.expiryDate);
+    return days !== null && days >= 0 && days <= 7;
+  });
+
+  const getExpiryLevelStyle = (level) => {
+    switch (level) {
+      case 'expired': return { bg: '#FEE2E2', text: '#DC2626', label: '已过期' };
+      case 'daily': return { bg: '#FECACA', text: '#B91C1C', label: '每日提醒' };
+      case 'weekly': return { bg: '#FEF3C7', text: '#D97706', label: '每周提醒' };
+      case 'normal': return { bg: '#D1FAE5', text: '#059669', label: '正常' };
+      default: return { bg: '#E5E7EB', text: '#6B7280', label: '未设置' };
+    }
+  };
+
   return (
     <View style={styles.container}>
       <CommonHeader title="库存预警" showBack navigation={navigation} />
+      {/* 标签切换 */}
+      <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: BG_COLOR }}>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: alertTab === 'stock' ? PRIMARY_COLOR : 'transparent' }}
+          onPress={() => setAlertTab('stock')}
+        >
+          <Text style={{ fontSize: 15, fontWeight: alertTab === 'stock' ? '600' : '400', color: alertTab === 'stock' ? PRIMARY_COLOR : TEXT_SECOND }}>
+            库存不足
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: alertTab === 'expiry' ? PRIMARY_COLOR : 'transparent' }}
+          onPress={() => setAlertTab('expiry')}
+        >
+          <Text style={{ fontSize: 15, fontWeight: alertTab === 'expiry' ? '600' : '400', color: alertTab === 'expiry' ? PRIMARY_COLOR : TEXT_SECOND }}>
+            保质期预警
+          </Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
-            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>商品总数</Text>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{goodsList.length}</Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
-            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>低库存</Text>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: DANGER_COLOR }}>{lowStockGoods.length}</Text>
-          </View>
-          <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
-            <Text style={{ fontSize: 13, color: TEXT_THIRD }}>已设预警</Text>
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#E6A23C' }}>{Object.keys(stockAlerts).length}</Text>
-          </View>
-        </View>
-        {lowStockGoods.length > 0 && (
-          <View style={{ backgroundColor: '#FFF7E6', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name="warning-outline" size={20} color="#E6A23C" />
-            <Text style={{ fontSize: 14, color: '#E6A23C', marginLeft: 8 }}>{lowStockGoods.length} 个商品库存不足，请及时补货</Text>
-          </View>
-        )}
-        {goodsList.length === 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 60 }}>
-            <Ionicons name="cube-outline" size={60} color={TEXT_THIRD} />
-            <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无商品数据</Text>
-          </View>
-        ) : (
-          goodsList.map(goods => {
-            const count = getStockCount(goods);
-            const threshold = stockAlerts[goods.id] || 10;
-            const isLow = count <= threshold;
-            return (
-              <View key={goods.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{goods.name || goods.goodsName}</Text>
-                    <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>当前库存：{count} · 预警阈值：{threshold}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <View style={{ backgroundColor: isLow ? DANGER_COLOR + '20' : SUCCESS_COLOR + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-                      <Text style={{ fontSize: 13, color: isLow ? DANGER_COLOR : SUCCESS_COLOR, fontWeight: '500' }}>{isLow ? '库存不足' : '充足'}</Text>
+        {alertTab === 'stock' ? (
+          <>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>商品总数</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{goodsList.length}</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>低库存</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: DANGER_COLOR }}>{lowStockGoods.length}</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>已设预警</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#E6A23C' }}>{Object.keys(stockAlerts).length}</Text>
+              </View>
+            </View>
+            {lowStockGoods.length > 0 && (
+              <View style={{ backgroundColor: '#FFF7E6', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="warning-outline" size={20} color="#E6A23C" />
+                <Text style={{ fontSize: 14, color: '#E6A23C', marginLeft: 8 }}>{lowStockGoods.length} 个商品库存不足，请及时补货</Text>
+              </View>
+            )}
+            {goodsList.length === 0 ? (
+              <View style={{ alignItems: 'center', marginTop: 60 }}>
+                <Ionicons name="cube-outline" size={60} color={TEXT_THIRD} />
+                <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无商品数据</Text>
+              </View>
+            ) : (
+              goodsList.map(goods => {
+                const count = getStockCount(goods);
+                const threshold = stockAlerts[goods.id] || 10;
+                const isLow = count <= threshold;
+                return (
+                  <View key={goods.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{goods.name || goods.goodsName}</Text>
+                        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>当前库存：{count} · 预警阈值：{threshold}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <View style={{ backgroundColor: isLow ? DANGER_COLOR + '20' : SUCCESS_COLOR + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                          <Text style={{ fontSize: 13, color: isLow ? DANGER_COLOR : SUCCESS_COLOR, fontWeight: '500' }}>{isLow ? '库存不足' : '充足'}</Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+                      <Text style={{ fontSize: 13, color: TEXT_THIRD }}>预警阈值：</Text>
+                      <TextInput
+                        style={{ borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, width: 60, fontSize: 14 }}
+                        keyboardType="numeric"
+                        defaultValue={String(threshold)}
+                        onEndEditing={(e) => {
+                          const val = Number(e.nativeEvent.text) || 0;
+                          if (val > 0) {
+                            dispatch({ type: 'SET_STOCK_ALERT', payload: { goodsId: goods.id, threshold: val } });
+                            showToast('预警阈值已设置');
+                          }
+                        }}
+                      />
                     </View>
                   </View>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
-                  <Text style={{ fontSize: 13, color: TEXT_THIRD }}>预警阈值：</Text>
-                  <TextInput
-                    style={{ borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, width: 60, fontSize: 14 }}
-                    keyboardType="numeric"
-                    defaultValue={String(threshold)}
-                    onEndEditing={(e) => {
-                      const val = Number(e.nativeEvent.text) || 0;
-                      if (val > 0) {
-                        dispatch({ type: 'SET_STOCK_ALERT', payload: { goodsId: goods.id, threshold: val } });
-                        showToast('预警阈值已设置');
-                      }
-                    }}
-                  />
-                </View>
+                );
+              })
+            )}
+          </>
+        ) : (
+          <>
+            {/* 保质期预警统计卡片 */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>设保质期</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: PRIMARY_COLOR }}>{expiryGoods.length}</Text>
               </View>
-            );
-          })
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>临期(1周内)</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: DANGER_COLOR }}>{urgentExpiryGoods.length}</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: BG_CARD, borderRadius: 12, padding: 16, ...SHADOW }}>
+                <Text style={{ fontSize: 13, color: TEXT_THIRD }}>已过期</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#991B1B' }}>{expiredGoods.length}</Text>
+              </View>
+            </View>
+            {/* 说明卡片 */}
+            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: '#1D4ED8', fontWeight: '500' }}>📅 保质期预警规则</Text>
+              <Text style={{ fontSize: 12, color: '#3B82F6', marginTop: 4 }}>
+                · 过期前 1 个月 ~ 1 周：每周提醒一次{'\n'}
+                · 过期前 1 周内：每天提醒一次{'\n'}
+                · 已过期商品：持续红色预警
+              </Text>
+            </View>
+            {expiryAlertGoods.length > 0 && (
+              <View style={{ backgroundColor: '#FEF2F2', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="time-outline" size={20} color="#DC2626" />
+                <Text style={{ fontSize: 14, color: '#DC2626', marginLeft: 8 }}>{expiryAlertGoods.length} 个商品即将过期，请及时处理</Text>
+              </View>
+            )}
+            {expiryGoods.length === 0 ? (
+              <View style={{ alignItems: 'center', marginTop: 60 }}>
+                <Ionicons name="calendar-outline" size={60} color={TEXT_THIRD} />
+                <Text style={{ color: TEXT_THIRD, marginTop: 12 }}>暂无保质期数据</Text>
+                <Text style={{ color: TEXT_THIRD, fontSize: 12, marginTop: 4 }}>入库时填写保质期后即可查看预警</Text>
+              </View>
+            ) : (
+              expiryGoods.map(goods => {
+                const days = getDaysUntilExpiry(goods.expiryDate);
+                const level = getExpiryAlertLevel(days);
+                const levelStyle = getExpiryLevelStyle(level);
+                const stock = getStockCount(goods);
+                return (
+                  <View key={goods.id} style={{ backgroundColor: BG_CARD, borderRadius: 12, padding: 16, marginBottom: 12, ...SHADOW }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: TEXT_MAIN }}>{goods.name || goods.goodsName}</Text>
+                        <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 4 }}>
+                          过期日期：{goods.expiryDate} · 库存：{stock}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <View style={{ backgroundColor: levelStyle.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                          <Text style={{ fontSize: 12, color: levelStyle.text, fontWeight: '500' }}>{levelStyle.label}</Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: BORDER_COLOR }}>
+                      {level === 'expired' ? (
+                        <Text style={{ fontSize: 13, color: '#DC2626', fontWeight: '500' }}>
+                          ⚠️ 已过期 {Math.abs(days)} 天，请立即处理！
+                        </Text>
+                      ) : level === 'daily' ? (
+                        <Text style={{ fontSize: 13, color: '#B91C1C', fontWeight: '500' }}>
+                          🔴 仅剩 {days} 天过期，每日提醒中
+                        </Text>
+                      ) : level === 'weekly' ? (
+                        <Text style={{ fontSize: 13, color: '#D97706', fontWeight: '500' }}>
+                          🟡 还有 {days} 天过期，每周提醒中
+                        </Text>
+                      ) : (
+                        <Text style={{ fontSize: 13, color: '#059669' }}>
+                          ✅ 还有 {days} 天过期，状态正常
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -15642,13 +16022,39 @@ async function scheduleDailyReportNotification(hour, minute, timeStr) {
         }
       }));
     } catch (e) {}
-    
+
+    // Android 8.0+ 必须创建通知渠道，否则定时通知不会触发
+    if (Platform.OS === 'android') {
+      try {
+        await Notifications.setNotificationChannelAsync('daily-report-channel', {
+          name: '日报推送',
+          description: '每日经营日报推送通知',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#5B6DF0',
+          sound: 'default',
+        });
+        console.log('[日报推送] Android通知渠道已创建');
+      } catch (e) {
+        console.warn('[日报推送] 创建Android通知渠道失败:', e);
+      }
+    }
+
     const h = parseInt(hour);
     const m = parseInt(minute);
     const displayTime = timeStr || `${h}:${m < 10 ? '0'+m : m}`;
     console.log(`[日报推送] 设置每天下班时间 ${displayTime} 调度日报通知`);
-    
+
     // 用 DailyTriggerInput 格式，每天重复
+    const triggerConfig = {
+      hour: h,
+      minute: m,
+      repeats: true,
+    };
+    // Android 必须指定 channelId
+    if (Platform.OS === 'android') {
+      triggerConfig.channelId = 'daily-report-channel';
+    }
     await Notifications.scheduleNotificationAsync({
       identifier: 'daily-report',
       content: {
@@ -15657,15 +16063,11 @@ async function scheduleDailyReportNotification(hour, minute, timeStr) {
         data: { screen: 'dailyReport' },
         sound: 'default',
       },
-      trigger: {
-        hour: h,
-        minute: m,
-        repeats: true,
-      },
+      trigger: triggerConfig,
     });
-    
+
     console.log(`[日报推送] 调度成功，每天 ${h}:${m} 推送`);
-    
+
     // 打印所有调度的通知用于调试
     try {
       const all = await Notifications.getAllScheduledNotificationsAsync();
@@ -15893,12 +16295,27 @@ export default function App() {
     try {
       const perm = await Notifications.getPermissionsAsync();
       if (perm.granted || perm.status === 'granted') {
+        // Android 确保通知渠道存在
+        if (Platform.OS === 'android') {
+          try {
+            await Notifications.setNotificationChannelAsync('daily-report-channel', {
+              name: '日报推送',
+              description: '每日经营日报推送通知',
+              importance: Notifications.AndroidImportance.HIGH,
+              vibrationPattern: [0, 250, 250, 250],
+              lightColor: '#5B6DF0',
+              sound: 'default',
+            });
+          } catch (e) {}
+        }
         await Notifications.scheduleNotificationAsync({
+          identifier: 'daily-report-instant-' + Date.now(),
           content: {
             title: '📊 经营宝日报已生成',
             body: `今日经营数据已汇总（下班${workTimeEnd}），点此查看营收、订单、利润详情，即使没有核销订单也能查看数据`,
             data: { screen: 'dailyReport' },
             sound: 'default',
+            ...(Platform.OS === 'android' ? { channelId: 'daily-report-channel' } : {}),
           },
           trigger: null, // 立即发送
         });
