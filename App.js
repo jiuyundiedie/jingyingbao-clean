@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -5735,20 +5735,90 @@ const StockManage = () => {
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
   const [selectedGoodsId, setSelectedGoodsId] = useState(null);
 
-  // 快捷保质期选项计算
-  const getQuickExpiry = (months) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + months);
-    return d.toISOString().split('T')[0];
+  // 保质期日期选择器状态
+  const [pickingDate, setPickingDate] = useState({ year: 2026, month: 1, day: 1 });
+
+  const openExpiryPicker = () => {
+    // 根据当前expiryDate初始化，如果没有则默认3个月后
+    if (expiryDate) {
+      const parts = expiryDate.split('-');
+      if (parts.length === 3) {
+        setPickingDate({ year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]) });
+      }
+    } else {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 3);
+      setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+    }
+    setShowExpiryPicker(true);
   };
-  const quickExpiryOptions = [
-    { label: '1个月', months: 1 },
-    { label: '3个月', months: 3 },
-    { label: '6个月', months: 6 },
-    { label: '1年', months: 12 },
-  ];
+
+  const confirmExpiryPicker = () => {
+    const y = pickingDate.year;
+    const m = String(pickingDate.month).padStart(2, '0');
+    const d = String(pickingDate.day).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    const dateObj = new Date(dateStr);
+    if (isNaN(dateObj.getTime())) {
+      showToast('日期无效，请重新选择');
+      return;
+    }
+    setExpiryDate(dateStr);
+    setShowExpiryPicker(false);
+  };
+
+  // 快捷设置保质期日期
+  const setQuickExpiry = (type) => {
+    const d = new Date();
+    switch (type) {
+      case 'today': break;
+      case '7day': d.setDate(d.getDate() + 7); break;
+      case '1month': d.setMonth(d.getMonth() + 1); break;
+      case '3month': d.setMonth(d.getMonth() + 3); break;
+      case '6month': d.setMonth(d.getMonth() + 6); break;
+      case '1year': d.setFullYear(d.getFullYear() + 1); break;
+    }
+    setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+  };
+
+  // 获取某月的天数
+  const getDaysInMonth = (year, month) => {
+    return new Date(year, month, 0).getDate();
+  };
+
+  const adjustDate = (field, delta) => {
+    setPickingDate(prev => {
+      let { year, month, day } = prev;
+      if (field === 'year') {
+        year += delta;
+        if (year < 2020) year = 2020;
+        if (year > 2035) year = 2035;
+      } else if (field === 'month') {
+        month += delta;
+        if (month < 1) { month = 12; year--; if (year < 2020) { year = 2020; month = 1; } }
+        if (month > 12) { month = 1; year++; if (year > 2035) { year = 2035; month = 12; } }
+      } else if (field === 'day') {
+        day += delta;
+        const maxDay = getDaysInMonth(year, month);
+        if (day < 1) {
+          month--;
+          if (month < 1) { month = 12; year--; }
+          day = getDaysInMonth(year, month);
+        } else if (day > maxDay) {
+          day = 1;
+          month++;
+          if (month > 12) { month = 1; year++; }
+        }
+      }
+      // 确保day不超过当月最大天数
+      const maxDay = getDaysInMonth(year, month);
+      if (day > maxDay) day = maxDay;
+      return { year, month, day };
+    });
+  };
   const [scanning, setScanning] = useState(false);
   const [photoUris, setPhotoUris] = useState([]);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -6612,24 +6682,16 @@ const StockManage = () => {
                 {type === '入库' && (
                   <>
                     <Text style={styles.label}>保质期（过期日期）</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={expiryDate}
-                      onChangeText={setExpiryDate}
-                      placeholder="例如：2025-12-31（选填）"
-                      keyboardType="numbers-and-punctuation"
-                    />
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 }}>
-                      {quickExpiryOptions.map(opt => (
-                        <TouchableOpacity
-                          key={opt.months}
-                          style={[styles.tagNormal, expiryDate === getQuickExpiry(opt.months) && styles.tagActive]}
-                          onPress={() => setExpiryDate(getQuickExpiry(opt.months))}
-                        >
-                          <Text style={{ fontSize: 12, color: expiryDate === getQuickExpiry(opt.months) ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <TouchableOpacity style={styles.formInput} onPress={openExpiryPicker}>
+                      <Text style={{ color: expiryDate ? TEXT_MAIN : TEXT_THIRD, paddingVertical: 10 }}>
+                        {expiryDate || '点击选择过期日期（选填）'}
+                      </Text>
+                    </TouchableOpacity>
+                    {expiryDate ? (
+                      <TouchableOpacity onPress={() => setExpiryDate('')} style={{ alignSelf: 'flex-end', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>清除日期</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </>
                 )}
                 {photoUris.length > 0 && (
@@ -6665,24 +6727,16 @@ const StockManage = () => {
                 {type === '入库' && (
                   <>
                     <Text style={styles.label}>保质期（过期日期）</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={expiryDate}
-                      onChangeText={setExpiryDate}
-                      placeholder="例如：2025-12-31（选填）"
-                      keyboardType="numbers-and-punctuation"
-                    />
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 }}>
-                      {quickExpiryOptions.map(opt => (
-                        <TouchableOpacity
-                          key={opt.months}
-                          style={[styles.tagNormal, expiryDate === getQuickExpiry(opt.months) && styles.tagActive]}
-                          onPress={() => setExpiryDate(getQuickExpiry(opt.months))}
-                        >
-                          <Text style={{ fontSize: 12, color: expiryDate === getQuickExpiry(opt.months) ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <TouchableOpacity style={styles.formInput} onPress={openExpiryPicker}>
+                      <Text style={{ color: expiryDate ? TEXT_MAIN : TEXT_THIRD, paddingVertical: 10 }}>
+                        {expiryDate || '点击选择过期日期（选填）'}
+                      </Text>
+                    </TouchableOpacity>
+                    {expiryDate ? (
+                      <TouchableOpacity onPress={() => setExpiryDate('')} style={{ alignSelf: 'flex-end', marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>清除日期</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </>
                 )}
                 {photoUris.length > 0 && (
@@ -6748,6 +6802,86 @@ const StockManage = () => {
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: DANGER_COLOR, borderRadius: 8 }} onPress={confirmQuickOut}>
                 <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认出库</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* 保质期日期选择器弹窗 */}
+      <Modal visible={showExpiryPicker} transparent animationType="fade">
+        <View style={styles.modalMask}>
+          <View style={[styles.voiceModal, { width: '88%' }]}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>📅 选择过期日期</Text>
+            {/* 快捷选择按钮 */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14, justifyContent: 'center' }}>
+              {[
+                { label: '今天', value: 'today' },
+                { label: '+7天', value: '7day' },
+                { label: '+1月', value: '1month' },
+                { label: '+3月', value: '3month' },
+                { label: '+6月', value: '6month' },
+                { label: '+1年', value: '1year' },
+              ].map(btn => (
+                <TouchableOpacity
+                  key={btn.value}
+                  onPress={() => setQuickExpiry(btn.value)}
+                  style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: LIGHT_PRIMARY, borderRadius: 16, borderWidth: 1, borderColor: PRIMARY_COLOR + '30' }}
+                >
+                  <Text style={{ fontSize: 12, color: PRIMARY_COLOR, fontWeight: '500' }}>{btn.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'center', marginBottom: 10 }}>或自由选择年月日 ↓</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              {/* 年 */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => adjustDate('year', 1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <View style={{ width: 70, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{pickingDate.year}</Text>
+                </View>
+                <TouchableOpacity onPress={() => adjustDate('year', -1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>年</Text>
+              </View>
+              {/* 月 */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => adjustDate('month', 1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <View style={{ width: 60, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{String(pickingDate.month).padStart(2, '0')}</Text>
+                </View>
+                <TouchableOpacity onPress={() => adjustDate('month', -1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>月</Text>
+              </View>
+              {/* 日 */}
+              <View style={{ alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => adjustDate('day', 1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <View style={{ width: 60, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{String(pickingDate.day).padStart(2, '0')}</Text>
+                </View>
+                <TouchableOpacity onPress={() => adjustDate('day', -1)} style={{ padding: 8 }}>
+                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>日</Text>
+              </View>
+            </View>
+            <Text style={{ textAlign: 'center', fontSize: 14, color: TEXT_SECOND, marginBottom: 16 }}>
+              {pickingDate.year}年{pickingDate.month}月{pickingDate.day}日
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => setShowExpiryPicker(false)}>
+                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={confirmExpiryPicker}>
+                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认</Text>
               </TouchableOpacity>
             </View>
           </View>
