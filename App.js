@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -5936,6 +5936,11 @@ const StockManage = () => {
   const [aiGoodsResult, setAiGoodsResult] = useState(null);
   const [aiGoodsLoading, setAiGoodsLoading] = useState(false);
 
+  // AI识别 → 手动录入 新商品时带过来的 brand/category/expiryHint
+  const _aiPendingBrand = useRef('');
+  const _aiPendingCategory = useRef('');
+  const _aiPendingExpiryHint = useRef(0);
+
   // ========== 批量入库状态 ==========
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [batchScanning, setBatchScanning] = useState(false); // 独立于单条扫码，避免early return冲突
@@ -6037,11 +6042,25 @@ const StockManage = () => {
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
       showToast(`${type}成功: ${existing.name} ×${qty}`);
     } else {
-      const newItem = { id: Date.now().toString(), name, stock: type === '入库' ? qty : 0, platform: '通用', code: scannedBarcode || '', createdAt: new Date().toISOString(), expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || suggestExpiryByProductName(name) || 90 };
+      // 新商品：从 AI 识别暂存里取 brand/category/expiryHint，没有就用智能推荐
+      const aiBrand = _aiPendingBrand.current || '';
+      const aiCategory = _aiPendingCategory.current || '';
+      const aiExpiryHint = _aiPendingExpiryHint.current || 0;
+      _aiPendingBrand.current = ''; _aiPendingCategory.current = ''; _aiPendingExpiryHint.current = 0;
+      const finalShelfDays = shelfDays || aiExpiryHint || suggestExpiryByProductName(name) || 90;
+      const newItem = {
+        id: Date.now().toString(), name,
+        stock: type === '入库' ? qty : 0,
+        platform: '通用', code: scannedBarcode || '',
+        createdAt: new Date().toISOString(),
+        expiryDate: finalExpiry || null, productionDate: finalProd || null,
+        shelfLifeDays: finalShelfDays,
+        brand: aiBrand, category: aiCategory,
+      };
       dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
-      const record = { id: Date.now().toString(), type, productName: name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUris.length > 0 ? photoUris[0] : null, expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || 0 };
+      const record = { id: Date.now().toString(), type, productName: name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUris.length > 0 ? photoUris[0] : null, expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: finalShelfDays, brand: aiBrand, category: aiCategory };
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-      showToast(`新增商品并${type}成功: ${name} ×${qty}`);
+      showToast(`新增商品并${type}成功: ${name} ×${qty}（${aiCategory || '未分类'}）`);
     }
     setModalVisible(false); resetStockForm();
   };
@@ -6384,14 +6403,56 @@ const StockManage = () => {
     } catch (e) { showToast('拍照失败'); }
   };
 
+  // 轻量商品名标准化匹配：去掉标点/空格后 + 关键词交集 + 最长公共子序列打分
+  const fuzzyScore = (query, target) => {
+    if (!query || !target) return 0;
+    const norm = s => (s || '').toLowerCase().replace(/[\s\-_·.。,，()（）\[\]【】"'/\\]/g, '');
+    const q = norm(query), t = norm(target);
+    if (!q || !t) return 0;
+    if (t.includes(q) || q.includes(t)) return 0.9;
+    // 关键词交集
+    const qTokens = q.match(/[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9]{2,}/g) || [q];
+    const tTokens = t.match(/[\u4e00-\u9fa5]{2,}|[a-zA-Z0-9]{2,}/g) || [t];
+    let hit = 0;
+    qTokens.forEach(tk => { if (tTokens.some(tt => tt.includes(tk) || tk.includes(tt))) hit++; });
+    return hit / Math.max(qTokens.length, 1);
+  };
+
+  // 让AI从库存列表里挑最佳候选（简单但有效：fuzzyScore + category 过滤）
+  const findTopCandidates = (query, categoryHint) => {
+    const list = state.goodsList || [];
+    if (!query || list.length === 0) return [];
+    const scored = list.map(g => ({
+      goods: g,
+      score: fuzzyScore(query, g.name) * (categoryHint && g.category === categoryHint ? 1.2 : 1),
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    return scored.filter(x => x.score > 0.3).slice(0, 3);
+  };
+
   const aiGoodsRecognize = async () => {
     if (!aiGoodsPhoto) { showToast('请先拍照'); return; }
     setAiGoodsLoading(true);
     try {
       const goodsList = state.goodsList || [];
-      const goodsNames = goodsList.map(g => g.name).join('、');
-      const prompt = `请识别图片中的商品名称和数量。现有库存商品：${goodsNames || '暂无'}。请返回JSON格式：{"name":"商品名称","count":数量}。如果识别到的商品不在库存中，也请如实返回商品名称。只返回JSON，不要其他文字。`;
-      
+      const goodsSummary = goodsList.length > 0
+        ? goodsList.slice(0, 50).map(g => `${g.name}${g.category ? '(' + g.category + ')' : ''}`).join('、') + (goodsList.length > 50 ? '...' : '')
+        : '暂无';
+      const prompt = `你是一个商品识别专家。请识别图片中的商品，返回JSON，只返回JSON。
+
+可选商品列表（如匹配到请用原名）：${goodsSummary}
+
+返回字段：
+{
+  "name": "商品标准名称（如'可口可乐330ml罐装'，品牌+规格+包装）",
+  "brand": "品牌，无则空字符串",
+  "category": "品类：乳制品/烘焙/熟食/生鲜肉类/蔬果/零食/饮料/干货调料/其他",
+  "expiryHint": 保质期提示（天数，整数），不确定填90,
+  "confidence": 识别置信度0-1,
+  "count": 识别到的件数,
+  "barcode": "条码数字，看到才填"
+}`;
+
       let reply = null;
       for (let retry = 0; retry < 3; retry++) {
         try {
@@ -6402,24 +6463,40 @@ const StockManage = () => {
           await new Promise(r => setTimeout(r, 800));
         }
       }
-      
-      if (reply && reply !== 'aborted') {
-        try {
-          const jsonStr = reply.replace(/```json/g, '').replace(/```/g, '').trim();
-          const result = JSON.parse(jsonStr);
-          const matchedGoods = goodsList.find(g => g.name.includes(result.name) || result.name.includes(g.name));
-          setAiGoodsResult({
-            name: result.name,
-            count: result.count || 1,
-            matchedId: matchedGoods?.id,
-            matchedStock: matchedGoods?.stock || 0,
-            matchedName: matchedGoods?.name,
-          });
-          showToast(`识别到：${result.name}，数量：${result.count}`);
-        } catch (e) {
-          showToast('识别结果解析失败，请重试');
-        }
+
+      if (!reply || reply === 'aborted') throw new Error('AI无响应');
+      const jsonStr = reply.replace(/```json/g, '').replace(/```/g, '').trim();
+      let result;
+      try { result = JSON.parse(jsonStr); } catch (e) {
+        // 容错：抠第一个 {...}
+        const m = jsonStr.match(/\{[\s\S]*\}/);
+        if (!m) throw e;
+        result = JSON.parse(m[0]);
       }
+
+      // 基本字段补全
+      const name = (result.name || '').trim() || '未知商品';
+      const brand = (result.brand || '').trim();
+      const category = (result.category || '').trim();
+      const count = parseInt(result.count) || 1;
+      const expiryHint = parseInt(result.expiryHint) || 0;
+      const confidence = parseFloat(result.confidence) || 0.8;
+
+      // 找 Top-3 库存候选
+      const candidates = findTopCandidates(name, category);
+      const matched = candidates[0]?.goods || null;
+
+      setAiGoodsResult({
+        name, brand, category, count,
+        expiryHint, confidence,
+        matchedId: matched?.id,
+        matchedName: matched?.name,
+        matchedStock: matched?.stock || 0,
+        matchedScore: candidates[0]?.score || 0,
+        candidates,
+        isNew: !matched,
+      });
+      showToast(matched ? `✅ 已匹配：${matched.name}` : `🆕 新商品：${name}`);
     } catch (e) {
       console.error('AI商品识别失败:', e);
       showToast('识别失败，请检查网络后重试');
@@ -6430,22 +6507,37 @@ const StockManage = () => {
 
   const aiGoodsSubmit = () => {
     if (!aiGoodsResult) { showToast('请先识别商品'); return; }
-    
-    if (aiGoodsResult.matchedId) {
-      setSelectedGoodsId(aiGoodsResult.matchedId);
-      setQuantity(String(aiGoodsResult.count));
+    const r = aiGoodsResult;
+    setType(type);
+    if (r.matchedId) {
+      setSelectedGoodsId(r.matchedId);
+      setQuantity(String(r.count));
     } else {
       setShowManualInput(true);
-      setManualProductName(aiGoodsResult.name);
-      setQuantity(String(aiGoodsResult.count));
+      setManualProductName(r.name);
+      // 品牌/品类存入暂存变量（通过 modalVisible useEffect 或直接存入）
+      _aiPendingBrand.current = r.brand;
+      _aiPendingCategory.current = r.category;
+      _aiPendingExpiryHint.current = r.expiryHint;
+      setQuantity(String(r.count));
+      setProductionDate(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; });
+      setExpiryDate(''); setExpiryManuallyEdited(false);
     }
-    
-    setAiGoodsModalVisible(false);
-    setAiGoodsPhoto(null);
-    setAiGoodsResult(null);
-    setExpiryDate('');
+    setAiGoodsModalVisible(false); setAiGoodsPhoto(null); setAiGoodsResult(null);
     setModalVisible(true);
-    showToast(`已识别：${aiGoodsResult.name}，数量：${aiGoodsResult.count}`);
+    showToast(`已识别：${r.name}，数量：${r.count}`);
+  };
+
+  // 允许用户从 Top-3 候选里挑一个
+  const aiGoodsPickCandidate = (goods) => {
+    setAiGoodsResult(prev => ({
+      ...prev,
+      matchedId: goods.id,
+      matchedName: goods.name,
+      matchedStock: goods.stock || 0,
+      matchedScore: 1,
+      isNew: false,
+    }));
   };
 
   const aiCountAddPhoto = async () => {
@@ -7149,51 +7241,99 @@ const StockManage = () => {
       {/* AI商品识别弹窗 */}
       <Modal visible={aiGoodsModalVisible} transparent animationType="fade">
         <View style={styles.modalMask}>
-          <View style={[styles.voiceModal, { maxHeight: '90%', width: '92%' }]}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>📷 AI拍照识别商品</Text>
-            <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 12 }}>拍照识别商品名称和数量，自动匹配库存</Text>
-            {aiGoodsPhoto && (
-              <Image source={{ uri: aiGoodsPhoto }} style={{ width: '100%', height: 200, borderRadius: 8, marginBottom: 12 }} />
-            )}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleAIGoodsRecognition}>
-                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 重新拍照</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiGoodsLoading ? '#999' : SUCCESS_COLOR, borderRadius: 8 }} onPress={aiGoodsRecognize} disabled={aiGoodsLoading}>
-                <Text style={{ textAlign: 'center', color: '#fff' }}>{aiGoodsLoading ? '识别中...' : '🤖 开始识别'}</Text>
+          <View style={[styles.voiceModal, { maxHeight: '92%', width: '94%', borderRadius: 16 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold' }}>📷 AI拍照识别商品</Text>
+              <TouchableOpacity onPress={() => { setAiGoodsModalVisible(false); setAiGoodsPhoto(null); setAiGoodsResult(null); }}>
+                <Ionicons name="close-circle-outline" size={26} color={TEXT_THIRD} />
               </TouchableOpacity>
             </View>
-            {aiGoodsResult && (
-              <View style={{ backgroundColor: '#F5F7FA', padding: 12, borderRadius: 8, marginBottom: 12 }}>
-                <Text style={{ fontSize: 14, color: TEXT_SECOND, marginBottom: 8 }}>📊 识别结果</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 14, color: TEXT_MAIN }}>商品名称:</Text>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: PRIMARY_COLOR }}>{aiGoodsResult.name}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={{ fontSize: 14, color: TEXT_MAIN }}>识别数量:</Text>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN }}>{aiGoodsResult.count} 件</Text>
-                </View>
-                {aiGoodsResult.matchedName && (
-                  <View style={{ backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>✅ 已匹配库存商品：{aiGoodsResult.matchedName}（当前库存：{aiGoodsResult.matchedStock}）</Text>
-                  </View>
-                )}
-                {!aiGoodsResult.matchedName && (
-                  <View style={{ backgroundColor: '#FFF3E0', padding: 8, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: '#FF8C00' }}>⚠️ 未匹配到库存商品，将以手动录入方式添加</Text>
-                  </View>
-                )}
+            {aiGoodsPhoto && (
+              <Image source={{ uri: aiGoodsPhoto }} style={{ width: '100%', height: 160, borderRadius: 10, marginBottom: 10 }} />
+            )}
+            {!aiGoodsPhoto && (
+              <View style={{ height: 160, backgroundColor: '#F5F7FA', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                <Ionicons name="image-outline" size={40} color={TEXT_THIRD} />
+                <Text style={{ fontSize: 13, color: TEXT_THIRD, marginTop: 6 }}>点击下方按钮拍照</Text>
               </View>
             )}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setAiGoodsModalVisible(false); setAiGoodsPhoto(null); setAiGoodsResult(null); }}>
-                <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <TouchableOpacity style={{ flex: 1, padding: 11, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={handleAIGoodsRecognition}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>📷 拍照</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: aiGoodsResult ? PRIMARY_COLOR : '#ccc', borderRadius: 8 }} onPress={aiGoodsSubmit} disabled={!aiGoodsResult}>
-                <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认{type}</Text>
+              <TouchableOpacity style={{ flex: 1, padding: 11, backgroundColor: aiGoodsLoading ? '#999' : SUCCESS_COLOR, borderRadius: 8 }} onPress={aiGoodsRecognize} disabled={aiGoodsLoading}>
+                <Text style={{ textAlign: 'center', color: '#fff' }}>{aiGoodsLoading ? '识别中...' : '🤖 AI识别'}</Text>
               </TouchableOpacity>
             </View>
+
+            {aiGoodsResult && (
+              <ScrollView style={{ maxHeight: 340 }}>
+                {/* 主识别结果卡片 */}
+                <View style={{ backgroundColor: LIGHT_PRIMARY, padding: 12, borderRadius: 10, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: PRIMARY_COLOR, marginBottom: 8 }}>🎯 AI识别结果</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: TEXT_MAIN, flex: 1 }}>{aiGoodsResult.name}</Text>
+                    {aiGoodsResult.confidence > 0.6 && <Text style={{ fontSize: 10, color: SUCCESS_COLOR, backgroundColor: '#E8F5E9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>置信 {(aiGoodsResult.confidence * 100).toFixed(0)}%</Text>}
+                  </View>
+                  {aiGoodsResult.brand ? <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 2 }}>🏷 品牌：{aiGoodsResult.brand}</Text> : null}
+                  {aiGoodsResult.category ? <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 2 }}>📂 品类：{aiGoodsResult.category}</Text> : null}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                    <Text style={{ fontSize: 13, color: TEXT_MAIN }}>数量：<Text style={{ fontSize: 16, fontWeight: 'bold', color: DANGER_COLOR }}>{aiGoodsResult.count}</Text> 件</Text>
+                    {aiGoodsResult.expiryHint > 0 && <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>⏳ 保质期 ≈ {aiGoodsResult.expiryHint} 天</Text>}
+                  </View>
+                </View>
+
+                {/* Top-3 候选匹配 */}
+                {aiGoodsResult.candidates && aiGoodsResult.candidates.length > 0 && (
+                  <View style={{ backgroundColor: '#F5F7FA', padding: 10, borderRadius: 10, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: TEXT_SECOND, marginBottom: 6 }}>🔎 库存候选（点击选择）：</Text>
+                    {aiGoodsResult.candidates.map((c, i) => (
+                      <TouchableOpacity key={c.goods.id + i} onPress={() => aiGoodsPickCandidate(c.goods)}
+                        style={[{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < aiGoodsResult.candidates.length - 1 ? 1 : 0, borderBottomColor: BORDER_COLOR }, aiGoodsResult.matchedId === c.goods.id && { backgroundColor: '#E8F5E9', borderRadius: 6 }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '500', color: aiGoodsResult.matchedId === c.goods.id ? SUCCESS_COLOR : TEXT_MAIN }}>{c.goods.name}</Text>
+                          <Text style={{ fontSize: 11, color: TEXT_THIRD }}>库存 {c.goods.stock} · {c.goods.category || '未分类'}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={{ fontSize: 10, color: TEXT_THIRD }}>相似度 {(c.score * 100).toFixed(0)}%</Text>
+                          {aiGoodsResult.matchedId === c.goods.id
+                            ? <Ionicons name="checkmark-circle" size={20} color={SUCCESS_COLOR} />
+                            : <Ionicons name="chevron-forward" size={18} color={TEXT_THIRD} />}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {/* 匹配状态提示 */}
+                {aiGoodsResult.matchedId && aiGoodsResult.matchedScore > 0.7 && (
+                  <View style={{ backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: SUCCESS_COLOR }}>✅ 高置信度匹配：{aiGoodsResult.matchedName}（库存 {aiGoodsResult.matchedStock}）</Text>
+                  </View>
+                )}
+                {aiGoodsResult.matchedId && aiGoodsResult.matchedScore <= 0.7 && (
+                  <View style={{ backgroundColor: '#FFF3E0', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#FF8C00' }}>⚠️ 低置信度匹配，建议点击上方候选列表换一个</Text>
+                  </View>
+                )}
+                {aiGoodsResult.isNew && (
+                  <View style={{ backgroundColor: '#E3F2FD', padding: 8, borderRadius: 6, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#1976D2' }}>🆕 未匹配到库存商品，将自动创建新商品（品类：{aiGoodsResult.category || '未分类'}，保质期 ≈ {aiGoodsResult.expiryHint || 90} 天）</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            {aiGoodsResult && (
+              <TouchableOpacity
+                style={{ padding: 14, borderRadius: 10, backgroundColor: PRIMARY_COLOR, alignItems: 'center', marginTop: 8 }}
+                onPress={aiGoodsSubmit}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>
+                  {aiGoodsResult.matchedId ? `✅ 使用已有商品入库 (${aiGoodsResult.matchedName})` : `🆕 创建新商品入库 (${aiGoodsResult.name})`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
