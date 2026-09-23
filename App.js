@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, TextInput, ScrollView, Alert,
   BackHandler, ActivityIndicator, Dimensions, Platform, ToastAndroid,
@@ -5734,15 +5734,64 @@ const StockManage = () => {
   const [type, setType] = useState('入库');
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
-  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
 
-  // 保质期日期选择器状态
+  // ===== 新日期模型：生产日期 → 自动算过期日期 =====
+  // 业界标准：智慧记/存鱼/好生意/inFlow → 生产日期 + 保质期天数 = 过期日期
+  const [productionDate, setProductionDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
+  const [expiryDate, setExpiryDate] = useState(''); // 可手动覆盖自动计算值
+  const [expiryManuallyEdited, setExpiryManuallyEdited] = useState(false);
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+  const [showProductionPicker, setShowProductionPicker] = useState(false);
+  const [selectedGoodsId, setSelectedGoodsId] = useState(null);
   const [pickingDate, setPickingDate] = useState({ year: 2026, month: 1, day: 1 });
 
+  // ===== 根据商品/名称获取保质期天数，自动计算过期日期 =====
+  const getShelfLifeDays = (goodsIdOrName) => {
+    if (!goodsIdOrName) return 90;
+    // 优先从已有商品模型取 shelfLifeDays
+    if (typeof goodsIdOrName === 'string' && goodsIdOrName.length > 10) {
+      const g = (state.goodsList || []).find(x => x.id === goodsIdOrName);
+      if (g?.shelfLifeDays) return g.shelfLifeDays;
+      if (g?.expiryDate) {
+        // 已有过期日期则反推
+        const days = Math.round((new Date(g.expiryDate) - new Date()) / 86400000);
+        if (days > 0 && days < 3650) return days;
+      }
+    }
+    const name = typeof goodsIdOrName === 'string' ? goodsIdOrName : goodsIdOrName?.name || '';
+    return suggestExpiryByProductName(name) || 90;
+  };
+
+  // 核心：当生产日期或商品变化 → 自动刷新过期日期（用户没手动改过的前提下）
+  useEffect(() => {
+    if (type !== '入库') return;
+    if (expiryManuallyEdited) return;
+    if (!productionDate) return;
+    const goods = selectedGoodsId
+      ? (state.goodsList || []).find(g => g.id === selectedGoodsId)
+      : null;
+    const targetName = goods?.name || manualProductName;
+    const days = getShelfLifeDays(goods?.id || targetName);
+    const prod = new Date(productionDate);
+    if (isNaN(prod.getTime())) return;
+    prod.setDate(prod.getDate() + days);
+    const auto = `${prod.getFullYear()}-${String(prod.getMonth()+1).padStart(2,'0')}-${String(prod.getDate()).padStart(2,'0')}`;
+    setExpiryDate(auto);
+  }, [productionDate, selectedGoodsId, manualProductName, type, expiryManuallyEdited]);
+
+  const openProductionPicker = () => {
+    const d = productionDate ? new Date(productionDate) : new Date();
+    if (isNaN(d.getTime())) { d.setTime(Date.now()); }
+    setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+    setShowProductionPicker(true);
+  };
+
   const openExpiryPicker = () => {
-    // 根据当前expiryDate初始化；如果没有则智能推荐或默认3个月后
+    // 打开过期日期选择器时视为"手动覆盖"
+    setExpiryManuallyEdited(true);
     if (expiryDate) {
       const parts = expiryDate.split('-');
       if (parts.length === 3) {
@@ -5751,14 +5800,10 @@ const StockManage = () => {
         return;
       }
     }
-    // 优先智能推荐
-    const targetName = selectedGoodsId
-      ? (state.goodsList || []).find(g => g.id === selectedGoodsId)?.name || manualProductName
-      : manualProductName;
-    const days = suggestExpiryByProductName(targetName);
+    // 没填过期日期则用当前生产日期+默认保质期
     const d = new Date();
-    if (days > 0) d.setDate(d.getDate() + days);
-    else d.setMonth(d.getMonth() + 3);
+    const shelfDays = getShelfLifeDays(selectedGoodsId ? null : manualProductName);
+    d.setDate(d.getDate() + shelfDays);
     setPickingDate({ year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
     setShowExpiryPicker(true);
   };
@@ -5768,13 +5813,22 @@ const StockManage = () => {
     const m = String(pickingDate.month).padStart(2, '0');
     const d = String(pickingDate.day).padStart(2, '0');
     const dateStr = `${y}-${m}-${d}`;
-    const dateObj = new Date(dateStr);
-    if (isNaN(dateObj.getTime())) {
-      showToast('日期无效，请重新选择');
-      return;
-    }
+    if (isNaN(new Date(dateStr).getTime())) { showToast('日期无效'); return; }
     setExpiryDate(dateStr);
+    setExpiryManuallyEdited(true);
     setShowExpiryPicker(false);
+  };
+
+  const confirmProductionPicker = () => {
+    const y = pickingDate.year;
+    const m = String(pickingDate.month).padStart(2, '0');
+    const d = String(pickingDate.day).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    if (isNaN(new Date(dateStr).getTime())) { showToast('日期无效'); return; }
+    setProductionDate(dateStr);
+    // 一旦生产日期变化，自动恢复过期日期自动计算（除非用户锁定）
+    setExpiryManuallyEdited(false);
+    setShowProductionPicker(false);
   };
 
   // 根据商品名称关键词自动推荐保质期（0表示不推荐）
@@ -5801,18 +5855,20 @@ const StockManage = () => {
     return 90;
   };
 
-  // 快捷设置保质期日期
+  // 快捷设置保质期日期（支持生产日期的反向快捷）
   const setQuickExpiry = (quickType) => {
     const d = new Date();
     switch (quickType) {
       case 'today': break;
+      case 'yesterday': d.setDate(d.getDate() - 1); break;
+      case 'm7day': d.setDate(d.getDate() - 7); break;
+      case 'm1month': d.setMonth(d.getMonth() - 1); break;
       case '7day': d.setDate(d.getDate() + 7); break;
       case '1month': d.setMonth(d.getMonth() + 1); break;
       case '3month': d.setMonth(d.getMonth() + 3); break;
       case '6month': d.setMonth(d.getMonth() + 6); break;
       case '1year': d.setFullYear(d.getFullYear() + 1); break;
       case 'suggest': {
-        // 根据当前商品自动推荐
         const targetName = selectedGoodsId
           ? (state.goodsList || []).find(g => g.id === selectedGoodsId)?.name || manualProductName
           : manualProductName;
@@ -5911,6 +5967,9 @@ const StockManage = () => {
       setManualProductName(voiceText.trim());
       setShowManualInput(true);
       setExpiryDate('');
+      setExpiryManuallyEdited(false);
+      const d = new Date();
+      setProductionDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
       setModalVisible(true);
       setVoiceModalVisible(false);
       setVoiceText('');
@@ -5919,21 +5978,45 @@ const StockManage = () => {
     }
   };
 
+  const resetStockForm = () => {
+    const d = new Date();
+    setProductionDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    setExpiryDate(''); setExpiryManuallyEdited(false);
+    setQuantity(''); setReason(''); setSelectedGoodsId(null); setPhotoUris([]);
+    setManualProductName(''); setManualPlatform('通用'); setShowManualInput(false); setScannedBarcode('');
+  };
+
+  // 通用：验证生产日期/过期日期，自动计算缺失值，反推保质期天数
+  const sanitizeDates = (rawProd, rawExpiry, targetName) => {
+    let prod = rawProd || '';
+    let exp = rawExpiry || '';
+    if (exp && isNaN(new Date(exp).getTime())) { showToast('过期日期格式错误'); return null; }
+    if (prod && isNaN(new Date(prod).getTime())) { showToast('生产日期格式错误'); return null; }
+    if (!exp && prod) {
+      const days = suggestExpiryByProductName(targetName) || 90;
+      const pd = new Date(prod);
+      pd.setDate(pd.getDate() + days);
+      exp = `${pd.getFullYear()}-${String(pd.getMonth()+1).padStart(2,'0')}-${String(pd.getDate()).padStart(2,'0')}`;
+    }
+    let shelfDays = 0;
+    if (prod && exp) {
+      shelfDays = Math.max(1, Math.round((new Date(exp) - new Date(prod)) / 86400000));
+    }
+    return { prod, exp, shelfDays };
+  };
+
   const handleManualSubmit = () => {
     if (!manualProductName.trim()) { showToast('请输入商品名称'); return; }
     const qty = parseInt(quantity);
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
-    // 验证保质期格式（如果填写了）
-    let validExpiryDate = '';
-    if (expiryDate.trim()) {
-      const d = new Date(expiryDate.trim());
-      if (isNaN(d.getTime())) {
-        showToast('保质期格式不正确，请使用 YYYY-MM-DD 格式');
-        return;
-      }
-      validExpiryDate = expiryDate.trim();
-    }
-    let existing = (state.goodsList || []).find(g => g.name === manualProductName.trim());
+    const name = manualProductName.trim();
+    const dates = type === '入库' ? sanitizeDates(productionDate, expiryDate, name) : { prod: '', exp: '', shelfDays: 0 };
+    if (type === '入库' && !dates) return;
+    const finalExpiry = dates?.exp || '';
+    const finalProd = dates?.prod || '';
+    const shelfDays = dates?.shelfDays || 0;
+
+    let existing = (state.goodsList || []).find(g => g.name === name);
     if (existing) {
       let newStock = existing.stock;
       if (type === '入库') newStock += qty;
@@ -5942,55 +6025,25 @@ const StockManage = () => {
         newStock -= qty;
       }
       const updatedGoods = (state.goodsList || []).map(g =>
-        g.id === existing.id ? { ...g, stock: newStock, expiryDate: validExpiryDate || g.expiryDate } : g
+        g.id === existing.id ? {
+          ...g, stock: newStock,
+          expiryDate: finalExpiry || g.expiryDate,
+          productionDate: finalProd || g.productionDate,
+          shelfLifeDays: shelfDays || g.shelfLifeDays || suggestExpiryByProductName(name) || 90,
+        } : g
       );
       dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-      const record = {
-        id: Date.now().toString(),
-        type,
-        productName: existing.name,
-        quantity: qty,
-        reason: reason.trim() || '无备注',
-        time: new Date().toISOString(),
-        photo: photoUris.length > 0 ? photoUris[0] : null,
-        expiryDate: validExpiryDate || null,
-      };
+      const record = { id: Date.now().toString(), type, productName: existing.name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUris.length > 0 ? photoUris[0] : null, expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || 0 };
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
       showToast(`${type}成功: ${existing.name} ×${qty}`);
     } else {
-      const newItem = {
-        id: Date.now().toString(),
-        name: manualProductName.trim(),
-        stock: type === '入库' ? qty : 0,
-        platform: '通用',
-        code: scannedBarcode || '',
-        createdAt: new Date().toISOString(),
-        expiryDate: validExpiryDate || null,
-      };
+      const newItem = { id: Date.now().toString(), name, stock: type === '入库' ? qty : 0, platform: '通用', code: scannedBarcode || '', createdAt: new Date().toISOString(), expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || suggestExpiryByProductName(name) || 90 };
       dispatch({ type: 'SET_GOODS_LIST', payload: [...(state.goodsList || []), newItem] });
-      const record = {
-        id: Date.now().toString(),
-        type,
-        productName: newItem.name,
-        quantity: qty,
-        reason: reason.trim() || '无备注',
-        time: new Date().toISOString(),
-        photo: photoUris.length > 0 ? photoUris[0] : null,
-        expiryDate: validExpiryDate || null,
-      };
+      const record = { id: Date.now().toString(), type, productName: name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUris.length > 0 ? photoUris[0] : null, expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || 0 };
       dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
-      showToast(`新增商品并${type}成功: ${newItem.name} ×${qty}`);
+      showToast(`新增商品并${type}成功: ${name} ×${qty}`);
     }
-    setModalVisible(false);
-    setQuantity('');
-    setReason('');
-    setSelectedGoodsId(null);
-    setPhotoUris([]);
-    setManualProductName('');
-    setManualPlatform('通用');
-    setShowManualInput(false);
-    setScannedBarcode('');
-    setExpiryDate('');
+    setModalVisible(false); resetStockForm();
   };
 
   const handleSubmit = () => {
@@ -5999,16 +6052,11 @@ const StockManage = () => {
     if (isNaN(qty) || qty <= 0) { showToast('请输入有效数量'); return; }
     const goods = (state.goodsList || []).find(g => g.id === selectedGoodsId);
     if (!goods) { showToast('商品不存在'); return; }
-    // 验证保质期格式（入库时如果填写了）
-    let validExpiryDate = '';
-    if (type === '入库' && expiryDate.trim()) {
-      const d = new Date(expiryDate.trim());
-      if (isNaN(d.getTime())) {
-        showToast('保质期格式不正确，请使用 YYYY-MM-DD 格式');
-        return;
-      }
-      validExpiryDate = expiryDate.trim();
-    }
+    const dates = type === '入库' ? sanitizeDates(productionDate, expiryDate, goods.name) : { prod: '', exp: '', shelfDays: 0 };
+    if (type === '入库' && !dates) return;
+    const finalExpiry = dates?.exp || '';
+    const finalProd = dates?.prod || '';
+    const shelfDays = dates?.shelfDays || goods.shelfLifeDays || 0;
     let newStock = goods.stock;
     if (type === '入库') newStock += qty;
     else {
@@ -6016,27 +6064,18 @@ const StockManage = () => {
       newStock -= qty;
     }
     const updatedGoods = (state.goodsList || []).map(g =>
-      g.id === selectedGoodsId ? { ...g, stock: newStock, expiryDate: validExpiryDate || g.expiryDate } : g
+      g.id === selectedGoodsId ? {
+        ...g, stock: newStock,
+        expiryDate: finalExpiry || g.expiryDate,
+        productionDate: finalProd || g.productionDate,
+        shelfLifeDays: shelfDays || g.shelfLifeDays || suggestExpiryByProductName(goods.name) || 90,
+      } : g
     );
     dispatch({ type: 'SET_GOODS_LIST', payload: updatedGoods });
-    const record = {
-      id: Date.now().toString(),
-      type,
-      productName: goods.name,
-      quantity: qty,
-      reason: reason.trim() || '无备注',
-      time: new Date().toISOString(),
-      photo: photoUris.length > 0 ? photoUris[0] : null,
-      expiryDate: validExpiryDate || null,
-    };
+    const record = { id: Date.now().toString(), type, productName: goods.name, quantity: qty, reason: reason.trim() || '无备注', time: new Date().toISOString(), photo: photoUris.length > 0 ? photoUris[0] : null, expiryDate: finalExpiry || null, productionDate: finalProd || null, shelfLifeDays: shelfDays || 0 };
     dispatch({ type: 'ADD_STOCK_RECORD', payload: record });
     showToast(`${type}成功: ${goods.name} ×${qty}`);
-    setModalVisible(false);
-    setQuantity('');
-    setReason('');
-    setSelectedGoodsId(null);
-    setPhotoUris([]);
-    setExpiryDate('');
+    setModalVisible(false); resetStockForm();
   };
 
   const [outQuantity, setOutQuantity] = useState('');
@@ -6693,6 +6732,71 @@ const StockManage = () => {
     }
   };
 
+  // ===== 入库日期块组件：生产日期(主) + 过期日期(自动计算/可覆盖) =====
+  const StockInDatesBlock = ({ productionDate, expiryDate, expiryManuallyEdited, openProductionPicker, openExpiryPicker, getShelfLifeDays, targetName }) => {
+    const shelfDays = getShelfLifeDays(targetName);
+    return (
+      <View style={{ backgroundColor: LIGHT_PRIMARY, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: PRIMARY_COLOR }}>📆 效期信息</Text>
+          <Text style={{ fontSize: 11, color: TEXT_THIRD, marginLeft: 'auto' }}>保质期 ≈ {shelfDays} 天</Text>
+        </View>
+        {/* 生产日期（主输入） */}
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }} onPress={openProductionPicker}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="calendar" size={16} color={PRIMARY_COLOR} />
+            <Text style={{ fontSize: 13, color: TEXT_MAIN, marginLeft: 6 }}>生产日期</Text>
+          </View>
+          <Text style={{ fontSize: 13, color: PRIMARY_COLOR, fontWeight: '600' }}>{productionDate} ▾</Text>
+        </TouchableOpacity>
+        <View style={{ height: 1, backgroundColor: BORDER_COLOR, marginVertical: 4 }} />
+        {/* 过期日期（自动计算，可手动覆盖） */}
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }} onPress={openExpiryPicker}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="hourglass-outline" size={16} color={expiryManuallyEdited ? DANGER_COLOR : SUCCESS_COLOR} />
+            <Text style={{ fontSize: 13, color: TEXT_MAIN, marginLeft: 6 }}>过期日期</Text>
+            {!expiryManuallyEdited && <Text style={{ fontSize: 10, color: SUCCESS_COLOR, marginLeft: 6 }}>(自动)</Text>}
+            {expiryManuallyEdited && <Text style={{ fontSize: 10, color: DANGER_COLOR, marginLeft: 6 }}>(已手动改)</Text>}
+          </View>
+          <Text style={{ fontSize: 13, color: expiryManuallyEdited ? DANGER_COLOR : SUCCESS_COLOR, fontWeight: '600' }}>{expiryDate || '自动算'}</Text>
+        </TouchableOpacity>
+        {expiryManuallyEdited && (
+          <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 4 }} onPress={() => setExpiryManuallyEdited(false)}>
+            <Text style={{ fontSize: 11, color: PRIMARY_COLOR }}>↺ 恢复自动计算</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // ===== 折叠式"更多"区域：备注 + 照片 =====
+  const CollapsibleExtra = ({ reason, setReason, photoUris, setPhotoUris }) => {
+    const [open, setOpen] = useState(false);
+    return (
+      <View style={{ marginBottom: 10 }}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }} onPress={() => setOpen(!open)}>
+          <Text style={{ fontSize: 12, color: TEXT_THIRD }}>备注 / 照片 (可选)</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={TEXT_THIRD} />
+        </TouchableOpacity>
+        {open && (
+          <>
+            <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
+            {photoUris.length > 0 && (
+              <View style={{ marginVertical: 8 }}>
+                <ScrollView horizontal>
+                  {photoUris.map((uri, idx) => (
+                    <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
+                  ))}
+                </ScrollView>
+                <TouchableOpacity onPress={() => setPhotoUris([])}><Text style={{ color: DANGER_COLOR, marginTop: 4 }}>移除照片</Text></TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+    );
+  };
+
   if (scanning && !batchModalVisible) {
     if (!cameraPermission) {
       return (
@@ -6856,33 +6960,19 @@ const StockManage = () => {
                 <TextInput style={styles.formInput} value={manualProductName} onChangeText={setManualProductName} placeholder="输入商品名称" />
                 <Text style={styles.label}>数量</Text>
                 <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
-                <Text style={styles.label}>备注</Text>
-                <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
                 {type === '入库' && (
-                  <>
-                    <Text style={styles.label}>保质期（过期日期）</Text>
-                    <TouchableOpacity style={styles.formInput} onPress={openExpiryPicker}>
-                      <Text style={{ color: expiryDate ? TEXT_MAIN : TEXT_THIRD, paddingVertical: 10 }}>
-                        {expiryDate || '点击选择过期日期（选填）'}
-                      </Text>
-                    </TouchableOpacity>
-                    {expiryDate ? (
-                      <TouchableOpacity onPress={() => setExpiryDate('')} style={{ alignSelf: 'flex-end', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>清除日期</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </>
+                  <StockInDatesBlock
+                    productionDate={productionDate} setProductionDate={setProductionDate}
+                    expiryDate={expiryDate} setExpiryDate={setExpiryDate}
+                    expiryManuallyEdited={expiryManuallyEdited} setExpiryManuallyEdited={setExpiryManuallyEdited}
+                    openProductionPicker={openProductionPicker} openExpiryPicker={openExpiryPicker}
+                    getShelfLifeDays={getShelfLifeDays} targetName={manualProductName || ''}
+                  />
                 )}
-                {photoUris.length > 0 && (
-                  <View style={{ marginVertical: 8 }}>
-                    <ScrollView horizontal>
-                      {photoUris.map((uri, idx) => (
-                        <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
-                      ))}
-                    </ScrollView>
-                    <TouchableOpacity onPress={() => setPhotoUris([])}><Text style={{ color: DANGER_COLOR, marginTop: 4 }}>移除照片</Text></TouchableOpacity>
-                  </View>
-                )}
+                <CollapsibleExtra
+                  reason={reason} setReason={setReason}
+                  photoUris={photoUris} setPhotoUris={setPhotoUris}
+                />
                 <TouchableOpacity style={styles.primaryBtn} onPress={handleManualSubmit}><Text style={styles.sendTxt}>确认{type}</Text></TouchableOpacity>
               </>
             ) : (
@@ -6890,44 +6980,27 @@ const StockManage = () => {
                 <Text style={styles.label}>选择商品</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {goodsOptions.map(opt => (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]}
-                      onPress={() => setSelectedGoodsId(opt.value)}
-                    >
+                    <TouchableOpacity key={opt.value} style={[styles.tagNormal, selectedGoodsId === opt.value && styles.tagActive]} onPress={() => setSelectedGoodsId(opt.value)}>
                       <Text style={{ color: selectedGoodsId === opt.value ? '#fff' : TEXT_MAIN }}>{opt.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
                 <Text style={styles.label}>数量</Text>
                 <TextInput style={styles.formInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="数量" />
-                <Text style={styles.label}>备注</Text>
-                <TextInput style={styles.formInput} value={reason} onChangeText={setReason} placeholder="可选备注" />
                 {type === '入库' && (
-                  <>
-                    <Text style={styles.label}>保质期（过期日期）</Text>
-                    <TouchableOpacity style={styles.formInput} onPress={openExpiryPicker}>
-                      <Text style={{ color: expiryDate ? TEXT_MAIN : TEXT_THIRD, paddingVertical: 10 }}>
-                        {expiryDate || '点击选择过期日期（选填）'}
-                      </Text>
-                    </TouchableOpacity>
-                    {expiryDate ? (
-                      <TouchableOpacity onPress={() => setExpiryDate('')} style={{ alignSelf: 'flex-end', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, color: TEXT_THIRD }}>清除日期</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </>
+                  <StockInDatesBlock
+                    productionDate={productionDate} setProductionDate={setProductionDate}
+                    expiryDate={expiryDate} setExpiryDate={setExpiryDate}
+                    expiryManuallyEdited={expiryManuallyEdited} setExpiryManuallyEdited={setExpiryManuallyEdited}
+                    openProductionPicker={openProductionPicker} openExpiryPicker={openExpiryPicker}
+                    getShelfLifeDays={getShelfLifeDays}
+                    targetName={selectedGoodsId ? (state.goodsList || []).find(g => g.id === selectedGoodsId)?.name : ''}
+                  />
                 )}
-                {photoUris.length > 0 && (
-                  <View style={{ marginVertical: 8 }}>
-                    <ScrollView horizontal>
-                      {photoUris.map((uri, idx) => (
-                        <Image key={idx} source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} />
-                      ))}
-                    </ScrollView>
-                    <TouchableOpacity onPress={() => setPhotoUris([])}><Text style={{ color: DANGER_COLOR, marginTop: 4 }}>移除照片</Text></TouchableOpacity>
-                  </View>
-                )}
+                <CollapsibleExtra
+                  reason={reason} setReason={setReason}
+                  photoUris={photoUris} setPhotoUris={setPhotoUris}
+                />
                 <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}><Text style={styles.sendTxt}>确认{type}</Text></TouchableOpacity>
               </>
             )}
@@ -6986,14 +7059,21 @@ const StockManage = () => {
           </View>
         </View>
       </Modal>
-      {/* 保质期日期选择器弹窗 */}
-      <Modal visible={showExpiryPicker} transparent animationType="fade">
+      {/* 日期选择器弹窗（生产/过期通用） */}
+      <Modal visible={showExpiryPicker || showProductionPicker} transparent animationType="fade">
         <View style={styles.modalMask}>
           <View style={[styles.voiceModal, { width: '88%' }]}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>📅 选择过期日期</Text>
-            {/* 快捷选择按钮 */}
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
+              {showProductionPicker ? '🏭 选择生产日期' : '📅 选择过期日期'}
+            </Text>
+            {/* 快捷选择按钮（生产日期→"今天"; 过期→"智能推荐"） */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14, justifyContent: 'center' }}>
-              {[
+              {showProductionPicker ? [
+                { label: '今天', value: 'today' },
+                { label: '昨天', value: 'yesterday' },
+                { label: '-7天', value: 'm7day' },
+                { label: '-1月', value: 'm1month' },
+              ] : [
                 { label: '✨智能推荐', value: 'suggest', highlight: true },
                 { label: '今天', value: 'today' },
                 { label: '+7天', value: '7day' },
@@ -7001,7 +7081,21 @@ const StockManage = () => {
                 { label: '+3月', value: '3month' },
                 { label: '+6月', value: '6month' },
                 { label: '+1年', value: '1year' },
-              ].map(btn => (
+              ].map(btn => ({ ...btn, highlight: btn.highlight }))}
+              {(showProductionPicker ? [
+                { label: '今天', value: 'today' },
+                { label: '昨天', value: 'yesterday' },
+                { label: '-7天', value: 'm7day' },
+                { label: '-1月', value: 'm1month' },
+              ] : [
+                { label: '✨智能推荐', value: 'suggest', highlight: true },
+                { label: '今天', value: 'today' },
+                { label: '+7天', value: '7day' },
+                { label: '+1月', value: '1month' },
+                { label: '+3月', value: '3month' },
+                { label: '+6月', value: '6month' },
+                { label: '+1年', value: '1year' },
+              ]).map(btn => (
                 <TouchableOpacity
                   key={btn.value}
                   onPress={() => setQuickExpiry(btn.value)}
@@ -7013,43 +7107,28 @@ const StockManage = () => {
             </View>
             <Text style={{ fontSize: 12, color: TEXT_THIRD, textAlign: 'center', marginBottom: 10 }}>或自由选择年月日 ↓</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              {/* 年 */}
               <View style={{ alignItems: 'center' }}>
-                <TouchableOpacity onPress={() => adjustDate('year', 1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('year', 1)} style={{ padding: 8 }}><Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <View style={{ width: 70, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
                   <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{pickingDate.year}</Text>
                 </View>
-                <TouchableOpacity onPress={() => adjustDate('year', -1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('year', -1)} style={{ padding: 8 }}><Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>年</Text>
               </View>
-              {/* 月 */}
               <View style={{ alignItems: 'center' }}>
-                <TouchableOpacity onPress={() => adjustDate('month', 1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('month', 1)} style={{ padding: 8 }}><Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <View style={{ width: 60, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
                   <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{String(pickingDate.month).padStart(2, '0')}</Text>
                 </View>
-                <TouchableOpacity onPress={() => adjustDate('month', -1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('month', -1)} style={{ padding: 8 }}><Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>月</Text>
               </View>
-              {/* 日 */}
               <View style={{ alignItems: 'center' }}>
-                <TouchableOpacity onPress={() => adjustDate('day', 1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('day', 1)} style={{ padding: 8 }}><Ionicons name="chevron-up" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <View style={{ width: 60, height: 50, justifyContent: 'center', alignItems: 'center', backgroundColor: LIGHT_PRIMARY, borderRadius: 8 }}>
                   <Text style={{ fontSize: 20, fontWeight: 'bold', color: PRIMARY_COLOR }}>{String(pickingDate.day).padStart(2, '0')}</Text>
                 </View>
-                <TouchableOpacity onPress={() => adjustDate('day', -1)} style={{ padding: 8 }}>
-                  <Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
+                <TouchableOpacity onPress={() => adjustDate('day', -1)} style={{ padding: 8 }}><Ionicons name="chevron-down" size={24} color={PRIMARY_COLOR} /></TouchableOpacity>
                 <Text style={{ fontSize: 12, color: TEXT_THIRD, marginTop: 4 }}>日</Text>
               </View>
             </View>
@@ -7057,10 +7136,10 @@ const StockManage = () => {
               {pickingDate.year}年{pickingDate.month}月{pickingDate.day}日
             </Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => setShowExpiryPicker(false)}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#eee', borderRadius: 8 }} onPress={() => { setShowExpiryPicker(false); setShowProductionPicker(false); }}>
                 <Text style={{ textAlign: 'center', color: TEXT_SECOND }}>取消</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={confirmExpiryPicker}>
+              <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }} onPress={showProductionPicker ? confirmProductionPicker : confirmExpiryPicker}>
                 <Text style={{ textAlign: 'center', color: '#fff', fontWeight: '600' }}>确认</Text>
               </TouchableOpacity>
             </View>
